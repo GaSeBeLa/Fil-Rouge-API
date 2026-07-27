@@ -1,0 +1,12 @@
+# Force LF line endings for all text files, regardless of each contributor's
+# local core.autocrlf setting (Windows/macOS/Linux all get LF on checkout).
+* text=auto eol=lf
+
+# Binary files : never touch line endings
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.gif binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
