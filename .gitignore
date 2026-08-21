@@ -1,1 +1,3 @@
 Ignore/
+# Données générées par outils/generer_annonces.py (pas des fixtures de référence)
+fixtures/annonces/
