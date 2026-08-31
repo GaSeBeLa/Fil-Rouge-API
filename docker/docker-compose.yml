@@ -1,0 +1,18 @@
+name: 
+  fil_rouge_immobilier
+services: 
+  db:
+    image: postgres:16
+    container_name: fil_rouge_immobilier_db
+    environment:
+      POSTGRES_DB: fil_rouge_immobilier
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d
+
+volumes:
+  db_data:
