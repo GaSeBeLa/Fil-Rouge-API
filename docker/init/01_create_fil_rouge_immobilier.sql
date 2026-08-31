@@ -144,10 +144,10 @@ CREATE TABLE criteria (
     land_surface_min          NUMERIC(8,2),
     land_surface_max          NUMERIC(8,2),
     has_separate_kitchen      BOOLEAN,
-    has_cellar                BOOLEAN
-    has_view                  BOOLEAN
-    is_quiet                  BOOLEAN
-    is_bright                 BOOLEAN
+    has_cellar                BOOLEAN,
+    has_view                  BOOLEAN,
+    is_quiet                  BOOLEAN,
+    is_bright                 BOOLEAN,
     has_garage                BOOLEAN,
     has_elevator              BOOLEAN,
     has_chimney               BOOLEAN,
@@ -206,10 +206,10 @@ CREATE TABLE estate (
     energetic_score         INTEGER CHECK (energetic_score > 0),
     surface                 NUMERIC(7,2) NOT NULL CHECK (surface > 0),
     land_surface            NUMERIC(9,2) CHECK (land_surface >= 0),
-    has_cellar              BOOLEAN
-    has_view                BOOLEAN
-    is_quiet                BOOLEAN
-    is_bright               BOOLEAN
+    has_cellar              BOOLEAN,
+    has_view                BOOLEAN,
+    is_quiet                BOOLEAN,
+    is_bright               BOOLEAN,
     has_garage              BOOLEAN,
     has_elevator            BOOLEAN,
     has_chimney             BOOLEAN,
