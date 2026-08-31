@@ -66,7 +66,7 @@ CREATE TABLE hunter (
     id_user              INTEGER NOT NULL UNIQUE REFERENCES "user"(id) ON DELETE RESTRICT,
     company_name         VARCHAR(80),
     education_level      VARCHAR(20),
-    is_carteT            BOOLEAN,
+    is_cartet            BOOLEAN,
     certification_date   DATE,
     commission_rate      NUMERIC(4,2)
 );
@@ -99,7 +99,7 @@ CREATE TABLE search_request (
     id_author               INTEGER NOT NULL REFERENCES "user"(id) ON DELETE RESTRICT,
     id_client               INTEGER NOT NULL REFERENCES client(id_user) ON DELETE RESTRICT,
     id_hunter               INTEGER REFERENCES hunter(id_user) ON DELETE RESTRICT,
-    id_realEstateManager    INTEGER REFERENCES real_estate_manager(id_user) ON DELETE RESTRICT
+    id_realestatemanager    INTEGER REFERENCES real_estate_manager(id_user) ON DELETE RESTRICT
 );
 
 -- ----------------------------------------------------------------------------
