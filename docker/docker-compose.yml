@@ -13,6 +13,19 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./init:/docker-entrypoint-initdb.d
+  minio:
+    image: minio/minio:latest
+    container_name: fil_rouge_immobilier_minio
+    environment:
+      MINIO_ROOT_USER: minioadmin # TO DO créer variables dans .env pour sécurité
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # API S3
+      - "9001:9001"   # Console web
+    volumes:
+      - minio_data:/data
 
 volumes:
   db_data:
+  minio_data:
