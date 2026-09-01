@@ -117,6 +117,12 @@ CREATE TABLE criteria (
                                   'T4 / F4', 'T4 bis / F4 bis', 'T5 / F5',
                                   'T5 bis / F5 bis', 'T6+ / F6+'
                               )),
+    floor                   VARCHAR(10) NOT NULL CHECK (floor IN (
+                                  '0', '1', '2', '3',
+                                  '4', '5', '6',
+                                  '7', '8', '9',
+                                  '10 and more', 'last floor'
+                                  )),
     budget_min               NUMERIC(6,1) NOT NULL CHECK (budget_min > 0),
     budget_max               NUMERIC(6,1) NOT NULL CHECK (budget_max > 0),
     is_new_build              BOOLEAN,
@@ -193,7 +199,12 @@ CREATE TABLE estate (
     construction_date       DATE,
     latitude                NUMERIC(9,6) CHECK (latitude BETWEEN -90 AND 90),
     longitude               NUMERIC(9,6) CHECK (longitude BETWEEN -180 AND 180),
-    nb_floors               SMALLINT,
+    floor                   VARCHAR(10) NOT NULL CHECK (floor IN (
+                                  '0', '1', '2', '3',
+                                  '4', '5', '6',
+                                  '7', '8', '9',
+                                  '10 and more', 'last floor'
+                                  )),
     nb_rooms                SMALLINT,
     nb_bedrooms             SMALLINT,
     nb_bathrooms            SMALLINT,
