@@ -5,9 +5,9 @@ services:
     image: postgres:16
     container_name: fil_rouge_immobilier_db
     environment:
-      POSTGRES_DB: fil_rouge_immobilier
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -17,8 +17,8 @@ services:
     image: minio/minio:latest
     container_name: fil_rouge_immobilier_minio
     environment:
-      MINIO_ROOT_USER: minioadmin # TO DO créer variables dans .env pour sécurité
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"   # API S3
@@ -33,7 +33,7 @@ services:
     entrypoint: >
       /bin/sh -c "
       sleep 3;
-      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
       /usr/bin/mc mb myminio/bronze --ignore-existing;
       /usr/bin/mc mb myminio/silver --ignore-existing;
       /usr/bin/mc mb myminio/gold --ignore-existing;
