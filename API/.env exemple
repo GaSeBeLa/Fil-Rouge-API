@@ -1,3 +1,1 @@
-USERNAME=
-PASSWORD=
-DATABASE=
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/fil_rouge_immobilier
