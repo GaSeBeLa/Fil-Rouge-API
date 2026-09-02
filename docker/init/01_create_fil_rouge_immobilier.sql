@@ -117,7 +117,7 @@ CREATE TABLE criteria (
                                   'T4 / F4', 'T4 bis / F4 bis', 'T5 / F5',
                                   'T5 bis / F5 bis', 'T6+ / F6+'
                               )),
-    floor                   VARCHAR(10) NOT NULL CHECK (floor IN (
+    floor                   VARCHAR(10) NOT CHECK (floor IN (
                                   '0', '1', '2', '3',
                                   '4', '5', '6',
                                   '7', '8', '9',
@@ -199,7 +199,7 @@ CREATE TABLE estate (
     construction_date       DATE,
     latitude                NUMERIC(9,6) CHECK (latitude BETWEEN -90 AND 90),
     longitude               NUMERIC(9,6) CHECK (longitude BETWEEN -180 AND 180),
-    floor                   VARCHAR(10) NOT NULL CHECK (floor IN (
+    floor                   VARCHAR(10) NOT CHECK (floor IN (
                                   '0', '1', '2', '3',
                                   '4', '5', '6',
                                   '7', '8', '9',
