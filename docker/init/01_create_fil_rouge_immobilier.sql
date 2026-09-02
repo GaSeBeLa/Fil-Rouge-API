@@ -32,6 +32,7 @@
 --   jamais partagée). Toutes les FK du reste du schéma continuent de pointer
 --   vers id_user (ex: hunter(id_user)) — possible car UNIQUE, pas obligatoirement PK.
 --
+
 -- ============================================================================
 
 BEGIN;
