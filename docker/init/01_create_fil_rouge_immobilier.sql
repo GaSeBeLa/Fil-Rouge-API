@@ -38,20 +38,26 @@
 BEGIN;
 
 -- ----------------------------------------------------------------------------
--- 1. USER — table racine, toutes les autres tables de personnes en dépendent
+-- 0. ROLE — table de référence des rôles possibles pour un user
+--    Choix du groupe (2026-09) : plutôt qu'un CHECK figé dans "user", une
+--    table de lookup pour ajouter/renommer un rôle sans migration de schéma.
+-- ----------------------------------------------------------------------------
+CREATE TABLE role (
+    id        INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    libelle   VARCHAR(30) NOT NULL UNIQUE
+);
+
+-- ----------------------------------------------------------------------------
+-- 1. USER — table racine MINIMALISTE (choix du groupe, 2026-09) : uniquement
+--    l'essentiel pour créer un compte. first_name/last_name/phone_number/
+--    gender/country_iso ont été redescendus dans hunter/client/real_estate_manager.
 -- ----------------------------------------------------------------------------
 CREATE TABLE "user" (
     id            INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at    TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
-    first_name    VARCHAR(80) NOT NULL,
-    last_name     VARCHAR(80) NOT NULL,
     email         VARCHAR(150) NOT NULL UNIQUE,
     password      VARCHAR(80) NOT NULL,
-    phone_number  VARCHAR(20) NOT NULL,
-    gender        VARCHAR(10) CHECK (gender IN ('male', 'female', 'other')),
-    -- country_iso : liste ISO 3166-1 des pays visés par le README (France +
-    -- projections d'expansion Espagne/Allemagne/UK/Irlande/BeNeLux/Italie/Suisse)
-    country_iso   CHAR(2) CHECK (country_iso IN ('FR', 'ES', 'DE', 'GB', 'IE', 'BE', 'NL', 'LU', 'IT', 'CH'))
+    id_role       INTEGER NOT NULL REFERENCES role(id) ON DELETE RESTRICT
 );
 
 -- ----------------------------------------------------------------------------
@@ -62,9 +68,16 @@ CREATE TABLE "user" (
 -- vraie relation 1-1 (une ligne Hunter/Client/RealEstateManager = une seule
 -- personne). Les FK du reste du schéma continuent de pointer vers id_user.
 
+-- first_name/last_name/phone_number/gender/country_iso : redescendus depuis
+-- "user" (choix du groupe, 2026-09) dans les 3 tables filles.
 CREATE TABLE hunter (
     id                   INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_user              INTEGER NOT NULL UNIQUE REFERENCES "user"(id) ON DELETE RESTRICT,
+    first_name           VARCHAR(80) NOT NULL,
+    last_name            VARCHAR(80) NOT NULL,
+    phone_number         VARCHAR(20) NOT NULL,
+    gender               VARCHAR(10) CHECK (gender IN ('male', 'female', 'other')),
+    country_iso          CHAR(2) CHECK (country_iso IN ('FR', 'ES', 'DE', 'GB', 'IE', 'BE', 'NL', 'LU', 'IT', 'CH')),
     company_name         VARCHAR(80),
     education_level      VARCHAR(20),
     is_cartet            BOOLEAN,
@@ -75,6 +88,11 @@ CREATE TABLE hunter (
 CREATE TABLE client (
     id                         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_user                    INTEGER NOT NULL UNIQUE REFERENCES "user"(id) ON DELETE RESTRICT,
+    first_name                 VARCHAR(80) NOT NULL,
+    last_name                  VARCHAR(80) NOT NULL,
+    phone_number                VARCHAR(20) NOT NULL,
+    gender                     VARCHAR(10) CHECK (gender IN ('male', 'female', 'other')),
+    country_iso                CHAR(2) CHECK (country_iso IN ('FR', 'ES', 'DE', 'GB', 'IE', 'BE', 'NL', 'LU', 'IT', 'CH')),
     address                    VARCHAR(150),
     address_complement         VARCHAR(150),
     postal_code                VARCHAR(10),
@@ -88,6 +106,11 @@ CREATE TABLE client (
 CREATE TABLE real_estate_manager (
     id             INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_user        INTEGER NOT NULL UNIQUE REFERENCES "user"(id) ON DELETE RESTRICT,
+    first_name     VARCHAR(80) NOT NULL,
+    last_name      VARCHAR(80) NOT NULL,
+    phone_number   VARCHAR(20) NOT NULL,
+    gender         VARCHAR(10) CHECK (gender IN ('male', 'female', 'other')),
+    country_iso    CHAR(2) CHECK (country_iso IN ('FR', 'ES', 'DE', 'GB', 'IE', 'BE', 'NL', 'LU', 'IT', 'CH')),
     company_name   VARCHAR(80)
 );
 

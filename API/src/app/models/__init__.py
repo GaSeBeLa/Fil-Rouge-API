@@ -28,6 +28,7 @@ d'import entre les fichiers de ce dossier.
 """
 
 from .user_model import User
+from .role_model import Role
 from .hunter_model import Hunter
 from .client_model import Client
 from .real_estate_manager_model import RealEstateManager
@@ -41,6 +42,7 @@ from .picture_model import Picture
 
 __all__ = [
     "User",
+    "Role",
     "Hunter",
     "Client",
     "RealEstateManager",
