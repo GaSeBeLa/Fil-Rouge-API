@@ -56,7 +56,7 @@ CREATE TABLE "user" (
     id            INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at    TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     email         VARCHAR(150) NOT NULL UNIQUE,
-    password      VARCHAR(80) NOT NULL,
+    password      VARCHAR(255) NOT NULL,
     id_role       INTEGER NOT NULL REFERENCES role(id) ON DELETE RESTRICT
 );
 
