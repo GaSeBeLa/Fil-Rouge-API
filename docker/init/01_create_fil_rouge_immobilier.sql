@@ -1,4 +1,4 @@
-============================================================================
+-- ============================================================================
 -- create_fil_rouge_immobilier.sql
 -- Script de création du schéma cible "Fil_Rouge_Immobilier"
 -- Régénéré depuis MPD_CIBLE_drawio.xml (version la plus à jour du projet)
