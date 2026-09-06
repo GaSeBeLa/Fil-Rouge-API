@@ -1,4 +1,4 @@
--- ============================================================================
+============================================================================
 -- create_fil_rouge_immobilier.sql
 -- Script de création du schéma cible "Fil_Rouge_Immobilier"
 -- Régénéré depuis MPD_CIBLE_drawio.xml (version la plus à jour du projet)
@@ -21,6 +21,28 @@
 -- au lieu de "country_iso") et un guillemet manquant après 'BE avaient été
 -- repérés dans une version antérieure du diagramme, puis corrigés directement
 -- par le groupe dans le diagramme source — rien à corriger ici pour ce champ.
+--
+-- ⚠️ CONVENTION D'UNITÉ MONÉTAIRE — À LIRE AVANT TOUT DÉVELOPPEMENT
+--
+--   TOUS les montants de ce schéma sont exprimés en MILLIERS D'EUROS (K€),
+--   jamais en euros. Un bien à 354 700 € est stocké 354.7, PAS 354700.
+--   Cette convention vient du jeu de données source (annonces_normalised.csv,
+--   2 556 biens, valeurs de 62.5 à 406.0).
+--
+--   Colonnes concernées : criteria.budget_min, criteria.budget_max,
+--   criteria.renovation_budget_min, criteria.renovation_budget_max,
+--   estate.price, estate_proposed.amount_proposition.
+--
+--   Conséquences à connaître :
+--     - NUMERIC(6,1) en K€ plafonne à 99 999,9 K€ ≈ 100 M€ : suffisant.
+--     - La précision est de 0,1 K€, soit 100 €. Un prix est donc arrondi à la
+--       centaine d'euros la plus proche. Acceptable pour un prix d'annonce.
+--       ⚠️ NE PAS réutiliser ce type pour les montants d'acte authentique ni
+--       pour les honoraires : ceux-ci se calculent en pourcentage du prix et
+--       doivent être stockés en EUROS avec 2 décimales (NUMERIC(12,2)).
+--     - Toute API écrivant dans ces colonnes doit convertir € → K€ en entrée
+--       et K€ → € en sortie. Une insertion en euros passerait les CHECK sans
+--       erreur et corromprait silencieusement la donnée (facteur 1000).
 --
 -- CHOIX DE MODÉLISATION CONFIRMÉ PAR LE GROUPE (pas une erreur) :
 --   Hunter / Client / RealEstateManager gardent un "id" auto-généré INDÉPENDANT
@@ -147,10 +169,13 @@ CREATE TABLE criteria (
                                   '7', '8', '9',
                                   '10 and more', 'last floor'
                                   )),
+    -- Montant en MILLIERS D'EUROS (K€). Ex : 250.0 = 250 000 €.
     budget_min               NUMERIC(6,1) NOT NULL CHECK (budget_min > 0),
+    -- Montant en MILLIERS D'EUROS (K€).
     budget_max               NUMERIC(6,1) NOT NULL CHECK (budget_max > 0),
     is_new_build              BOOLEAN,
     needs_renovation          BOOLEAN,
+    -- Montants en MILLIERS D'EUROS (K€).
     renovation_budget_min     NUMERIC(6,1) CHECK (renovation_budget_min >= 0),
     renovation_budget_max     NUMERIC(6,1) CHECK (renovation_budget_max >= 0),
     energy_kwh_m2_min         INTEGER CHECK (energy_kwh_m2_min > 0),
@@ -219,6 +244,7 @@ CREATE TABLE estate (
                                  'Appartement', 'Maison', 'Studio', 'Loft', 'Villa',
                                  'Duplex', 'Terrain', 'Local commercial', 'Chalet', 'Château'
                              )),
+    -- Prix affiché, en MILLIERS D'EUROS (K€). Ex : 354.7 = 354 700 €.
     price                   NUMERIC(6,1) CHECK (price >= 0),
     construction_date       DATE,
     latitude                NUMERIC(9,6) CHECK (latitude BETWEEN -90 AND 90),
@@ -266,6 +292,7 @@ CREATE TABLE estate_proposed (
     created_at            TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     comment_hunter        TEXT CHECK (char_length(comment_hunter) <= 2000),
     comment_client        TEXT,
+    -- Montant proposé, en MILLIERS D'EUROS (K€).
     amount_proposition    NUMERIC(6,1) CHECK (amount_proposition >= 0),
     is_accepted           BOOLEAN,
     id_hunter             INTEGER NOT NULL REFERENCES hunter(id_user) ON DELETE RESTRICT,
@@ -297,5 +324,23 @@ CREATE TABLE picture (
     url          TEXT,
     id_estate    INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT
 );
+
+
+-- ----------------------------------------------------------------------------
+-- CONVENTION D'UNITÉ MONÉTAIRE — métadonnées lisibles par les clients SQL,
+-- les ORM et les outils de documentation automatique.
+-- ----------------------------------------------------------------------------
+COMMENT ON COLUMN criteria.budget_min IS
+  'Budget minimum en MILLIERS D EUROS (K€). Ex: 250.0 = 250 000 EUR. Precision 0,1 K€ = 100 EUR.';
+COMMENT ON COLUMN criteria.budget_max IS
+  'Budget maximum en MILLIERS D EUROS (K€). Ex: 400.0 = 400 000 EUR. Precision 0,1 K€ = 100 EUR.';
+COMMENT ON COLUMN criteria.renovation_budget_min IS
+  'Budget travaux minimum en MILLIERS D EUROS (K€).';
+COMMENT ON COLUMN criteria.renovation_budget_max IS
+  'Budget travaux maximum en MILLIERS D EUROS (K€).';
+COMMENT ON COLUMN estate.price IS
+  'Prix affiche du bien en MILLIERS D EUROS (K€). Ex: 354.7 = 354 700 EUR. Precision 0,1 K€ = 100 EUR. Plafond NUMERIC(6,1) = 99 999,9 K€ soit environ 100 MEUR.';
+COMMENT ON COLUMN estate_proposed.amount_proposition IS
+  'Montant propose en MILLIERS D EUROS (K€). NE PAS confondre avec un montant d acte authentique, qui doit etre stocke en EUROS.';
 
 COMMIT;
