@@ -35,9 +35,13 @@ services:
     ports:
       - "8000:8000"   # Swagger : http://localhost:8000/docs
     volumes:
-      # Code monte en lecture seule : --reload voit les modifications, mais
-      # le conteneur n'ecrit jamais dans le depot.
-      - ../API:/api:ro
+      # Seuls src/ et tests/ sont montes, en lecture seule : --reload voit les
+      # modifications, et le conteneur n'ecrit jamais dans le depot.
+      # Surtout PAS ../API en entier : API/.env entrerait dans le conteneur
+      # (le .dockerignore ne filtre que le build, pas un volume), et son
+      # DATABASE_URL en "localhost" passerait devant POSTGRES_HOST=db.
+      - ../API/src:/api/src:ro
+      - ../API/tests:/api/tests:ro
 
   minio:
     image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z

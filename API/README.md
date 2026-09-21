@@ -53,7 +53,11 @@ docker compose up -d api
 
 Elle attend que PostgreSQL réponde (`healthcheck`) avant de démarrer, lit ses
 identifiants dans le même `docker/.env` que la base, et recharge le code à
-chaud — le dossier `API/` est monté en lecture seule.
+chaud — seuls `API/src/` et `API/tests/` sont montés, en lecture seule.
+
+⚠️ Avec Docker, **`API/.env` n'est pas lu** : il ne sert qu'au lancement en
+local. C'est voulu — son `DATABASE_URL` pointe sur `localhost`, qui dans le
+conteneur n'est pas la base (l'API répondait alors `500`).
 
 Pour l'arrêter : `docker compose stop api`. Pour voir ses logs :
 `docker compose logs -f api`.
