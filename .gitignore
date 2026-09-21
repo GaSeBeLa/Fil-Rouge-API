@@ -1,5 +1,42 @@
+# --- Regles d'origine, conservees ---
 Ignore/
 # Données générées par outils/generer_annonces.py (pas des fixtures de référence)
 fixtures/annonces/
 # Secrets - jamais commités
 .env
+
+# --- Ajout 2026-09-21 ---
+
+# Python : tout ce qui est genere
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+
+# Autres secrets
+# (« API/.env exemple » est un modele sans secret : il reste versionne)
+.env.local
+*.key
+*.pem
+
+# Sauvegardes et brouillons
+*.bak
+*.orig
+*.rej
+*~
+
+# Systeme
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editeurs
+.vscode/
+.idea/
