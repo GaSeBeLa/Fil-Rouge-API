@@ -685,13 +685,27 @@ CREATE TABLE payment (
     id                  INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at          TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     -- Euros, arrondi au centime au demi supérieur (règle officielle).
+    -- Vaut 0.00 sur une ligne de refus (ADR-024, décision D2 : « R = 0 »).
     amount              NUMERIC(12,2) NOT NULL CHECK (amount >= 0),
+    -- 'refused' (ADR-024) : le droit à rémunération est fermé. La ligne
+    --   porte son motif et aucun montant, ni taux, ni barème.
     status              VARCHAR(20) NOT NULL
-                        CHECK (status IN ('announced', 'invoice_submitted',
+                        CHECK (status IN ('refused', 'announced',
+                                          'invoice_submitted',
                                           'verified', 'scheduled', 'paid')),
     paid_at             TIMESTAMP,
-    -- Taux de tranche issu du barème.
-    base_rate           NUMERIC(5,4) NOT NULL CHECK (base_rate > 0 AND base_rate <= 1),
+    -- Motif du droit refusé (ADR-024). Les deux valeurs viennent de
+    --   l'énumération MotifRefus du sujet (REGLES-CALCUL-REMUNERATION.md
+    --   l. 385), transposées en anglais conformément à ADR-002 :
+    --     mandate_expired <- MANDAT_EXPIRE   « mandat échu à la date de l'acte »
+    --     out_of_scope    <- HORS_DISPOSITIF « mandat non-exclusif et vente
+    --                                           hors dispositif »
+    refusal_reason      VARCHAR(30)
+                        CHECK (refusal_reason IN ('mandate_expired',
+                                                  'out_of_scope')),
+    -- Taux de tranche issu du barème. NULL sur une ligne de refus (ADR-024) :
+    --   un CHECK ne s'appliquant pas à un NULL, la borne reste inchangée.
+    base_rate           NUMERIC(5,4) CHECK (base_rate > 0 AND base_rate <= 1),
     -- TODO (R21) — le taux final est borné entre 20 % et 60 % par la règle
     --   officielle (10_calcul_remuneration_chasseur.feature:201 ; exemples
     --   l. 236-250 : 65 % ramené à 60 %, 17,60 % remonté à 20 %).
@@ -702,21 +716,45 @@ CREATE TABLE payment (
     --   elle, est bien métier.
     final_rate          NUMERIC(5,4) CHECK (final_rate > 0 AND final_rate <= 1),
     -- Majoration d'ancienneté, modulation de performance (décision D2).
-    seniority_rate      NUMERIC(5,4) NOT NULL CHECK (seniority_rate BETWEEN 0 AND 0.10),
-    performance_rate    NUMERIC(5,4) NOT NULL CHECK (performance_rate BETWEEN -0.20 AND 0.20),
+    -- NULL toutes les deux sur une ligne de refus (ADR-024).
+    seniority_rate      NUMERIC(5,4) CHECK (seniority_rate BETWEEN 0 AND 0.10),
+    performance_rate    NUMERIC(5,4) CHECK (performance_rate BETWEEN -0.20 AND 0.20),
     id_sale             INTEGER NOT NULL UNIQUE REFERENCES sale(id) ON DELETE RESTRICT,
     id_hunter           INTEGER NOT NULL REFERENCES hunter(id_user) ON DELETE RESTRICT,
-    id_commission_scale INTEGER NOT NULL REFERENCES commission_scale(id) ON DELETE RESTRICT,
+    -- NULL sur une ligne de refus : un droit fermé ne désigne aucune tranche.
+    id_commission_scale INTEGER REFERENCES commission_scale(id) ON DELETE RESTRICT,
 
     CONSTRAINT chk_paid
         CHECK ((status =  'paid' AND paid_at IS NOT NULL)
-            OR (status <> 'paid' AND paid_at IS NULL))
+            OR (status <> 'paid' AND paid_at IS NULL)),
+
+    -- ADR-024 — un refus et un paiement ne se ressemblent jamais à moitié.
+    --   Ferme les deux erreurs qui coûteraient cher : un « refusé » portant
+    --   des taux, donc lisible comme un paiement en attente ; et un paiement
+    --   réel sans barème ni taux, donc inexplicable après coup.
+    CONSTRAINT chk_refused
+        CHECK ((status =  'refused'
+                AND refusal_reason      IS NOT NULL
+                AND amount              =  0
+                AND base_rate           IS NULL
+                AND seniority_rate      IS NULL
+                AND performance_rate    IS NULL
+                AND final_rate          IS NULL
+                AND id_commission_scale IS NULL)
+            OR (status <> 'refused'
+                AND refusal_reason      IS NULL
+                AND base_rate           IS NOT NULL
+                AND seniority_rate      IS NOT NULL
+                AND performance_rate    IS NOT NULL
+                AND id_commission_scale IS NOT NULL))
 
     -- TODO (U01/U04, R01-R04, T17) — le droit à être payé n'est pas vérifié :
     --   testé, on peut aujourd'hui payer un chasseur qui n'est PAS celui du
     --   mandat de la vente, et rattacher le paiement à un barème qui n'était
     --   pas en vigueur à la date de l'acte. Croise payment, sale, mandate et
     --   commission_scale -> trigger à la création du paiement, ou API.
+    --   ADR-024 ne ferme PAS ce TODO : il enregistre le refus, il ne le
+    --   calcule pas. Le calcul du droit reste à faire.
 );
 
 -- Score de performance du chasseur, historisé par période.
@@ -779,6 +817,8 @@ COMMENT ON COLUMN parameters_fees.fixed_amount IS
   'Part fixe des honoraires en EUROS. Source officielle : 3000,00.';
 COMMENT ON COLUMN payment.amount IS
   'Montant verse au chasseur en EUROS, arrondi au centime au demi superieur.';
+COMMENT ON COLUMN payment.refusal_reason IS
+  'Motif du droit refuse (ADR-024) ; NULL si le droit est ouvert.';
 
 -- Clés étrangères : ce que la colonne contient réellement.
 COMMENT ON COLUMN mandate.id_client IS

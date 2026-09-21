@@ -284,3 +284,76 @@ conteneur avec `docker rm -f pg_essai`.
 Les points 1 à 4 sont des **hypothèses de migration** : elles font tourner la
 chaîne aujourd'hui, mais elles engagent une lecture du métier qui n'a pas été
 validée. Aucune n'est cachée — toutes sont signalées dans les scripts.
+
+---
+
+## 8. `payment` — la traçabilité du refus (ADR-024)
+
+> ⚠️ **ADR-024 est au statut « proposé »**, pas encore validé par le groupe.
+> Le schéma l'applique déjà : si la décision change, c'est ici qu'il faudra
+> revenir. Justification complète : `md/adr-024-motif-refus-remuneration.md`.
+
+### 8.1 Pourquoi
+
+Le sujet ferme le droit à rémunération dans deux cas, et impose d'en garder
+la raison : « Le refus retourne un **motif**, jamais un simple `False` »
+(`REGLES-CALCUL-REMUNERATION.md` l. 497). Il désigne même l'emplacement :
+« stocker le motif du droit refusé dans `paiements` » (l. 100).
+
+La table ne pouvait rien enregistrer de tel : pas de colonne de motif, aucun
+statut de refus, `base_rate NOT NULL CHECK (base_rate > 0)` et
+`id_commission_scale NOT NULL`.
+
+### 8.2 Ce qui a changé
+
+| # | Changement |
+|---|---|
+| 1 | État `refused` ajouté à `status` |
+| 2 | Colonne `refusal_reason`, limitée à `mandate_expired` et `out_of_scope` |
+| 3 | `NOT NULL` retiré sur `base_rate`, `seniority_rate`, `performance_rate` |
+| 4 | `NOT NULL` retiré sur `id_commission_scale` |
+| 5 | Contrainte `chk_refused` ajoutée |
+
+Les **bornes des `CHECK` n'ont pas bougé** : en PostgreSQL, un `CHECK` ne
+s'applique pas à une valeur `NULL`. Retirer le `NOT NULL` suffit, la règle
+métier reste intacte.
+
+Les deux motifs viennent de l'énumération `MotifRefus` du sujet (l. 385),
+transposés en anglais conformément à `ADR-002` :
+
+| Sujet | En base |
+|---|---|
+| `MANDAT_EXPIRE` — mandat échu à la date de l'acte | `mandate_expired` |
+| `HORS_DISPOSITIF` — mandat non-exclusif, vente hors dispositif | `out_of_scope` |
+
+### 8.3 Résultat mesuré
+
+PostgreSQL 16, schéma chargé à neuf **et** base existante migrée par
+`docker/migrations/2026-09-21_adr-024_payment_refusal.sql`. Les deux voies
+donnent le **même** comportement :
+
+| # | Cas | Attendu | Obtenu |
+|---|---|---|---|
+| 1 | refus `mandate_expired`, montant 0, reste vide | accepté | ✅ |
+| 2 | refus `out_of_scope`, idem | accepté | ✅ |
+| 3 | refus **sans** motif | rejeté | ✅ `chk_refused` |
+| 4 | refus **avec** un taux | rejeté | ✅ `chk_refused` |
+| 5 | refus **avec** un montant | rejeté | ✅ `chk_refused` |
+| 6 | refus, motif inconnu | rejeté | ✅ `payment_refusal_reason_check` |
+| 7 | paiement **sans** barème | rejeté | ✅ `chk_refused` |
+| 8 | paiement **avec** un motif | rejeté | ✅ `chk_refused` |
+| 9 | paiement complet | accepté | ✅ |
+| 10 | deux lignes sur la même vente | rejeté | ✅ `payment_id_sale_key` |
+
+**10 cas sur 10.** Le script de migration a été passé **deux fois** de suite
+sans erreur : il est rejouable.
+
+Côté API, `Payment-Input` et `Payment-Output` exposent `refusal_reason`, et
+les quatre champs concernés sont devenus facultatifs.
+
+### 8.4 Ce que ça ne fait pas
+
+`chk_refused` **enregistre** un refus, elle ne le **calcule** pas. Le TODO
+`U01/U04` de l'en-tête du `01` reste ouvert : rien ne vérifie encore qu'un
+paiement va bien au chasseur du mandat, ni que le barème était en vigueur à
+la date de l'acte.
