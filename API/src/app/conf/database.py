@@ -17,6 +17,7 @@ qu'on verra dans main.py).
 """
 
 import os
+from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
 from sqlmodel import create_engine, Session
@@ -33,10 +34,33 @@ load_dotenv()
 #
 # Valeur par défaut ci-dessous = celle de docker-compose.yml, pour que ça
 # marche "out of the box" une fois le conteneur lancé.
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/fil_rouge_immobilier",
-)
+def _build_url() -> str:
+    """
+    Construit l'URL de connexion.
+
+    `DATABASE_URL` est prioritaire quand elle est fournie. Sinon, l'URL est
+    assemblée à partir des mêmes variables que `docker/.env`
+    (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`), ce qui évite de
+    recopier le mot de passe à deux endroits.
+
+    Le nom d'utilisateur et le mot de passe sont **encodés** au passage :
+    un mot de passe contenant `@`, `/` ou `:` casse silencieusement une URL
+    assemblée à la main — l'hôte lu devient alors la fin du mot de passe,
+    et l'erreur ("could not translate host name") n'y fait pas penser.
+    """
+    explicit = os.getenv("DATABASE_URL")
+    if explicit:
+        return explicit
+
+    user = quote_plus(os.getenv("POSTGRES_USER", "postgres"))
+    password = quote_plus(os.getenv("POSTGRES_PASSWORD", "postgres"))
+    host = os.getenv("POSTGRES_HOST", "localhost")
+    port = os.getenv("POSTGRES_PORT", "5432")
+    database = os.getenv("POSTGRES_DB", "fil_rouge_immobilier")
+    return f"postgresql://{user}:{password}@{host}:{port}/{database}"
+
+
+DATABASE_URL = _build_url()
 
 # echo=False : ne pas afficher chaque requête SQL générée dans les logs
 # (mets à True temporairement si tu veux déboguer ce que SQLModel envoie

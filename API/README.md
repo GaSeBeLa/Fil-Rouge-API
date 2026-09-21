@@ -43,11 +43,28 @@ Sans `.env`, l'API se connecte par défaut à `postgresql://postgres:postgres@lo
 
 ## Lancer l'API
 
+### Avec Docker — recommandé, rien à installer
+
+L'API est un service du `docker-compose` du projet. Depuis `docker/` :
+
+```bash
+docker compose up -d api
+```
+
+Elle attend que PostgreSQL réponde (`healthcheck`) avant de démarrer, lit ses
+identifiants dans le même `docker/.env` que la base, et recharge le code à
+chaud — le dossier `API/` est monté en lecture seule.
+
+Pour l'arrêter : `docker compose stop api`. Pour voir ses logs :
+`docker compose logs -f api`.
+
+### Ou en local, si Python est installé
+
 ```bash
 uvicorn src.app.main:app --reload
 ```
 
-Puis ouvrir **http://localhost:8000/docs** : interface Swagger interactive pour tester
+Dans les deux cas, ouvrir **http://localhost:8000/docs** : interface Swagger interactive pour tester
 chaque route sans écrire de commande (bouton « Try it out »).
 
 ⚠️ `--reload` recharge le code Python à chaque modification, mais **pas** les variables
