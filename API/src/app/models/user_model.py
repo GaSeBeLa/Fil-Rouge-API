@@ -28,3 +28,19 @@ class User(SQLModel, table=True):
     password: str = Field(max_length=255)
     is_activated: Optional[bool] = None
     id_role: int = Field(foreign_key="role.id")
+
+
+class UserPublic(SQLModel):
+    """
+    Ce que l'API RENVOIE pour un utilisateur : tout, sauf `password`.
+
+    Un mot de passe, même haché, ne sort jamais d'une API. `User` reste le
+    modèle d'ENTRÉE (POST, PUT) : il faut bien pouvoir fournir le mot de
+    passe à la création d'un compte.
+    """
+
+    id: int
+    created_at: datetime
+    email: str
+    is_activated: Optional[bool] = None
+    id_role: int

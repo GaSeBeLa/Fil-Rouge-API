@@ -31,7 +31,7 @@ d'import entre les fichiers de ce dossier.
 ============================================================================
 """
 
-from .user_model import User
+from .user_model import User, UserPublic
 from .role_model import Role
 from .hunter_model import Hunter
 from .client_model import Client
@@ -52,6 +52,7 @@ from .visit_model import Visit
 
 __all__ = [
     "User",
+    "UserPublic",
     "Role",
     "Hunter",
     "Client",
