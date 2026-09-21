@@ -1,5 +1,5 @@
 """
-base_service.py — Logique applicative générique, partagée par les 11
+base_service.py — Logique applicative générique, partagée par les 18
 services.
 
 ============================================================================

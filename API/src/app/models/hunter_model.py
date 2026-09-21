@@ -30,10 +30,15 @@ class Hunter(SQLModel, table=True):
     gender: Optional[str] = Field(default=None, max_length=10)
     country_iso: Optional[str] = Field(default=None, max_length=2)
     company_name: Optional[str] = Field(default=None, max_length=80)
+    # hire_date : NOT NULL en base. Pour les 6 chasseurs migres, la valeur
+    # retenue est la date de creation du compte — hypothese assumee,
+    # a confirmer (docker/init-v2/README.md §3.4).
+    hire_date: date
     education_level: Optional[str] = Field(default=None, max_length=20)
     # Note : la colonne s'appelle "is_cartet" (tout en minuscules) en base,
     # pas "is_carteT" — PostgreSQL met automatiquement en minuscules les
     # identifiants non "quotés" à la création. On utilise donc le nom réel.
     is_cartet: Optional[bool] = None
     certification_date: Optional[date] = None
-    commission_rate: Optional[float] = None
+    # is_hunter_ai : le chasseur est-il l'agent automatique ?
+    is_hunter_ai: Optional[bool] = None

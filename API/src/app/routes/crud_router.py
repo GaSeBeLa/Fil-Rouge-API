@@ -1,5 +1,5 @@
 """
-crud_router.py — Fabrique d'APIRouter générique, partagée par les 11
+crud_router.py — Fabrique d'APIRouter générique, partagée par les 18
 routers de table.
 
 ============================================================================
@@ -8,7 +8,7 @@ COMMENT LIRE CE FICHIER
 Les 5 routes (GET liste, GET/{id}, POST, PUT/{id}, DELETE/{id}) sont
 strictement identiques d'une table à l'autre — seuls le service appelé, le
 préfixe d'URL, le tag Swagger et le modèle de réponse changent. Plutôt que
-de dupliquer ces 5 fonctions dans les 11 fichiers routers/<table>_router.py
+de dupliquer ces 5 fonctions dans les 18 fichiers routers/<table>_router.py
 (comme c'était le cas dans l'ancien main.py), on les construit une fois ici
 et chaque fichier de router se contente d'appeler build_crud_router avec
 son propre service.

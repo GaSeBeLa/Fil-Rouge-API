@@ -23,3 +23,7 @@ class SearchRequest(SQLModel, table=True):
     id_realestatemanager: Optional[int] = Field(
         default=None, foreign_key="real_estate_manager.id_user"
     )
+    # status : NOT NULL + CHECK cote base — 'confirmed', 'accepted',
+    # 'rejected', 'launched'. Les demandes migrees valent 'confirmed',
+    # hypothese a confirmer (docker/init-v2/README.md §3.5).
+    status: str = Field(max_length=20)

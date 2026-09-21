@@ -1,5 +1,5 @@
 """
-base_repository.py — CRUD générique, partagé par les 11 repositories.
+base_repository.py — CRUD générique, partagé par les 18 repositories.
 
 ============================================================================
 COMMENT LIRE CE FICHIER

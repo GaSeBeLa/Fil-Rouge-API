@@ -21,7 +21,7 @@ séparées, dans l'ordre où une requête les traverse :
 Chacune de ces trois couches hérite d'une classe de base générique
 (routes/crud_router.py, services/base_service.py,
 repositories/base_repository.py) qui porte le comportement CRUD commun aux
-11 tables — évite de le dupliquer 11 fois, comme le faisaient déjà
+18 tables — évite de le dupliquer 11 fois, comme le faisaient déjà
 list_all/get_one_or_404/create_one/... dans l'ancienne version de ce
 fichier.
 
@@ -53,6 +53,12 @@ from .routes import (
     role_router,
     search_request_router,
     user_router,
+    sale_router,
+    commission_scale_router,
+    payment_router,
+    hunter_performance_router,
+    parameters_fees_router,
+    visit_router,
 )
 
 app = FastAPI(
@@ -84,3 +90,9 @@ app.include_router(estate_router.router)
 app.include_router(estate_proposed_router.router)
 app.include_router(estate_search_request_router.router)
 app.include_router(picture_router.router)
+app.include_router(visit_router.router)
+app.include_router(sale_router.router)
+app.include_router(parameters_fees_router.router)
+app.include_router(commission_scale_router.router)
+app.include_router(payment_router.router)
+app.include_router(hunter_performance_router.router)

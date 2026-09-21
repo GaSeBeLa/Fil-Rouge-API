@@ -26,4 +26,5 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     email: str = Field(max_length=150, unique=True)
     password: str = Field(max_length=255)
+    is_activated: Optional[bool] = None
     id_role: int = Field(foreign_key="role.id")

@@ -1,8 +1,8 @@
 
 # API — Fil Rouge Immobilier
 
-API REST (FastAPI + SQLModel) exposant les 12 tables du schéma PostgreSQL
-`fil_rouge_immobilier` (voir [`../docker/init/01_create_fil_rouge_immobilier.sql`](../docker/init/01_create_fil_rouge_immobilier.sql)).
+API REST (FastAPI + SQLModel) exposant les 18 tables du schéma PostgreSQL
+`fil_rouge_immobilier` (voir [`../docker/init-v2/01_create_fil_rouge_immobilier.sql`](../docker/init-v2/01_create_fil_rouge_immobilier.sql)).
 
 ## Stack
 
@@ -75,7 +75,7 @@ Chaque table suit une architecture en 3 couches (Router → Service → Reposito
 
 Ces trois couches héritent chacune d'une classe générique (`routes/crud_router.py`,
 `services/base_service.py`, `repositories/base_repository.py`) qui porte le
-comportement CRUD commun aux 12 tables.
+comportement CRUD commun aux 18 tables.
 
 ## Arborescence
 
@@ -103,7 +103,7 @@ API/
 
 ## Endpoints
 
-Pour chacune des 12 tables : liste, lecture par id, création, remplacement complet,
+Pour chacune des 18 tables : liste, lecture par id, création, remplacement complet,
 suppression. Pas de `PATCH` (mise à jour partielle) — `PUT` remplace toute la ligne.
 
 | Ressource | GET (liste) | GET /{id} | POST | PUT /{id} | DELETE /{id} |
