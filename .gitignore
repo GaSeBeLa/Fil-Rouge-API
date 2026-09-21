@@ -21,7 +21,7 @@ venv/
 env/
 
 # Autres secrets
-# (« API/.env exemple » est un modele sans secret : il reste versionne)
+# (« docker/.env.exemple » est un modele sans secret : il reste versionne)
 .env.local
 *.key
 *.pem

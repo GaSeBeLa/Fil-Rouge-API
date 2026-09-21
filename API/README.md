@@ -45,6 +45,11 @@ Sans `.env`, l'API se connecte par défaut à `postgresql://postgres:postgres@lo
 
 ### Avec Docker — recommandé, rien à installer
 
+**Une seule fois, à la première installation** : copier `docker/.env.exemple`
+sous le nom `docker/.env`, et y mettre ses propres mots de passe. Sans ce
+fichier, `docker compose` affiche `variable is not set` et la base ne démarre
+pas.
+
 L'API est un service du `docker-compose` du projet. Depuis `docker/` :
 
 ```bash
