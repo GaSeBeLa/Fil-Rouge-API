@@ -42,3 +42,8 @@ class Hunter(SQLModel, table=True):
     certification_date: Optional[date] = None
     # is_hunter_ai : le chasseur est-il l'agent automatique ?
     is_hunter_ai: Optional[bool] = None
+    # Le manager du chasseur (MPD 03 4, 2026-09-22). NOT NULL en base, FK
+    # vers real_estate_manager.id_user — donc un id de "user", comme toutes
+    # les autres FK du schema. Meme nom tout en minuscules que dans
+    # search_request_model.py, ou il designe le manager de la demande.
+    id_realestatemanager: int = Field(foreign_key="real_estate_manager.id_user")

@@ -1,10 +1,37 @@
 -- ============================================================================
 -- 01_create_fil_rouge_immobilier.sql
 -- Schéma cible "Fil_Rouge_Immobilier" — 18 tables
--- Généré depuis « MPD 03 .drawio.xml » (2026-09-21)
+-- Généré depuis « MPD 03 4.drawio.xml » (2026-09-22)
 --
 -- VERSION FUSIONNÉE des deux scripts écrits en parallèle par le groupe.
 -- Testé sur PostgreSQL 16 : création complète sur base vierge, sans erreur.
+-- ============================================================================
+--
+-- ============================================================================
+-- NOUVEAU LE 2026-09-22 — CHAQUE CHASSEUR A UN MANAGER
+-- ============================================================================
+--
+--   hunter.id_realestatemanager, NOT NULL, FK vers real_estate_manager(id_user).
+--   Relation Hunter (1,1) — RealEstateManager (0,n), libellée « Manages ».
+--
+--   D'OÙ ÇA VIENT : le sujet parle du « manager » d'un chasseur dans l'exemple
+--   ENF-03 du CAHIER-DES-CHARGES-TECHNIQUE.md (l. 97) et dans
+--   REGLES-CALCUL-REMUNERATION.md (l. 296, 763) : « accès limité au chasseur
+--   concerné et à son manager ». ⚠️ C'est un EXEMPLE dans un modèle de
+--   document, pas une exigence du client ; les .feature ne citent jamais de
+--   manager, et les fixtures n'ont que deux rôles (client, chasseur).
+--   C'est donc un CHOIX DU GROUPE, cohérent avec le rôle Manager déjà en base.
+--   À acter en ADR sur Confluence.
+--
+--   CONSÉQUENCES :
+--     - real_estate_manager est créée AVANT hunter (dépendance de FK).
+--     - 02_migration.sql crée un manager placeholder pour les 6 chasseurs
+--       migrés, car la source n'en a aucun (README §3.6).
+--     - Base déjà créée : docker/migrations/2026-09-22_hunter_manager.sql.
+--
+--   À NOTER : search_request.id_realestatemanager (le manager qui traite la
+--   demande) et hunter.id_realestatemanager (le manager du chasseur) sont deux
+--   liens différents. Rien n'impose qu'ils coïncident sur une même demande.
 -- ============================================================================
 --
 -- ============================================================================
@@ -30,6 +57,8 @@
 --      le même pays de deux façons incompatibles. HARMONISÉ AVEC L'ESPACE,
 --      qui est le format officiel Eircode. ⚠️ À VALIDER par le groupe : si la
 --      saisie se fait sans espace, c'est client qu'il faut aligner, pas criteria.
+--   9. criteria.budget_max : « NUMERIC (12.2) » dans MPD 03 4 (un point au
+--      lieu d'une virgule). Lu comme NUMERIC(12,2), comme tous les montants.
 --
 -- ============================================================================
 -- ⚠️ CONVENTION D'UNITÉ MONÉTAIRE — CHANGEMENT MAJEUR, À LIRE EN ENTIER
@@ -183,34 +212,7 @@ CREATE TABLE client (
             ELSE FALSE END)
 );
 
-CREATE TABLE hunter (
-    id                 INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    id_user            INTEGER NOT NULL UNIQUE
-                       REFERENCES "user"(id) ON DELETE RESTRICT,
-    first_name         VARCHAR(80) NOT NULL
-                       CHECK (first_name = btrim(first_name) AND first_name <> ''),
-    last_name          VARCHAR(80) NOT NULL
-                       CHECK (last_name = btrim(last_name) AND last_name <> ''),
-    phone_number       VARCHAR(20) NOT NULL
-                       CHECK (phone_number = btrim(phone_number) AND phone_number <> ''),
-    country_iso        CHAR(2)
-                       CHECK (country_iso IN ('FR','ES','DE','GB','IE','BE','NL','LU','IT','CH')),
-    gender             VARCHAR(10)
-                       CHECK (gender IN ('male', 'female', 'other')),
-    company_name       VARCHAR(80)
-                       CHECK (company_name = btrim(company_name) AND company_name <> ''),
-    hire_date          DATE NOT NULL CHECK (hire_date <= CURRENT_DATE),
-    education_level    VARCHAR(20)
-                       CHECK (education_level = btrim(education_level) AND education_level <> ''),
-    -- Nom repris tel quel du MPD. Désigne vraisemblablement la « carte T »
-    -- (carte professionnelle d'agent immobilier) : is_carte_t serait plus
-    -- clair, mais le renommage toucherait l'API — à acter avant de bouger.
-    is_cartet          BOOLEAN,
-    certification_date DATE,
-    -- Non quoté : PostgreSQL le replie en minuscules -> is_hunter_ai.
-    is_hunter_ai       BOOLEAN
-);
-
+-- Créée avant hunter : hunter.id_realestatemanager la référence.
 CREATE TABLE real_estate_manager (
     id           INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_user      INTEGER NOT NULL UNIQUE
@@ -227,6 +229,38 @@ CREATE TABLE real_estate_manager (
                  CHECK (gender IN ('male', 'female', 'other')),
     company_name VARCHAR(80)
                  CHECK (company_name = btrim(company_name) AND company_name <> '')
+);
+
+CREATE TABLE hunter (
+    id                   INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_user              INTEGER NOT NULL UNIQUE
+                         REFERENCES "user"(id) ON DELETE RESTRICT,
+    first_name           VARCHAR(80) NOT NULL
+                         CHECK (first_name = btrim(first_name) AND first_name <> ''),
+    last_name            VARCHAR(80) NOT NULL
+                         CHECK (last_name = btrim(last_name) AND last_name <> ''),
+    phone_number         VARCHAR(20) NOT NULL
+                         CHECK (phone_number = btrim(phone_number) AND phone_number <> ''),
+    country_iso          CHAR(2)
+                         CHECK (country_iso IN ('FR','ES','DE','GB','IE','BE','NL','LU','IT','CH')),
+    gender               VARCHAR(10)
+                         CHECK (gender IN ('male', 'female', 'other')),
+    company_name         VARCHAR(80)
+                         CHECK (company_name = btrim(company_name) AND company_name <> ''),
+    hire_date            DATE NOT NULL CHECK (hire_date <= CURRENT_DATE),
+    education_level      VARCHAR(20)
+                         CHECK (education_level = btrim(education_level) AND education_level <> ''),
+    -- Nom repris tel quel du MPD. Désigne vraisemblablement la « carte T »
+    -- (carte professionnelle d'agent immobilier) : is_carte_t serait plus
+    -- clair, mais le renommage toucherait l'API — à acter avant de bouger.
+    is_cartet            BOOLEAN,
+    certification_date   DATE,
+    -- Non quoté : PostgreSQL le replie en minuscules -> is_hunter_ai.
+    is_hunter_ai         BOOLEAN,
+    -- Le manager du chasseur (MPD 03 4, 2026-09-22). NOT NULL : un chasseur
+    -- a toujours un manager. Voir l'en-tête « CHAQUE CHASSEUR A UN MANAGER ».
+    id_realestatemanager INTEGER NOT NULL
+                         REFERENCES real_estate_manager(id_user) ON DELETE RESTRICT
 );
 
 
@@ -830,7 +864,9 @@ COMMENT ON COLUMN search_request.id_client IS
 COMMENT ON COLUMN search_request.id_hunter IS
   'Reference hunter(id_user) — donc un id de "user".';
 COMMENT ON COLUMN search_request.id_realestatemanager IS
-  'Reference real_estate_manager(id_user) — donc un id de "user".';
+  'Reference real_estate_manager(id_user) — donc un id de "user". Le manager qui traite la demande.';
+COMMENT ON COLUMN hunter.id_realestatemanager IS
+  'Reference real_estate_manager(id_user) — donc un id de "user". Le manager du chasseur (choix du groupe, 2026-09-22).';
 COMMENT ON COLUMN payment.id_hunter IS
   'Reference hunter(id_user) — donc un id de "user".';
 COMMENT ON COLUMN commission_scale.id_hunter IS
@@ -852,7 +888,7 @@ COMMENT ON COLUMN real_estate_manager.id IS
 COMMIT;
 
 -- ============================================================================
--- FIN — 18 tables, 224 colonnes, 1 extension.
+-- FIN — 18 tables, 226 colonnes (mesuré via information_schema), 1 extension.
 --
 -- Pour activer ce schéma dans docker/docker-compose.yml, remplacer
 --     ./init:/docker-entrypoint-initdb.d

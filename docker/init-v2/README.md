@@ -1,14 +1,14 @@
 # `init-v2/` — schéma 18 tables, montants en euros
 
 Ce dossier contient la chaîne complète de création et de peuplement de la base,
-alignée sur le **MPD 03** (18 tables) et sur la convention **euros**.
+alignée sur le **MPD 03 4** (18 tables, 2026-09-22) et sur la convention **euros**.
 
 Il ne remplace rien : `docker/init/` reste en place, intact. Les deux dossiers
 coexistent tant que le groupe n'a pas validé le basculement.
 
 | Fichier | Rôle | État |
 |---|---|---|
-| `01_create_fil_rouge_immobilier.sql` | schéma — 18 tables, 224 colonnes | testé, 0 erreur |
+| `01_create_fil_rouge_immobilier.sql` | schéma — 18 tables, 226 colonnes | testé, 0 erreur |
 | `02_migration.sql` | données `Fil_Rouge_Depart` → cible | testé, 0 erreur |
 | `03_populate_estate.sql` | 2 556 biens + 1 976 photos | testé, 0 erreur |
 
@@ -92,7 +92,7 @@ colonne a simplement été retirée des `INSERT`.
 
 ---
 
-## 3. `02_migration.sql` — cinq changements
+## 3. `02_migration.sql` — six changements
 
 ### 3.1 `role` : `libelle` → `wording`, valeurs capitalisées
 
@@ -173,6 +173,24 @@ fin du script :
 --  WHERE EXISTS (SELECT 1 FROM mandate m WHERE m.id_search_request = sr.id);
 ```
 
+### 3.6 `hunter.id_realestatemanager` : un manager placeholder
+
+Depuis le **MPD 03 4** (2026-09-22), un chasseur a toujours un manager :
+`hunter.id_realestatemanager` est `NOT NULL`. Voir §9.
+
+La source n'a **aucun manager** : deux rôles seulement, `client` et
+`chasseur`. Les 6 chasseurs ne pouvaient donc plus être migrés tels quels.
+
+Valeur retenue : un **compte placeholder** unique,
+`manager.migration@chassimmo.fr` (user 25, rôle `Manager`), au nom
+volontairement bidon (« Manager Migration », téléphone `0000000000`), bloqué
+par le même mot de passe placeholder que les 24 autres comptes. Les 6
+chasseurs lui sont rattachés.
+
+⚠️ C'est une **hypothèse de migration** : ce manager n'est pas une personne.
+Le seed devra le remplacer par de vrais managers, puis le supprimer une fois
+qu'aucun chasseur ne pointe plus vers lui.
+
 ---
 
 ## 4. ⚠️ Une contrainte du schéma a dû être corrigée
@@ -235,10 +253,11 @@ Contenu obtenu :
 
 | Table | Lignes |
 |---|---|
-| `role` | 3 |
-| `user` | 24 |
+| `role` | 4 |
+| `user` | 25 (24 migrés + 1 manager placeholder, §3.6) |
 | `hunter` | 6 |
 | `client` | 18 |
+| `real_estate_manager` | 1 (placeholder, §3.6) |
 | `search_request` | 17 |
 | `criteria` | 17 |
 | `mandate` | 17 |
@@ -288,10 +307,12 @@ conteneur avec `docker rm -f pg_essai`.
 | 4 | Confirmer `status = 'confirmed'` pour les demandes migrées | §3.5 |
 | 5 | Alimenter `energy_class` depuis la colonne `dpe` du CSV | §2.2 |
 | 6 | Décisions `D2`, `D6`, `D7`, `D9`, `N2`, `R21`, `U02`, `U05` | en-tête du `01` |
+| 7 | Acter en ADR le lien chasseur → manager, et remplacer le manager placeholder par le seed | §3.6, §9 |
 
-Les points 1 à 4 sont des **hypothèses de migration** : elles font tourner la
-chaîne aujourd'hui, mais elles engagent une lecture du métier qui n'a pas été
-validée. Aucune n'est cachée — toutes sont signalées dans les scripts.
+Les points 1 à 4 et 7 sont des **hypothèses de migration** : elles font
+tourner la chaîne aujourd'hui, mais elles engagent une lecture du métier qui
+n'a pas été validée. Aucune n'est cachée — toutes sont signalées dans les
+scripts.
 
 ---
 
@@ -365,3 +386,94 @@ les quatre champs concernés sont devenus facultatifs.
 `U01/U04` de l'en-tête du `01` reste ouvert : rien ne vérifie encore qu'un
 paiement va bien au chasseur du mandat, ni que le barème était en vigueur à
 la date de l'acte.
+
+---
+
+## 9. `hunter` — chaque chasseur a un manager (MPD 03 4, 2026-09-22)
+
+> ⚠️ **Choix du groupe, pas encore acté en ADR.** Le schéma l'applique déjà :
+> si la décision change, c'est ici qu'il faudra revenir.
+
+### 9.1 Pourquoi
+
+Le MPD 03 4 relie **Hunter (1,1) — RealEstateManager (0,n)**, lien
+« Manages » : un chasseur a toujours un manager, un manager peut n'en avoir
+aucun.
+
+Le sujet parle du manager d'un chasseur à trois endroits :
+`CAHIER-DES-CHARGES-TECHNIQUE.md` l. 97 (exemple ENF-03) et
+`REGLES-CALCUL-REMUNERATION.md` l. 296 et 763 — « accès limité au chasseur
+concerné et à son manager ».
+
+⚠️ ENF-03 est un **exemple rempli dans un modèle**, pas une exigence du
+client (déjà relevé dans `md/securite-mots-de-passe-et-droits.md`). Les
+`.feature` ne citent jamais de manager ; les fixtures n'ont que `client` et
+`chasseur`. Le lien est donc un choix de modélisation, cohérent avec le rôle
+`Manager` déjà en base.
+
+### 9.2 Ce qui a changé
+
+| # | Changement |
+|---|---|
+| 1 | Colonne `hunter.id_realestatemanager INTEGER NOT NULL`, FK vers `real_estate_manager(id_user)`, `ON DELETE RESTRICT` |
+| 2 | `real_estate_manager` est créée **avant** `hunter` (dépendance de FK) |
+| 3 | `02_migration.sql` : un manager placeholder (user 25) pour les 6 chasseurs migrés (§3.6) |
+| 4 | Base déjà créée : `docker/migrations/2026-09-22_hunter_manager.sql` |
+| 5 | API : `Hunter.id_realestatemanager: int` dans `hunter_model.py` |
+
+Même convention que toutes les FK du schéma : la colonne pointe vers
+`id_user`, donc contient un id de `"user"`.
+
+Deux liens portent le même nom « Manages » sur le MPD :
+`search_request.id_realestatemanager` (le manager qui **traite la demande**)
+et `hunter.id_realestatemanager` (le manager **du chasseur**). Rien n'impose
+qu'ils coïncident sur une même demande. À assumer, ou renommer le second
+(« Supervises ») pour lever le doute.
+
+### 9.3 Résultat mesuré
+
+PostgreSQL 16, schéma chargé à neuf (01 → 02 → 03, **0 erreur**) **et** base
+existante (scripts précédents) migrée par
+`docker/migrations/2026-09-22_hunter_manager.sql`. Les deux voies donnent le
+**même** comportement, la même contrainte (`hunter_id_realestatemanager_fkey`)
+et le même commentaire de colonne :
+
+| # | Cas | Attendu | Obtenu |
+|---|---|---|---|
+| 1 | chasseur **sans** manager | rejeté | ✅ `not-null constraint` |
+| 2 | chasseur avec manager **inconnu** | rejeté | ✅ `hunter_id_realestatemanager_fkey` |
+| 3 | chasseur avec manager valide | accepté | ✅ |
+| 4 | supprimer un manager encore référencé | rejeté | ✅ `ON DELETE RESTRICT` |
+| 5 | passer `id_realestatemanager` à `NULL` | rejeté | ✅ `not-null constraint` |
+| 6 | un manager sans aucun chasseur (0,n) | accepté | ✅ |
+| 7 | changer un chasseur de manager | accepté | ✅ |
+
+**7 cas sur 7.** Après migration : 25 users, 1 manager, **0 chasseur sans
+manager**. Le script de migration a été passé **deux fois** de suite sans
+erreur : il est rejouable.
+
+Colonnes mesurées via `information_schema` : 225 avant, **226** après
+(18 tables). L'ancien compte « 224 » de l'en-tête du `01` n'avait pas été
+mis à jour à l'ADR-024.
+
+Côté API (image existante, lancée sur la base migrée) :
+
+| Appel | Obtenu |
+|---|---|
+| `GET /hunters` | `200`, chaque chasseur expose `id_realestatemanager: 25` |
+| `POST /hunters` sans manager | `409` (contrainte violée) |
+| `POST /hunters` avec un manager inconnu | `409` |
+| `POST /hunters` avec le manager 25 | `201` |
+
+Le `409` plutôt qu'un `422` n'est pas propre à cette colonne : un modèle
+SQLModel `table=True` ne valide pas les champs obligatoires à l'entrée, donc
+**toute** colonne `NOT NULL` absente arrive jusqu'à la base (vérifié avec
+`hire_date` : `409` aussi). Comportement préexistant de l'API.
+
+### 9.4 Ce que ça ne fait pas
+
+- Pas d'**historique** : un changement de manager écrase l'ancien. Suffisant
+  pour les droits d'accès (ENF-03) ; à revoir si la performance doit être
+  rattachée au manager de l'époque.
+- Le manager placeholder n'est **pas une personne** : le seed devra le
+  remplacer, puis le supprimer une fois qu'aucun chasseur ne pointe vers lui.

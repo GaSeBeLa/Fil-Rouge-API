@@ -28,6 +28,13 @@
 --      Valeur 'confirmed' (état d'entrée neutre). 17 lignes.
 --      ⚠️ HYPOTHÈSE. Voir README point 5 pour l'alternative ('launched'
 --      lorsqu'un mandat existe), fournie en UPDATE commenté en fin de script.
+--   6. hunter : "id_realestatemanager" est NOT NULL depuis le 2026-09-22
+--      (MPD 03 4) et la source n'a AUCUN manager (deux rôles seulement :
+--      client, chasseur). Un manager PLACEHOLDER est créé (user 25 + profil)
+--      et les 6 chasseurs lui sont rattachés. Compte bloqué par le même
+--      mot de passe placeholder que les 24 autres. Voir README §3.6.
+--      ⚠️ HYPOTHÈSE de migration : ce manager n'existe pas dans la source.
+--      Le seed devra le remplacer par de vrais managers.
 --
 -- ============================================================================
 -- ⚠️ CORRECTION DE CONTRAINTE DU SCHÉMA — À VALIDER PAR LE GROUPE
@@ -85,7 +92,8 @@ INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (4, 'Admin')   ON 
 -- country_iso sont migrés directement dans hunter/client ci-dessous.
 -- password  : NOT NULL côté cible, absent côté source -> placeholder explicite qui
 --             empêche toute connexion tant que le mot de passe n'a pas été réinitialisé
--- id_role   : 1-6 = hunters (id_role=2), 7-24 = clients (id_role=1)
+-- id_role   : 1-6 = hunters (id_role=2), 7-24 = clients (id_role=1),
+--             25 = manager placeholder (id_role=3, voir 1 bis)
 INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (1, 'm.roussel@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 2, '2023-03-15'::date) ON CONFLICT (id) DO NOTHING;
 INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (2, 't.nguyen@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 2, '2023-06-01'::date) ON CONFLICT (id) DO NOTHING;
 INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (3, 'i.delacroix@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 2, '2024-01-10'::date) ON CONFLICT (id) DO NOTHING;
@@ -111,16 +119,25 @@ INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM 
 INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (23, 'manon.roux@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2026-05-15'::date) ON CONFLICT (id) DO NOTHING;
 INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (24, 'ethan.faure@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2026-06-28'::date) ON CONFLICT (id) DO NOTHING;
 
+-- 1 bis. MANAGER PLACEHOLDER (point 6 de l'en-tête, README §3.6)
+-- hunter.id_realestatemanager est NOT NULL et la source n'a aucun manager.
+-- Un seul compte, id_role = 3 (Manager), nom et téléphone volontairement
+-- « bidon » pour qu'on ne le confonde jamais avec une personne réelle.
+-- created_at = date de la migration (valeur par défaut) : aucune date source.
+INSERT INTO "user" (id, email, password, id_role) OVERRIDING SYSTEM VALUE VALUES (25, 'manager.migration@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 3) ON CONFLICT (id) DO NOTHING;
+INSERT INTO real_estate_manager (id_user, first_name, last_name, phone_number, gender, country_iso, company_name) VALUES (25, 'Manager', 'Migration', '0000000000', NULL, NULL, NULL) ON CONFLICT (id_user) DO NOTHING;  -- placeholder, pas une personne
+
 -- 2. HUNTERS
 -- first_name/last_name/phone_number/gender/country_iso : redescendus depuis "user"
 -- company_name = NULL : la source n'a pas cette info, on n'invente pas de nom d'agence
 -- is_carteT = NULL    : idem, la 'carte T' (habilitation légale) n'existe pas côté source
-INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date) VALUES (1, 'Marina', 'Roussel', '+33611223344', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 1)) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.50 (voir README, point 3)
-INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date) VALUES (2, 'Thomas', 'Nguyen', '+33622334455', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 2)) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 3.00 (voir README, point 3)
-INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date) VALUES (3, 'Inès', 'Delacroix', '+33633445566', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 3)) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.75 (voir README, point 3)
-INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date) VALUES (4, 'Marco', 'Baldini', '+33644556677', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 4)) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.50 (voir README, point 3)
-INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date) VALUES (5, 'Awa', 'Kone', '+33655667788', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 5)) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 3.25 (voir README, point 3)
-INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date) VALUES (6, 'Lucas', 'Perrin', '+33666778899', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 6)) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.00 (voir README, point 3)
+-- id_realestatemanager = 25 : le manager placeholder ci-dessus (HYPOTHÈSE, point 6)
+INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date, id_realestatemanager) VALUES (1, 'Marina', 'Roussel', '+33611223344', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 1), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.50 (voir README, point 3)
+INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date, id_realestatemanager) VALUES (2, 'Thomas', 'Nguyen', '+33622334455', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 2), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 3.00 (voir README, point 3)
+INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date, id_realestatemanager) VALUES (3, 'Inès', 'Delacroix', '+33633445566', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 3), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.75 (voir README, point 3)
+INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date, id_realestatemanager) VALUES (4, 'Marco', 'Baldini', '+33644556677', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 4), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.50 (voir README, point 3)
+INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date, id_realestatemanager) VALUES (5, 'Awa', 'Kone', '+33655667788', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 5), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 3.25 (voir README, point 3)
+INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date, id_realestatemanager) VALUES (6, 'Lucas', 'Perrin', '+33666778899', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 6), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.00 (voir README, point 3)
 
 -- 3. CLIENTS
 -- first_name/last_name/phone_number/gender/country_iso : redescendus depuis "user"
@@ -219,7 +236,7 @@ SELECT setval(pg_get_serial_sequence('criteria', 'id'), COALESCE((SELECT MAX(id)
 -- ce ne sont pas des colonnes IDENTITY avec leur propre séquence.
 
 -- 8. VERIF
-SELECT 'user' as tbl, COUNT(*) FROM "user" UNION ALL SELECT 'hunter', COUNT(*) FROM hunter UNION ALL SELECT 'client', COUNT(*) FROM client UNION ALL SELECT 'search_request', COUNT(*) FROM search_request UNION ALL SELECT 'criteria', COUNT(*) FROM criteria UNION ALL SELECT 'mandate', COUNT(*) FROM mandate;
+SELECT 'user' as tbl, COUNT(*) FROM "user" UNION ALL SELECT 'hunter', COUNT(*) FROM hunter UNION ALL SELECT 'client', COUNT(*) FROM client UNION ALL SELECT 'real_estate_manager', COUNT(*) FROM real_estate_manager UNION ALL SELECT 'search_request', COUNT(*) FROM search_request UNION ALL SELECT 'criteria', COUNT(*) FROM criteria UNION ALL SELECT 'mandate', COUNT(*) FROM mandate;
 
 -- ----------------------------------------------------------------------------
 -- OPTION (point 5 du README) — statut déduit de l'existence d'un mandat.
