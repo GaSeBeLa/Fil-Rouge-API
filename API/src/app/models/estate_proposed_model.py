@@ -3,7 +3,7 @@ estate_proposed_model.py — Un bien proposé par un chasseur pour un
 mandat donné, avec le retour du client (montant proposé, acceptation).
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -14,7 +14,7 @@ class EstateProposed(SQLModel, table=True):
     __tablename__ = "estate_proposed"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     comment_hunter: Optional[str] = None
     comment_client: Optional[str] = None
     # Montant en euros : Decimal, jamais float.

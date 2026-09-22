@@ -10,7 +10,7 @@ nouveauté : une clé étrangère vers la table role (voir role_model.py),
 qui n'existait pas du tout dans le schéma précédent.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
@@ -23,7 +23,7 @@ class User(SQLModel, table=True):
     # nécessaire de notre côté.
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     email: str = Field(max_length=150, unique=True)
     password: str = Field(max_length=255)
     is_activated: Optional[bool] = None
@@ -34,9 +34,7 @@ class UserPublic(SQLModel):
     """
     Ce que l'API RENVOIE pour un utilisateur : tout, sauf `password`.
 
-    Un mot de passe, même haché, ne sort jamais d'une API. `User` reste le
-    modèle d'ENTRÉE (POST, PUT) : il faut bien pouvoir fournir le mot de
-    passe à la création d'un compte.
+    Un mot de passe, même haché, ne sort jamais d'une API.
     """
 
     id: int
@@ -44,3 +42,34 @@ class UserPublic(SQLModel):
     email: str
     is_activated: Optional[bool] = None
     id_role: int
+
+
+class UserCreate(SQLModel):
+    """
+    Ce que l'API ACCEPTE pour créer un compte (ADR-016).
+
+    `password` est ici le mot de passe EN CLAIR : c'est la seule forme sous
+    laquelle il entre dans le système. Il est haché dans UserService.create()
+    et n'atteint jamais la base tel quel.
+
+    Ni `id` ni `created_at` : le serveur les décide seul.
+    """
+
+    email: str = Field(max_length=150)
+    # min_length=12 : proposition du tuto, pas une décision actée par le
+    # groupe (contrairement à ADR-016 lui-même). À confirmer en réunion.
+    password: str = Field(min_length=12)
+    is_activated: Optional[bool] = None
+    id_role: int
+
+
+class UserUpdate(SQLModel):
+    """
+    Modification partielle. Tout est optionnel : on ne change que ce qui est
+    fourni. Un `password` présent est haché comme à la création.
+    """
+
+    email: Optional[str] = Field(default=None, max_length=150)
+    password: Optional[str] = Field(default=None, min_length=12)
+    is_activated: Optional[bool] = None
+    id_role: Optional[int] = None

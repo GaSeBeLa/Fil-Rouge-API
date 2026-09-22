@@ -11,7 +11,7 @@ commission. Elle n'a **pas** été migrée tant que le groupe n'a pas
 tranché — voir `docker/init-v2/README.md` §3.3.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -22,7 +22,7 @@ class ParametersFees(SQLModel, table=True):
     __tablename__ = "parameters_fees"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     valid_from: date
     valid_until: Optional[date] = None
     fixed_amount: Decimal = Field(max_digits=12, decimal_places=2)

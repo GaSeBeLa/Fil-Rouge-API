@@ -16,7 +16,7 @@ Les bornes sont **à l'euro près** — c'est la raison même du passage aux
 euros : en K€ au dixième, 199 999 € basculait dans la tranche à 35 %.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -27,7 +27,7 @@ class CommissionScale(SQLModel, table=True):
     __tablename__ = "commission_scale"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     amount_min: Decimal = Field(max_digits=12, decimal_places=2)
     # amount_max NULL = derniere tranche, sans plafond.
     amount_max: Optional[Decimal] = Field(default=None, max_digits=12, decimal_places=2)

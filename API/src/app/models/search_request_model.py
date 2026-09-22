@@ -3,7 +3,7 @@ search_request_model.py — La demande de recherche déposée par un
 client, éventuellement affectée à un chasseur ou un gestionnaire.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
@@ -13,7 +13,7 @@ class SearchRequest(SQLModel, table=True):
     __tablename__ = "search_request"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     id_author: int = Field(foreign_key="user.id")
     id_client: int = Field(foreign_key="client.id_user")
     id_hunter: Optional[int] = Field(default=None, foreign_key="hunter.id_user")

@@ -16,6 +16,13 @@ son propre service.
 C'est aussi le seul endroit qui traduit les exceptions "métier"
 (NotFoundError, ConflictError — voir exceptions.py) en codes HTTP : les
 services et repositories, eux, ne connaissent pas FastAPI.
+
+`update_model` (optionnel) : modèle d'entrée du PUT, distinct de celui du
+POST (`response_model`). Par défaut, si non fourni, le PUT utilise
+`response_model` — comportement inchangé pour les tables qui ne le
+précisent pas. À utiliser quand une mise à jour partielle a du sens
+(champs optionnels) alors que la création exige des champs complets — voir
+UserUpdate dans user_router.py.
 ============================================================================
 """
 
@@ -36,13 +43,12 @@ def build_crud_router(
     tag: str,
     response_model: Type[SQLModel],
     read_model: Optional[Type[SQLModel]] = None,
+    update_model: Optional[Type[SQLModel]] = None,
 ) -> APIRouter:
     router = APIRouter(prefix=prefix, tags=[tag])
 
-    # `response_model` est le modèle d'ENTRÉE (corps des POST et PUT).
-    # `read_model`, s'il est fourni, est le modèle de SORTIE : il sert à ne
-    # pas renvoyer un champ sensible (voir UserPublic, sans `password`).
     out_model = read_model or response_model
+    in_update_model = update_model or response_model
 
     @router.get("", response_model=List[out_model])
     def list_items(session: Session = Depends(get_session)):
@@ -63,7 +69,7 @@ def build_crud_router(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @router.put("/{item_id}", response_model=out_model)
-    def update_item(item_id: int, data: response_model, session: Session = Depends(get_session)):
+    def update_item(item_id: int, data: in_update_model, session: Session = Depends(get_session)):
         try:
             return service.replace(session, item_id, data)
         except NotFoundError as exc:

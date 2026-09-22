@@ -3,7 +3,7 @@ mandate_model.py — Le mandat de recherche confié à un chasseur par un
 client, pour une demande de recherche donnée.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
@@ -13,7 +13,7 @@ class Mandate(SQLModel, table=True):
     __tablename__ = "mandate"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     reference: str = Field(max_length=20, unique=True)
     # status : NOT NULL + CHECK côté base (voir remarque sur typology
     # dans criteria_model.py, même logique).

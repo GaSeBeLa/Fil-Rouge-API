@@ -14,7 +14,7 @@ Les colonnes à liste fermée (`estate_type`, `typology`, `floor`,
 `energy_class_max`, `country_iso`) portent un CHECK côté base.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -25,7 +25,7 @@ class Criteria(SQLModel, table=True):
     __tablename__ = "criteria"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     change_reason: Optional[str] = Field(default=None, max_length=255)
     country_iso: Optional[str] = Field(default=None, max_length=2)
     town: Optional[str] = Field(default=None, max_length=100)

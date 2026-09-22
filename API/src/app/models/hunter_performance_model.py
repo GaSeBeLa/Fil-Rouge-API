@@ -16,7 +16,7 @@ de la vente.
 `id_payment` et `id_mandate` sont donc `NULL` selon le déclencheur.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -27,7 +27,7 @@ class HunterPerformance(SQLModel, table=True):
     __tablename__ = "hunter_performance"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     # score : NUMERIC(4,1).
     score: Decimal = Field(max_digits=4, decimal_places=1)
     valid_from: date

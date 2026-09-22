@@ -3,6 +3,7 @@ sqlmodel
 uvicorn[standard]
 psycopg2-binary
 python-dotenv
+argon2-cffi
 
 # tests
 pytest

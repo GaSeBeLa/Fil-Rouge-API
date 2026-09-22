@@ -10,7 +10,7 @@ une vente que le client a conclue seul, hors mandat.
 Montants en euros, `NUMERIC(12,2)` : voir `docker/init-v2/README.md` §1.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -21,7 +21,7 @@ class Sale(SQLModel, table=True):
     __tablename__ = "sale"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     signature_date: date
     purchase_amount: Decimal = Field(max_digits=12, decimal_places=2)
     fees_amount: Decimal = Field(max_digits=12, decimal_places=2)

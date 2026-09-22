@@ -21,7 +21,7 @@ facultatifs ici. La contrainte `chk_refused`, cote base, interdit qu'une ligne
 soit un refus a moitie.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -32,7 +32,7 @@ class Payment(SQLModel, table=True):
     __tablename__ = "payment"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     amount: Decimal = Field(max_digits=12, decimal_places=2)
     # status : NOT NULL + CHECK cote base — 'refused', 'announced',
     # 'invoice_submitted', 'verified', 'scheduled', 'paid'.

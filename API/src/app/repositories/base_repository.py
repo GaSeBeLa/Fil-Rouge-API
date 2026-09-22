@@ -58,6 +58,19 @@ class BaseRepository(Generic[ModelType]):
         session.refresh(existing)
         return existing
 
+    def save(self, session: Session, existing: ModelType) -> ModelType:
+        """
+        Persiste un objet déjà modifié en mémoire (mise à jour partielle),
+        sans le reconstruire depuis un dump complet comme `replace()`.
+        Utile quand un service applique lui-même les champs fournis
+        (`exclude_unset=True`) et n'a plus qu'à écrire — voir
+        UserService.replace().
+        """
+        session.add(existing)
+        self._commit_or_raise(session, _WRITE_CONFLICT_DETAIL)
+        session.refresh(existing)
+        return existing
+
     def delete(self, session: Session, existing: ModelType) -> ModelType:
         session.delete(existing)
         self._commit_or_raise(session, _DELETE_CONFLICT_DETAIL)

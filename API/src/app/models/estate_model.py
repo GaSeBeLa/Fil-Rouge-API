@@ -17,7 +17,7 @@ Les colonnes à liste fermée (`estate_type`, `typology`, `floor`,
 PostgreSQL qui rejette une valeur hors liste, pas SQLModel.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -28,7 +28,7 @@ class Estate(SQLModel, table=True):
     __tablename__ = "estate"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     reference: str = Field(max_length=50, unique=True)
     country_iso: Optional[str] = Field(default=None, max_length=2)
     estate_type: str = Field(max_length=50)

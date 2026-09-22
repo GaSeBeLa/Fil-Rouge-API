@@ -4,7 +4,7 @@ search_request, qui stocke aussi le média (audio/vidéo) et l'avis du
 chasseur sur ce bien pour cette demande.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
@@ -14,7 +14,7 @@ class EstateSearchRequest(SQLModel, table=True):
     __tablename__ = "estate_searchrequest"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     review_hunter: Optional[str] = None
     media_url: Optional[str] = None
     media_type: str = Field(max_length=10)  # NOT NULL + CHECK ('audio'/'video')
