@@ -9,7 +9,8 @@
 --
 --   1. role : colonne "libelle" -> "wording", et valeurs capitalisées
 --      ('client' -> 'Client'…) car le CHECK du schéma cible n'accepte que
---      'Admin', 'Client', 'Hunter', 'Manager'. 3 lignes.
+--      'Admin', 'Client', 'Hunter', 'Manager'. 3 lignes migrées, plus
+--      'Admin' ajouté le 2026-09-22 : 4 lignes au total.
 --   2. criteria : budget_min et budget_max convertis de K€ en EUROS (x 1000).
 --      320.0 devient 320000.00. 17 lignes.
 --   3. hunter : la colonne "commission_rate" n'existe plus dans le MPD 03
@@ -67,10 +68,16 @@ SET search_path TO public, "Fil_Rouge_Depart";
 
 -- 0. ROLE
 -- Table de référence des rôles (choix du groupe, 2026-09). id_role dans "user"
--- pointe ici : 1=client, 2=hunter, 3=real_estate_manager.
+-- pointe ici : 1=client, 2=hunter, 3=real_estate_manager, 4=admin.
+-- 'Admin' ajouté le 2026-09-22 : le CHECK de la table role l'autorisait depuis
+-- l'origine, mais la ligne n'existait pas. Aucune table de profil ne lui est
+-- rattachée (contrairement à client/hunter/real_estate_manager) : un admin
+-- n'a pas de métier, seulement des droits. Aucun compte admin n'est créé ici,
+-- tant que le hachage du mot de passe n'est pas en place (ADR-016, Argon2id).
 INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (1, 'Client') ON CONFLICT (id) DO NOTHING;
 INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (2, 'Hunter') ON CONFLICT (id) DO NOTHING;
 INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (3, 'Manager') ON CONFLICT (id) DO NOTHING;
+INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (4, 'Admin')   ON CONFLICT (id) DO NOTHING;
 
 -- 1. USERS
 -- "user" est désormais minimaliste (choix du groupe, 2026-09) : id, email,

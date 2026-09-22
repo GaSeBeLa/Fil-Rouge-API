@@ -104,6 +104,14 @@ Le schéma cible nomme la colonne `wording` et son `CHECK` n'accepte que
 | `client` | `Client` |
 | `hunter` | `Hunter` |
 | `real_estate_manager` | `Manager` |
+| — | `Admin` (ajouté le 2026-09-22) |
+
+⚠️ **`Admin` n'a aucune source** : le rôle était autorisé par le `CHECK` depuis
+l'origine, mais sa ligne n'avait jamais été insérée. Corrigé le 2026-09-22 —
+la table compte désormais **4 lignes**. Aucune table de profil ne lui est
+rattachée, à la différence de `client` / `hunter` / `real_estate_manager` : un
+admin porte des droits, pas un métier. Pour une base déjà créée :
+`migrations/2026-09-22_role_admin.sql`.
 
 3 lignes. Le renommage `real_estate_manager` → `Manager` suit le `CHECK` du
 MPD ; la table `real_estate_manager`, elle, garde son nom.
