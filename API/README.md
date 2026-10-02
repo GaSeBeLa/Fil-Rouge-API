@@ -90,9 +90,9 @@ docker compose exec api python -m pytest -q -p no:cacheprovider
 `-p no:cacheprovider` : `tests/` est monté en lecture seule, pytest ne peut pas y
 écrire son cache. En local, depuis `API/` : `pytest`.
 
-**État au 2026-10-02** : **66 tests, `66 passed`** — 44 unitaires, qui ne
-touchent pas PostgreSQL (vérifié avec le conteneur `db` arrêté), et 22
-d'intégration (voir plus bas).
+**État au 2026-10-02** : **121 tests, `121 passed`** — 99 unitaires, qui ne
+touchent pas PostgreSQL (vérifié avec le conteneur `db` arrêté), dont les
+**55 cas de rémunération** du sujet, et 22 d'intégration (voir plus bas).
 
 | Fichier | Ce qu'il prouve |
 |---|---|
@@ -103,6 +103,12 @@ d'intégration (voir plus bas).
 | [`test_base_repository.py`](tests/test_base_repository.py) | `id` ignoré au `POST` ; `IntegrityError` → rollback + `ConflictError` |
 | [`test_user_models.py`](tests/test_user_models.py) | mot de passe ≥ 12 caractères ; `UserPublic` sans `password` |
 | [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 pour les 18 ressources |
+| [`test_remuneration.py`](tests/test_remuneration.py) | les **55 cas** de [`10_calcul_remuneration_chasseur.feature`](../user-stories/10_calcul_remuneration_chasseur.feature), lignes d'exemples recopiées telles quelles |
+
+**Calcul de la rémunération** : [`services/remuneration.py`](src/app/services/remuneration.py)
+est le code de référence **du sujet**, extrait tel quel de `REGLES-CALCUL-REMUNERATION.md`
+§14.2-14.3 (seule la docstring est ajoutée). Fonction pure : le branchement sur
+`commission_scale`, `parameters_fees` et `payment` reste à écrire.
 
 **Pour écrire un test** :
 - la fixture `client` ([`tests/conftest.py`](tests/conftest.py)) donne un `TestClient`
@@ -136,7 +142,9 @@ bash docker/create_test_db.sh
 **La suite, dans l'ordre** (chaque étape s'appuie sur la précédente) :
 1. ✅ tests unitaires purs — la logique, sans base ;
 2. ✅ base de test isolée — les contraintes PostgreSQL (FK, `CHECK`, `UNIQUE`) ;
-3. ➡️ calculette de rémunération — les 55 cas du sujet.
+3. ✅ calculette de rémunération — les 55 cas du sujet ;
+4. ➡️ brancher la calculette sur la base (lire le barème, écrire le paiement),
+   testé sur la base de test — après arbitrage de `X01` par le groupe.
 
 ## Architecture
 
