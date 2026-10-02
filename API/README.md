@@ -90,8 +90,9 @@ docker compose exec api python -m pytest -q -p no:cacheprovider
 `-p no:cacheprovider` : `tests/` est monté en lecture seule, pytest ne peut pas y
 écrire son cache. En local, depuis `API/` : `pytest`.
 
-**État au 2026-10-02** : **44 tests unitaires, `44 passed`**, aucun ne touche
-PostgreSQL (vérifié : mêmes résultats avec le conteneur `db` arrêté).
+**État au 2026-10-02** : **66 tests, `66 passed`** — 44 unitaires, qui ne
+touchent pas PostgreSQL (vérifié avec le conteneur `db` arrêté), et 22
+d'intégration (voir plus bas).
 
 | Fichier | Ce qu'il prouve |
 |---|---|
@@ -110,12 +111,31 @@ PostgreSQL (vérifié : mêmes résultats avec le conteneur `db` arrêté).
 - pour isoler de la base : `MagicMock(spec=<Repository>)` à la place du repository,
   ou `app.dependency_overrides[get_session]` à la place de la session.
 
-⚠️ **Pas encore de base de test isolée.** Un test qui appelle `POST`, `PUT` ou
-`DELETE` via `client` écrit dans la **vraie** base de développement.
+### Tests d'intégration — base de test isolée
+
+**22 tests** dans [`tests/integration/`](tests/integration/), contre une vraie base
+PostgreSQL, **`fil_rouge_test`** — jamais la base de dev. Avant la première fois, et
+après toute modification de `docker/init-v2/01` ou `02` :
+
+```bash
+bash docker/create_test_db.sh
+```
+
+* **Même conteneur, autre base** : `01` + `02` rejoués, donc les mêmes contraintes
+  que la base de dev ; pas le `03` (aucun bien).
+* **Tout est annulé** : chaque test tourne dans une transaction annulée à la fin
+  (fixture `db_session`) ; utiliser `db_client` au lieu de `client` pour que l'API
+  écrive dedans. Mesuré : comptes de `fil_rouge_test` et `fil_rouge_immobilier`
+  identiques avant et après la suite.
+* **Base absente ou `db` arrêté** : les 22 tests sont **sautés** (`skipped`),
+  avec la commande à lancer. Les écarter : `-m "not integration"`.
+
+⚠️ La fixture `client` reste branchée sur la **vraie** base de dev : un test qui
+écrit via `client` y écrit pour de bon. Pour écrire, toujours `db_client`.
 
 **La suite, dans l'ordre** (chaque étape s'appuie sur la précédente) :
 1. ✅ tests unitaires purs — la logique, sans base ;
-2. ➡️ base de test isolée — les contraintes PostgreSQL (FK, `CHECK`, `UNIQUE`) ;
+2. ✅ base de test isolée — les contraintes PostgreSQL (FK, `CHECK`, `UNIQUE`) ;
 3. ➡️ calculette de rémunération — les 55 cas du sujet.
 
 ## Architecture
@@ -154,7 +174,8 @@ API/
 │       └── routes/                # routage HTTP : crud_router.py + 1 fichier par table
 └── tests/
     ├── conftest.py              # fixtures client, fast_hasher
-    └── test_*.py                # 7 fichiers, voir § Tests
+    ├── test_*.py                # 7 fichiers unitaires, voir § Tests
+    └── integration/             # conftest (db_session, db_client) + 3 fichiers
 ```
 
 ## Endpoints

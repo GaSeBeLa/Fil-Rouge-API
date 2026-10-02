@@ -34,6 +34,11 @@ from src.app.main import app
 from src.app.utils import security
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    # Déclaré ici faute de pytest.ini ; posé par tests/integration/conftest.py.
+    config.addinivalue_line("markers", "integration: test qui parle à la base de test PostgreSQL")
+
+
 @pytest.fixture
 def client():
     return TestClient(app)
