@@ -90,14 +90,33 @@ docker compose exec api python -m pytest -q -p no:cacheprovider
 `-p no:cacheprovider` : `tests/` est monté en lecture seule, pytest ne peut pas y
 écrire son cache. En local, depuis `API/` : `pytest`.
 
-**État au 2026-10-02** : un seul test, [`tests/test_health.py`](tests/test_health.py)
-(`1 passed`). Il vérifie que `/` répond, sans PostgreSQL.
+**État au 2026-10-02** : **44 tests unitaires, `44 passed`**, aucun ne touche
+PostgreSQL (vérifié : mêmes résultats avec le conteneur `db` arrêté).
 
-**Pour écrire un test** : la fixture `client` ([`tests/conftest.py`](tests/conftest.py))
-donne un `TestClient` prêt à l'emploi — `def test_xxx(client): ...`.
+| Fichier | Ce qu'il prouve |
+|---|---|
+| [`test_health.py`](tests/test_health.py) | `/` répond |
+| [`test_security.py`](tests/test_security.py) | hachage argon2 : jamais de clair, sel aléatoire, comptes migrés refusés sans exception, `needs_rehash` |
+| [`test_user_service.py`](tests/test_user_service.py) | le mot de passe n'atteint jamais le repository en clair ; mise à jour partielle |
+| [`test_base_service.py`](tests/test_base_service.py) | id inexistant → `NotFoundError` **avant** toute écriture |
+| [`test_base_repository.py`](tests/test_base_repository.py) | `id` ignoré au `POST` ; `IntegrityError` → rollback + `ConflictError` |
+| [`test_user_models.py`](tests/test_user_models.py) | mot de passe ≥ 12 caractères ; `UserPublic` sans `password` |
+| [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 pour les 18 ressources |
+
+**Pour écrire un test** :
+- la fixture `client` ([`tests/conftest.py`](tests/conftest.py)) donne un `TestClient`
+  sur la vraie app — `def test_xxx(client): ...` ;
+- la fixture `fast_hasher` remplace argon2 (~300 ms par hash) par un hacheur faible ;
+- pour isoler de la base : `MagicMock(spec=<Repository>)` à la place du repository,
+  ou `app.dependency_overrides[get_session]` à la place de la session.
 
 ⚠️ **Pas encore de base de test isolée.** Un test qui appelle `POST`, `PUT` ou
-`DELETE` écrit dans la **vraie** base de développement.
+`DELETE` via `client` écrit dans la **vraie** base de développement.
+
+**La suite, dans l'ordre** (chaque étape s'appuie sur la précédente) :
+1. ✅ tests unitaires purs — la logique, sans base ;
+2. ➡️ base de test isolée — les contraintes PostgreSQL (FK, `CHECK`, `UNIQUE`) ;
+3. ➡️ calculette de rémunération — les 55 cas du sujet.
 
 ## Architecture
 
@@ -134,8 +153,8 @@ API/
 │       ├── services/              # logique métier : base_service.py + 1 fichier par table
 │       └── routes/                # routage HTTP : crud_router.py + 1 fichier par table
 └── tests/
-    ├── conftest.py
-    └── test_health.py
+    ├── conftest.py              # fixtures client, fast_hasher
+    └── test_*.py                # 7 fichiers, voir § Tests
 ```
 
 ## Endpoints
