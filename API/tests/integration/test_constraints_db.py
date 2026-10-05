@@ -7,7 +7,7 @@ COMMENT LIRE CE FICHIER
 Chaque test vise UNE contrainte de docker/init-v2/01 (ou sa correction
 dans 02) et vérifie le code HTTP qui en sort :
 
-- estate : montant au centime (NUMERIC(12,2), règle 4 de CLAUDE.md),
+- estate : prix en euros entiers (INTEGER, Q-REM-01 du 2026-10-05),
   CHECK price >= 0, liste fermée de estate_type, NOT NULL, UNIQUE ;
 - client : ck_client_address_all_or_nothing telle que corrigée par 02
   (ville seule acceptée, adresse sans ville refusée), et
@@ -29,7 +29,7 @@ ESTATE: dict[str, Any] = {
     "estate_type": "Maison",
     "surface": "120.50",
     "town": "Toulouse",
-    "price": "354712.55",
+    "price": 354712,
 }
 
 
@@ -47,12 +47,24 @@ def client_payload(user_id: int, **overrides: Any) -> dict[str, Any]:
 # --- estate ------------------------------------------------------------------
 
 
-def test_estate_price_keeps_cents(db_client: TestClient):
+def test_estate_price_is_whole_euros(db_client: TestClient):
     created = db_client.post("/estates", json=ESTATE)
     assert created.status_code == 201, created.text
 
     read = db_client.get(f"/estates/{created.json()['id']}")
-    assert read.json()["price"] == "354712.55"
+    assert read.json()["price"] == 354712
+
+
+# Défaut connu, mesuré le 2026-10-05 : le modèle de table ne valide pas
+# l'entrée. 199999.5 est arrondi en silence à 200000 par PostgreSQL (201,
+# tranche du dessus) ; "199999.50" fait planter l'insertion (DataError non
+# traduite). Le jour où l'API refuse (Q-INF-06), ces cas passent : strict=True
+# fera alors échouer le xfail, pour qu'on le retire.
+@pytest.mark.xfail(strict=True, reason="prix à virgule pas encore refusé par l'API (Q-INF-06)")
+@pytest.mark.parametrize("price", [199999.5, "199999.50"])
+def test_estate_price_with_cents_is_refused(db_client: TestClient, price: Any):
+    response = db_client.post("/estates", json={**ESTATE, "price": price})
+    assert response.status_code == 422
 
 
 @pytest.mark.parametrize(

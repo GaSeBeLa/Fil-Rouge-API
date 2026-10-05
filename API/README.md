@@ -94,6 +94,11 @@ docker compose exec api python -m pytest -q -p no:cacheprovider
 touchent pas PostgreSQL (vérifié avec le conteneur `db` arrêté), dont les
 **55 cas de rémunération** du sujet, et 22 d'intégration (voir plus bas).
 
+**Au 2026-10-05** : `121 passed, 2 xfailed`. Les 2 `xfail` documentent un
+défaut connu : un prix à virgule n'est pas refusé par l'API (les prix sont en
+`INTEGER` depuis Q-REM-01 ; PostgreSQL arrondit `199999.5` en silence). Voir
+`test_estate_price_with_cents_is_refused` et Q-INF-06.
+
 | Fichier | Ce qu'il prouve |
 |---|---|
 | [`test_health.py`](tests/test_health.py) | `/` répond |

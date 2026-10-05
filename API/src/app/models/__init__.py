@@ -21,9 +21,10 @@ veux une validation côté Python AVANT d'atteindre la base (plus rapide à
 l'utilisateur, message d'erreur plus clair), il faudra l'ajouter séparément
 avec un validator Pydantic — pas fait ici pour rester simple au démarrage.
 
-Tout montant est un `Decimal`, jamais un `float` : les colonnes sont des
-`NUMERIC(12,2)` en euros, et un flottant ne représente pas exactement un
-centime (voir `docker/init-v2/README.md` §1).
+Montants en euros, jamais en `float` (Q-REM-01, 2026-10-05) :
+- prix, budgets, bornes du barème, part fixe : `INTEGER` → `int` ;
+- honoraires (`sale.fees_amount`) et paiement (`payment.amount`) :
+  `NUMERIC(12,2)` → `Decimal`, car le sujet arrondit au centime.
 
 Les `foreign_key="table.colonne"` sont de simples chaînes : SQLAlchemy les
 résout par nom de table, pas par import Python. Aucune dépendance d'ordre

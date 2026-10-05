@@ -3,10 +3,12 @@ estate_model.py — Les biens immobiliers (annonces) proposés aux clients.
 
 Deux choses à savoir avant d'écrire du code sur cette table :
 
-- **`price` est en euros**, `NUMERIC(12,2)`, donc `Decimal` ici — jamais
-  `float` : un flottant ne représente pas exactement un centime, et la
-  règle de rémunération exige l'arrondi au centime. Voir
-  `docker/init-v2/README.md` §1.
+- **`price` est en euros entiers**, `INTEGER`, donc `int` ici (Q-REM-01,
+  2026-10-05) : un prix n'a pas de centimes. ⚠️ Un prix à virgule n'est
+  **pas encore refusé** : le modèle de table ne valide pas l'entrée, et
+  PostgreSQL arrondit en silence (199 999.5 → 200 000, mesuré), ce qui
+  change la tranche du barème. Voir Q-INF-06 et le test xfail
+  `test_estate_price_with_cents_is_refused`.
 - **L'énergie est décrite en cinq colonnes** (`energy_class`,
   `energy_class_scheme`, `energy_class_date`, `energy_kwh_m2`,
   `energy_co2_m2`), et non plus par l'ancien `energetic_score`, qui
@@ -32,7 +34,7 @@ class Estate(SQLModel, table=True):
     reference: str = Field(max_length=50, unique=True)
     country_iso: Optional[str] = Field(default=None, max_length=2)
     estate_type: str = Field(max_length=50)
-    price: Optional[Decimal] = Field(default=None, max_digits=12, decimal_places=2)
+    price: Optional[int] = None
     construction_date: Optional[date] = None
     energy_class: Optional[str] = Field(default=None, max_length=1)
     energy_class_scheme: Optional[str] = Field(default=None, max_length=20)

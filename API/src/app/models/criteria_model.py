@@ -3,8 +3,8 @@ criteria_model.py — Les critères de recherche structurés, rattachés à une
 demande de recherche (search_request). Une nouvelle version de critères
 peut référencer la précédente via `id_previous_version`.
 
-Les budgets sont en euros, `NUMERIC(12,2)` — donc `Decimal`, pas `float`
-(voir `docker/init-v2/README.md` §1).
+Les budgets sont en euros entiers, `INTEGER` — donc `int` (Q-REM-01,
+2026-10-05). Les surfaces restent des `Decimal`.
 
 Attention au sens des contraintes, qui n'est pas celui qu'on devine :
 `estate_type` et `budget_max` sont **obligatoires**, tandis que `typology`
@@ -32,13 +32,13 @@ class Criteria(SQLModel, table=True):
     postal_code: Optional[str] = Field(default=None, max_length=10)
     estate_type: str = Field(max_length=50)
     typology: Optional[str] = Field(default=None, max_length=50)
-    budget_min: Optional[Decimal] = Field(default=None, max_digits=12, decimal_places=2)
-    budget_max: Decimal = Field(max_digits=12, decimal_places=2)
+    budget_min: Optional[int] = None
+    budget_max: int
     floor: Optional[str] = Field(default=None, max_length=10)
     is_new_build: Optional[bool] = None
     needs_renovation: Optional[bool] = None
-    renovation_budget_min: Optional[Decimal] = Field(default=None, max_digits=12, decimal_places=2)
-    renovation_budget_max: Optional[Decimal] = Field(default=None, max_digits=12, decimal_places=2)
+    renovation_budget_min: Optional[int] = None
+    renovation_budget_max: Optional[int] = None
     energy_class_max: Optional[str] = Field(default=None, max_length=1)
     rooms_min: Optional[int] = None
     rooms_max: Optional[int] = None

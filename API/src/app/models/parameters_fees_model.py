@@ -25,6 +25,6 @@ class ParametersFees(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     valid_from: date
     valid_until: Optional[date] = None
-    fixed_amount: Decimal = Field(max_digits=12, decimal_places=2)
+    fixed_amount: int  # euros entiers (INTEGER) : la source donne 3000,00
     # rate : NUMERIC(5,4) — 0.0300 vaut 3 %.
     rate: Decimal = Field(max_digits=5, decimal_places=4)

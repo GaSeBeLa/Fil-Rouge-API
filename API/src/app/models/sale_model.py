@@ -7,7 +7,10 @@ honoraires collectés par le notaire) sert de base au calcul, et
 `sale_origin` dit si le chasseur y a droit — une vente `client_alone` est
 une vente que le client a conclue seul, hors mandat.
 
-Montants en euros, `NUMERIC(12,2)` : voir `docker/init-v2/README.md` §1.
+Montants en euros (Q-REM-01, 2026-10-05) : `purchase_amount` en euros
+entiers (`INTEGER`, donc `int`) ; `fees_amount` au centime (`NUMERIC(12,2)`,
+donc `Decimal`), car les honoraires 3 000 € + 2,5 % du prix tombent souvent
+sur des centimes.
 """
 
 from datetime import date, datetime, timezone
@@ -23,7 +26,7 @@ class Sale(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     signature_date: date
-    purchase_amount: Decimal = Field(max_digits=12, decimal_places=2)
+    purchase_amount: int
     fees_amount: Decimal = Field(max_digits=12, decimal_places=2)
     # sale_origin : NOT NULL + CHECK ('hunter' / 'client_alone') côté base.
     sale_origin: str = Field(max_length=20)
