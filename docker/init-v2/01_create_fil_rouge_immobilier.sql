@@ -58,15 +58,19 @@
 --      qui est le format officiel Eircode. ⚠️ À VALIDER par le groupe : si la
 --      saisie se fait sans espace, c'est client qu'il faut aligner, pas criteria.
 --   9. criteria.budget_max : « NUMERIC (12.2) » dans MPD 03 4 (un point au
---      lieu d'une virgule). Lu comme NUMERIC(12,2), comme tous les montants.
+--      lieu d'une virgule). Lu comme INTEGER, comme tous les prix et budgets.
 --
 -- ============================================================================
 -- ⚠️ CONVENTION D'UNITÉ MONÉTAIRE — CHANGEMENT MAJEUR, À LIRE EN ENTIER
 -- ============================================================================
 --
---   TOUS les montants sont en EUROS, type NUMERIC(12,2).
+--   TOUS les montants sont en EUROS. Deux types (Q-REM-01, 2026-10-05) :
+--     - INTEGER (euros entiers) : prix, budgets, bornes du barème, part fixe ;
+--     - NUMERIC(12,2) (au centime) : honoraires sale.fees_amount et
+--       rémunération payment.amount — le sujet impose l'arrondi au centime
+--       (10_calcul_remuneration_chasseur.feature, l. 253 ; remuneration.py:188).
 --   La convention « milliers d'euros » (K€, NUMERIC(6,1)) des versions
---   précédentes est ABANDONNÉE. Un bien à 354 700 € se stocke 354700.00.
+--   précédentes est ABANDONNÉE. Un bien à 354 700 € se stocke 354700.
 --
 --   POURQUOI — trois mesures sur les sources officielles, pas un avis :
 --
@@ -311,16 +315,16 @@ CREATE TABLE criteria (
                                                'T5 / F5', 'T5 bis / F5 bis', 'T6+ / F6+')),
 
     -- Montants en EUROS (voir l'avertissement d'en-tête).
-    budget_min             NUMERIC(12,2) CHECK (budget_min > 0),
-    budget_max             NUMERIC(12,2) NOT NULL CHECK (budget_max > 0),
+    budget_min             INTEGER CHECK (budget_min > 0),
+    budget_max             INTEGER NOT NULL CHECK (budget_max > 0),
 
     floor                  VARCHAR(10)
                            CHECK (floor IN ('0','1','2','3','4','5','6','7','8','9',
                                             '10 and more','last floor')),
     is_new_build           BOOLEAN,
     needs_renovation       BOOLEAN,
-    renovation_budget_min  NUMERIC(12,2) CHECK (renovation_budget_min >= 0),
-    renovation_budget_max  NUMERIC(12,2) CHECK (renovation_budget_max >= 0),
+    renovation_budget_min  INTEGER CHECK (renovation_budget_min >= 0),
+    renovation_budget_max  INTEGER CHECK (renovation_budget_max >= 0),
     energy_class_max       CHAR(1) CHECK (energy_class_max IN ('A','B','C','D','E','F','G')),
 
     rooms_min              SMALLINT CHECK (rooms_min > 0),
@@ -512,7 +516,7 @@ CREATE TABLE estate (
                                                 'Villa', 'Duplex', 'Terrain', 'Local commercial',
                                                 'Chalet', 'Château')),
     -- Euros. Charger depuis annonces_normalised.csv colonne « price_eur ».
-    price                NUMERIC(12,2) CHECK (price >= 0),
+    price                INTEGER CHECK (price >= 0),
     construction_date    DATE,
     energy_class         CHAR(1) CHECK (energy_class IN ('A','B','C','D','E','F','G')),
     energy_class_scheme  VARCHAR(20),
@@ -602,7 +606,7 @@ CREATE TABLE estate_proposed (
     comment_hunter     TEXT CHECK (char_length(comment_hunter) <= 2000),
     comment_client     TEXT,
     -- Euros.
-    amount_proposition NUMERIC(12,2) CHECK (amount_proposition >= 0),
+    amount_proposition INTEGER CHECK (amount_proposition >= 0),
     proposition_status VARCHAR(20) NOT NULL
                        CHECK (proposition_status IN ('proposed', 'offer_pending',
                                                      'accepted', 'rejected')),
@@ -647,7 +651,7 @@ CREATE TABLE sale (
     created_at      TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     signature_date  DATE NOT NULL,
     -- Euros. Prix d'acte : jusqu'à 800 000 dans les Gherkin officiels.
-    purchase_amount NUMERIC(12,2) NOT NULL CHECK (purchase_amount > 0),
+    purchase_amount INTEGER NOT NULL CHECK (purchase_amount > 0),
     -- Honoraires (l'assiette du calcul) : montant fixe + % du prix.
     fees_amount     NUMERIC(12,2) NOT NULL CHECK (fees_amount > 0),
     sale_origin     VARCHAR(20) NOT NULL
@@ -674,8 +678,8 @@ CREATE TABLE parameters_fees (
     created_at   TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     valid_from   DATE NOT NULL,
     valid_until  DATE,
-    -- Euros, au centime : la source officielle donne « 3000,00 ».
-    fixed_amount NUMERIC(12,2) NOT NULL CHECK (fixed_amount > 0),
+    -- Euros entiers : la source officielle donne « 3000,00 », soit 3000.
+    fixed_amount INTEGER NOT NULL CHECK (fixed_amount > 0),
     rate         NUMERIC(5,4) NOT NULL CHECK (rate >= 0 AND rate <= 1),
 
     CONSTRAINT excl_fees_no_overlap
@@ -688,8 +692,8 @@ CREATE TABLE commission_scale (
     id          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at  TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     -- Euros : les tranches officielles montent à 750 000 et au-delà.
-    amount_min  NUMERIC(12,2) NOT NULL CHECK (amount_min >= 0),
-    amount_max  NUMERIC(12,2) CHECK (amount_max > amount_min),
+    amount_min  INTEGER NOT NULL CHECK (amount_min >= 0),
+    amount_max  INTEGER CHECK (amount_max > amount_min),
     rate        NUMERIC(5,4) NOT NULL CHECK (rate >= 0 AND rate <= 1),
     valid_from  DATE NOT NULL,
     valid_until DATE,
@@ -828,9 +832,9 @@ CREATE TABLE hunter_performance (
 
 -- Unité monétaire : tout est en euros.
 COMMENT ON COLUMN criteria.budget_min IS
-  'Budget minimum en EUROS, NUMERIC(12,2). Ex: 250000.00 = 250 000 EUR.';
+  'Budget minimum en EUROS, INTEGER. Ex: 250000 = 250 000 EUR.';
 COMMENT ON COLUMN criteria.budget_max IS
-  'Budget maximum en EUROS, NUMERIC(12,2).';
+  'Budget maximum en EUROS, INTEGER.';
 COMMENT ON COLUMN criteria.renovation_budget_min IS
   'Budget travaux minimum en EUROS.';
 COMMENT ON COLUMN criteria.renovation_budget_max IS
@@ -844,9 +848,9 @@ COMMENT ON COLUMN sale.purchase_amount IS
 COMMENT ON COLUMN sale.fees_amount IS
   'Honoraires (assiette de la remuneration) en EUROS, au centime.';
 COMMENT ON COLUMN commission_scale.amount_min IS
-  'Borne basse de la tranche en EUROS, bornee [min, max] (deux bornes incluses, Q-REM-01). Ex: 200000.00.';
+  'Borne basse de la tranche en EUROS, bornee [min, max] (deux bornes incluses, Q-REM-01). Ex: 200000.';
 COMMENT ON COLUMN commission_scale.amount_max IS
-  'Borne haute (incluse) de la tranche en EUROS ; NULL = sans plafond. Ex: 349999.00.';
+  'Borne haute (incluse) de la tranche en EUROS ; NULL = sans plafond. Ex: 349999.';
 COMMENT ON COLUMN parameters_fees.fixed_amount IS
   'Part fixe des honoraires en EUROS. Source officielle : 3000,00.';
 COMMENT ON COLUMN payment.amount IS
