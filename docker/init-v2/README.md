@@ -266,8 +266,10 @@ Contenu obtenu :
 
 Montants après migration :
 
-- `estate.price` : **62 495,00 → 406 042,00 €** (identique au CSV, au centime)
-- `criteria.budget_max` : **240 000,00 → 700 000,00 €**
+- `estate.price` : **62 495 → 406 042 €** (identique au CSV ; euros entiers,
+  `INTEGER` depuis Q-REM-01 du 2026-10-05 — 0 prix sur 2 556 avait des centimes)
+- `criteria.budget_max` : **240 000 → 700 000 €** (`INTEGER`, revérifié le
+  2026-10-05 sur `fil_rouge_test` : 17 lignes)
 
 ---
 
