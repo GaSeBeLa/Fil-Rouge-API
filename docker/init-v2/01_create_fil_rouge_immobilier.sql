@@ -703,14 +703,14 @@ CREATE TABLE commission_scale (
     CONSTRAINT excl_scale_no_overlap
         EXCLUDE USING gist (
             id_hunter WITH =,
-            numrange(amount_min, amount_max, '[)') WITH &&,
+            numrange(amount_min, amount_max, '[]') WITH &&,
             daterange(valid_from, valid_until, '[]') WITH &&
         ),
     -- Idem pour le barème par défaut, que le précédent laisse passer (NULL
     -- n'est jamais égal à NULL, donc l'exclusion ne s'y applique pas).
     CONSTRAINT excl_scale_global
         EXCLUDE USING gist (
-            numrange(amount_min, amount_max, '[)') WITH &&,
+            numrange(amount_min, amount_max, '[]') WITH &&,
             daterange(valid_from, valid_until, '[]') WITH &&
         ) WHERE (id_hunter IS NULL)
 );
@@ -844,9 +844,9 @@ COMMENT ON COLUMN sale.purchase_amount IS
 COMMENT ON COLUMN sale.fees_amount IS
   'Honoraires (assiette de la remuneration) en EUROS, au centime.';
 COMMENT ON COLUMN commission_scale.amount_min IS
-  'Borne basse de la tranche en EUROS, bornee [min, max[. Ex: 200000.00.';
+  'Borne basse de la tranche en EUROS, bornee [min, max] (deux bornes incluses, Q-REM-01). Ex: 200000.00.';
 COMMENT ON COLUMN commission_scale.amount_max IS
-  'Borne haute (exclue) de la tranche en EUROS ; NULL = sans plafond.';
+  'Borne haute (incluse) de la tranche en EUROS ; NULL = sans plafond. Ex: 349999.00.';
 COMMENT ON COLUMN parameters_fees.fixed_amount IS
   'Part fixe des honoraires en EUROS. Source officielle : 3000,00.';
 COMMENT ON COLUMN payment.amount IS
