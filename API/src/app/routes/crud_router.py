@@ -23,17 +23,41 @@ POST (`response_model`). Par défaut, si non fourni, le PUT utilise
 précisent pas. À utiliser quand une mise à jour partielle a du sens
 (champs optionnels) alors que la création exige des champs complets — voir
 UserUpdate dans user_router.py.
+
+Validation de l'entrée (POST, PUT) : un modèle de TABLE SQLModel ne valide
+pas ce que FastAPI lui passe — mesuré le 2026-10-05 : un prix `199999.5`
+était arrondi en silence à 200 000 par PostgreSQL, un champ obligatoire
+manquant finissait en 409. `_validated` revalide donc le corps avec
+`model_validate`, qui, lui, valide : une entrée invalide rend 422, avant
+d'atteindre la base.
 ============================================================================
 """
 
 from typing import List, Optional, Type
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlmodel import Session, SQLModel
 
 from ..conf.database import get_session
 from ..utils.exceptions import ConflictError, NotFoundError
 from ..services.base_service import BaseService
+
+
+def _validated(model: Type[SQLModel], item: SQLModel) -> SQLModel:
+    """Revalide le corps reçu ; une erreur devient un 422 standard de FastAPI."""
+    try:
+        # exclude_unset : un champ absent reste absent (PUT partiel, défauts).
+        # warnings=False : l'objet brut porte des valeurs non converties.
+        return model.model_validate(item.model_dump(exclude_unset=True, warnings=False))
+    except ValidationError as exc:
+        # loc préfixé par "body", comme les 422 que FastAPI produit lui-même.
+        errors = [
+            {**e, "loc": ("body", *e["loc"])}
+            for e in exc.errors(include_url=False, include_context=False)
+        ]
+        raise RequestValidationError(errors) from exc
 
 
 def build_crud_router(
@@ -64,14 +88,14 @@ def build_crud_router(
     @router.post("", response_model=out_model, status_code=201)
     def create_item(item: response_model, session: Session = Depends(get_session)):
         try:
-            return service.create(session, item)
+            return service.create(session, _validated(response_model, item))
         except ConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @router.put("/{item_id}", response_model=out_model)
     def update_item(item_id: int, data: in_update_model, session: Session = Depends(get_session)):
         try:
-            return service.replace(session, item_id, data)
+            return service.replace(session, item_id, _validated(in_update_model, data))
         except NotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ConflictError as exc:

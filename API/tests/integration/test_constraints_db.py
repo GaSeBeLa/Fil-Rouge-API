@@ -13,8 +13,10 @@ dans 02) et vérifie le code HTTP qui en sort :
   (ville seule acceptée, adresse sans ville refusée), et
   ck_client_marital_status_exclusive (marié ET pacsé refusé).
 
-⚠️ Un champ obligatoire manquant donne 409, pas 422 : les modèles de table
-ne valident pas l'entrée, c'est PostgreSQL qui refuse (API/README.md).
+Depuis le 2026-10-05, le routeur commun revalide l'entrée (crud_router.py,
+`_validated`) : un type faux ou un champ obligatoire manquant donne 422,
+avant la base ; une contrainte que seul PostgreSQL connaît (CHECK, UNIQUE)
+donne 409.
 ============================================================================
 """
 
@@ -55,15 +57,19 @@ def test_estate_price_is_whole_euros(db_client: TestClient):
     assert read.json()["price"] == 354712
 
 
-# Défaut connu, mesuré le 2026-10-05 : le modèle de table ne valide pas
-# l'entrée. 199999.5 est arrondi en silence à 200000 par PostgreSQL (201,
-# tranche du dessus) ; "199999.50" fait planter l'insertion (DataError non
-# traduite). Le jour où l'API refuse (Q-INF-06), ces cas passent : strict=True
-# fera alors échouer le xfail, pour qu'on le retire.
-@pytest.mark.xfail(strict=True, reason="prix à virgule pas encore refusé par l'API (Q-INF-06)")
+# Sans la validation du routeur (avant le 2026-10-05), 199999.5 était arrondi
+# en silence à 200000 par PostgreSQL — tranche du dessus — et "199999.50"
+# faisait planter l'insertion. Un prix est en euros entiers (Q-REM-01).
 @pytest.mark.parametrize("price", [199999.5, "199999.50"])
-def test_estate_price_with_cents_is_refused(db_client: TestClient, price: Any):
+def test_estate_price_with_cents_returns_422(db_client: TestClient, price: Any):
     response = db_client.post("/estates", json={**ESTATE, "price": price})
+    assert response.status_code == 422
+    assert db_client.get("/estates").json() == []  # rien n'a été écrit
+
+
+def test_estate_missing_required_field_returns_422(db_client: TestClient):
+    # surface : NOT NULL en base, obligatoire dans le modèle.
+    response = db_client.post("/estates", json={**ESTATE, "surface": None})
     assert response.status_code == 422
 
 
@@ -73,7 +79,6 @@ def test_estate_price_with_cents_is_refused(db_client: TestClient, price: Any):
         ("price", "-1"),  # CHECK (price >= 0)
         ("estate_type", "Péniche"),  # CHECK estate_type IN (...)
         ("surface", "0"),  # CHECK (surface > 0)
-        ("surface", None),  # NOT NULL
     ],
 )
 def test_estate_constraint_violation_returns_409(db_client: TestClient, field: str, value: Any):

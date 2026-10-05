@@ -94,10 +94,9 @@ docker compose exec api python -m pytest -q -p no:cacheprovider
 touchent pas PostgreSQL (vérifié avec le conteneur `db` arrêté), dont les
 **55 cas de rémunération** du sujet, et 22 d'intégration (voir plus bas).
 
-**Au 2026-10-05** : `121 passed, 2 xfailed`. Les 2 `xfail` documentent un
-défaut connu : un prix à virgule n'est pas refusé par l'API (les prix sont en
-`INTEGER` depuis Q-REM-01 ; PostgreSQL arrondit `199999.5` en silence). Voir
-`test_estate_price_with_cents_is_refused` et Q-INF-06.
+**Au 2026-10-05** : **123 tests, `123 passed`**. Le routeur commun revalide
+désormais l'entrée (voir « Codes de réponse ») ; deux tests y sont dédiés :
+un prix à virgule et un champ obligatoire manquant rendent `422`.
 
 | Fichier | Ce qu'il prouve |
 |---|---|
@@ -215,12 +214,18 @@ Mesuré le 2026-10-02 contre l'API qui tourne (✅), ou lu dans le code (📖) :
 | création réussie | **`201`** | — |
 | id inexistant (`GET`, `PUT`, `DELETE`) | `404` | `"<Entité> introuvable"`, ex. `"Chasseur introuvable"` ✅ |
 | id non entier (`/hunters/abc`) | `422` | erreur Pydantic `int_parsing` ✅ |
+| corps invalide au `POST` / `PUT` (type faux, champ obligatoire manquant, prix à virgule) | `422` | erreur Pydantic, ex. `int_from_float`, `missing` ✅ |
 | contrainte violée au `POST` / `PUT` | `409` | `"Contrainte violée (valeur en double ou référence inexistante)."` ✅ |
 | `DELETE` d'une ligne encore référencée | `409` | `"Suppression impossible : cette ligne est encore référencée ailleurs."` 📖 |
 
-⚠️ **Un champ obligatoire manquant donne `409`, pas `422`** : `POST /roles` avec `{}`
-renvoie `409` ✅. Les modèles de table ne valident pas l'entrée ; c'est PostgreSQL
-(`NOT NULL`) qui refuse.
+✅ **Un champ obligatoire manquant donne `422`** (depuis le 2026-10-05) :
+`POST /roles` avec `{}` renvoie `422`, `missing` sur `wording` (mesuré). Un
+modèle de table SQLModel ne valide pas ce que FastAPI lui passe : avant ce
+jour, ce cas finissait en `409`, et un prix `199999.5` était arrondi en
+silence à `200000` par PostgreSQL. `_validated`
+([`crud_router.py`](src/app/routes/crud_router.py)) revalide le corps avec
+`model_validate`. Les `CHECK` du schéma, eux, restent vérifiés par PostgreSQL
+seul (`409`).
 
 ⚠️ **Les 34 clés étrangères sont en `ON DELETE RESTRICT`** : supprimer un parent
 encore référencé échoue toujours en `409`.
