@@ -44,7 +44,7 @@ services:
       - ../API/tests:/api/tests:ro
 
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     container_name: fil_rouge_immobilier_minio
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -56,7 +56,7 @@ services:
     volumes:
       - minio_data:/data
   minio-setup:
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: pgsty/mc@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd
     container_name: fil_rouge_immobilier_minio_setup
     depends_on:
       - minio
