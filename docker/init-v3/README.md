@@ -396,18 +396,21 @@ Montants après migration :
 
 ## 6. Activer ce dossier
 
-Une seule ligne à changer dans `docker/docker-compose.yml` :
+Rien à changer : `docker/docker-compose.yml` monte déjà `./init-v3` sur
+`/docker-entrypoint-initdb.d` depuis le 2026-10-07 (LOT1).
 
-```yaml
-volumes:
-  - ./init-v2:/docker-entrypoint-initdb.d   # au lieu de ./init
-```
-
-Puis, **le volume devant être vide** pour que les scripts d'init rejouent :
+Les scripts d'init ne rejouent que sur un **volume vide**. Depuis `docker/`,
+après avoir ajouté `POSTGRES_READER_PASSWORD=` à `docker/.env` (LOT12, voir
+`.env.exemple`) :
 
 ```bash
 docker compose down -v && docker compose up -d
 ```
+
+⚠️ `down -v` efface la base de dev locale. `healthy` arrive **avant** la fin
+de l'init : attendre « init process complete » dans `docker compose logs db`
+avant de lire la base. Puis `bash docker/create_test_db.sh` pour la base de
+test.
 
 ### Tester sans rien toucher
 
@@ -415,8 +418,8 @@ docker compose down -v && docker compose up -d
 docker run --rm -d --name pg_essai -e POSTGRES_PASSWORD=test -e POSTGRES_DB=fr postgres:16
 ```
 
-puis passer les trois scripts dans l'ordre avec `psql`, et supprimer le
-conteneur avec `docker rm -f pg_essai`.
+puis passer les quatre scripts (`01` à `04`) dans l'ordre avec `psql`, et
+supprimer le conteneur avec `docker rm -f pg_essai`.
 
 ---
 
