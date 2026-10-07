@@ -136,7 +136,8 @@
 --   Décisions encore ouvertes : D2 (ancienneté), D6 (priorité du client),
 --   D9 (deux scores le même jour), N2 (localisation :
 --   ADR-009 place la localisation sur search_request, le MPD la met sur
---   criteria, ADR-021 ne tranche pas), R21 (bornage du taux final 20-60 %).
+--   criteria, ADR-021 ne tranche pas). R21 (bornage du taux final 20-60 %)
+--   est actif depuis le 2026-10-07 (LOT5, Q-REM-19, Jeff : Q-JEF-01).
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;  -- requis par les contraintes EXCLUDE
@@ -744,10 +745,17 @@ CREATE TABLE payment (
     amount              NUMERIC(12,2) NOT NULL CHECK (amount >= 0),
     -- 'refused' (ADR-024) : le droit à rémunération est fermé. La ligne
     --   porte son motif et aucun montant, ni taux, ni barème.
+    -- Les étapes de la facture sont retirées : la facture est hors périmètre
+    --   (Q-JEF-23, Q-REM-17 revue le 2026-10-07). Le paiement va de
+    --   'announced' à 'scheduled', puis 'paid'.
     status              VARCHAR(20) NOT NULL
                         CHECK (status IN ('refused', 'announced',
-                                          'invoice_submitted',
-                                          'verified', 'scheduled', 'paid')),
+                                          'scheduled', 'paid')),
+    -- Q-REM-17 : une date par étape (user-stories/07, l. 10-34). Le chasseur
+    --   est prévenu (announced_at), le virement est prévu pour un jour
+    --   (scheduled_for), puis fait (paid_at).
+    announced_at        TIMESTAMP,
+    scheduled_for       DATE,
     paid_at             TIMESTAMP,
     -- Motif du droit refusé (ADR-024). Les deux valeurs viennent de
     --   l'énumération MotifRefus du sujet (REGLES-CALCUL-REMUNERATION.md
@@ -761,19 +769,26 @@ CREATE TABLE payment (
     -- Taux de tranche issu du barème. NULL sur une ligne de refus (ADR-024) :
     --   un CHECK ne s'appliquant pas à un NULL, la borne reste inchangée.
     base_rate           NUMERIC(5,4) CHECK (base_rate > 0 AND base_rate <= 1),
-    -- TODO (R21) — le taux final est borné entre 20 % et 60 % par la règle
+    -- R21 — le taux final est borné entre 20 % et 60 % par la règle
     --   officielle (10_calcul_remuneration_chasseur.feature:201 ; exemples
-    --   l. 236-250 : 65 % ramené à 60 %, 17,60 % remonté à 20 %).
-    --   Le CHECK ci-dessous accepte tout entre 0 et 1. À remplacer par :
-    --       CHECK (final_rate BETWEEN 0.20 AND 0.60)
-    --   L'en-tête du Gherkin précise que ces bornes sont des paramètres
-    --   « proposés, non imposés » : d'où la prudence, mais la règle de bornage,
-    --   elle, est bien métier.
-    final_rate          NUMERIC(5,4) CHECK (final_rate > 0 AND final_rate <= 1),
+    --   l. 236-250 : 65 % ramené à 60 %, 17,60 % remonté à 20 %). Actif
+    --   depuis le 2026-10-07 (Q-REM-19, confirmé par Jeff : Q-JEF-01).
+    --   ⚠️ 20 % et 60 % sont des paramètres « proposés, non imposés » (en-tête
+    --   du Gherkin) : si Jeff les change, ce CHECK change aussi (Q-REM-05).
+    final_rate          NUMERIC(5,4) CHECK (final_rate BETWEEN 0.20 AND 0.60),
     -- Majoration d'ancienneté, modulation de performance (décision D2).
     -- NULL toutes les deux sur une ligne de refus (ADR-024).
     seniority_rate      NUMERIC(5,4) CHECK (seniority_rate BETWEEN 0 AND 0.10),
     performance_rate    NUMERIC(5,4) CHECK (performance_rate BETWEEN -0.20 AND 0.20),
+    -- Q-REM-03 : le score qui a servi au calcul, figé à la date de l'acte
+    --   (F10:275-287). hunter_performance.score est recalculé APRÈS le
+    --   paiement : ce n'est pas le même. Même domaine que lui (0 à 100).
+    --   NULL sur une ligne de refus (chk_refused).
+    performance_score   NUMERIC(4,1) CHECK (performance_score BETWEEN 0 AND 100),
+    -- Q-REM-04 : tous les termes du calcul — les 5 notes et les entrées
+    --   (visites, ancienneté, ventes et mandats sur 12 mois) —, pour qu'un
+    --   paiement se rejoue même si ces valeurs changent ensuite.
+    calculation_details JSONB,
     id_sale             INTEGER NOT NULL UNIQUE REFERENCES sale(id) ON DELETE RESTRICT,
     id_hunter           INTEGER NOT NULL REFERENCES hunter(id_user) ON DELETE RESTRICT,
     -- NULL sur une ligne de refus : un droit fermé ne désigne aucune tranche.
@@ -783,10 +798,23 @@ CREATE TABLE payment (
         CHECK ((status =  'paid' AND paid_at IS NOT NULL)
             OR (status <> 'paid' AND paid_at IS NULL)),
 
+    -- Q-REM-17 — comme chk_paid : la date se remplit quand l'étape est
+    --   atteinte, et reste ensuite. Un refus n'est ni annoncé ni programmé.
+    CONSTRAINT chk_announced
+        CHECK ((status IN ('announced', 'scheduled', 'paid')
+                AND announced_at IS NOT NULL)
+            OR (status = 'refused' AND announced_at IS NULL)),
+    CONSTRAINT chk_scheduled
+        CHECK ((status IN ('scheduled', 'paid') AND scheduled_for IS NOT NULL)
+            OR (status IN ('refused', 'announced') AND scheduled_for IS NULL)),
+
     -- ADR-024 — un refus et un paiement ne se ressemblent jamais à moitié.
     --   Ferme les deux erreurs qui coûteraient cher : un « refusé » portant
     --   des taux, donc lisible comme un paiement en attente ; et un paiement
     --   réel sans barème ni taux, donc inexplicable après coup.
+    -- Q-REM-10 : final_rate est exigé hors refus — dès 'announced', le
+    --   montant est annoncé, donc le taux est connu. Q-REM-03 : pas de score
+    --   figé sur un refus.
     CONSTRAINT chk_refused
         CHECK ((status =  'refused'
                 AND refusal_reason      IS NOT NULL
@@ -795,12 +823,14 @@ CREATE TABLE payment (
                 AND seniority_rate      IS NULL
                 AND performance_rate    IS NULL
                 AND final_rate          IS NULL
+                AND performance_score   IS NULL
                 AND id_commission_scale IS NULL)
             OR (status <> 'refused'
                 AND refusal_reason      IS NULL
                 AND base_rate           IS NOT NULL
                 AND seniority_rate      IS NOT NULL
                 AND performance_rate    IS NOT NULL
+                AND final_rate          IS NOT NULL
                 AND id_commission_scale IS NOT NULL))
 
     -- TODO (U01/U04, R01-R04, T17) — le droit à être payé n'est pas vérifié :

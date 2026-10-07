@@ -15,7 +15,11 @@ dans 02) et vérifie le code HTTP qui en sort :
 - mandate : statut de fin 'lost' (Q-REM-02, Q-REM-14) ;
   chk_status_signature, qui permet 'canceled' sans signature (Q-MAN-07) ;
   chk_mandate_six_months (Q-MAN-01) ; trigger d'exclusivité (Q-MAN-02) ;
-- estate_proposed : offre 'signed' (Q-SCH-04).
+- estate_proposed : offre 'signed' (Q-SCH-04) ;
+- payment : final_rate entre 0,20 et 0,60 (Q-REM-19), exigé hors refus et
+  interdit sur un refus (chk_refused, Q-REM-10) ; score figé (Q-REM-03) ;
+  une date par étape, chk_announced et chk_scheduled (Q-REM-17) ; termes
+  du calcul en JSONB (Q-REM-04).
 
 Depuis le 2026-10-05, le routeur commun revalide l'entrée (crud_router.py,
 `_validated`) : un type faux ou un champ obligatoire manquant donne 422,
@@ -245,3 +249,132 @@ def test_estate_proposed_signed_status_is_accepted(db_client: TestClient):
 def test_estate_proposed_unknown_status_returns_409(db_client: TestClient):
     response = db_client.post("/estate-proposed", json=proposition_payload(db_client, "sent"))
     assert response.status_code == 409
+
+
+# --- payment -----------------------------------------------------------------
+
+# Un refus (ADR-024) : un motif, un montant nul, et ni taux, ni score, ni
+# barème, ni date d'étape.
+REFUSED: dict[str, Any] = {
+    "status": "refused",
+    "refusal_reason": "mandate_expired",
+    "amount": "0",
+    "announced_at": None,
+    "base_rate": None,
+    "seniority_rate": None,
+    "performance_rate": None,
+    "final_rate": None,
+    "performance_score": None,
+    "id_commission_scale": None,
+}
+
+
+def payment_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
+    """Un paiement annoncé, sur une vente neuve du mandat 1 posé par 02."""
+    estate = db_client.post("/estates", json=ESTATE)
+    assert estate.status_code == 201, estate.text
+    sale = db_client.post(
+        "/sales",
+        json={
+            "signature_date": "2030-03-01",
+            "purchase_amount": 354712,
+            "fees_amount": "11867.80",  # 3 000 € + 2,5 % du prix
+            "sale_origin": "hunter",
+            "id_mandate": 1,
+            "id_estate": estate.json()["id"],
+        },
+    )
+    assert sale.status_code == 201, sale.text
+    scale = db_client.post(
+        "/commission-scales",
+        json={"amount_min": 0, "rate": "0.3000", "valid_from": "2025-01-01"},
+    )
+    assert scale.status_code == 201, scale.text
+    payload: dict[str, Any] = {
+        "amount": "3560.34",
+        "status": "announced",
+        "announced_at": "2030-03-02T09:00:00Z",
+        "base_rate": "0.3000",
+        "seniority_rate": "0.0000",
+        "performance_rate": "0.0000",
+        "final_rate": "0.3000",
+        "performance_score": "50.0",
+        "id_sale": sale.json()["id"],
+        "id_hunter": 1,
+        "id_commission_scale": scale.json()["id"],
+    }
+    payload.update(overrides)
+    return payload
+
+
+@pytest.mark.parametrize("rate", ["0.20", "0.60"])
+def test_payment_final_rate_at_bounds_is_accepted(db_client: TestClient, rate: str):
+    # Q-REM-19 (R21) : 20 % et 60 % sont permis, bornes comprises.
+    response = db_client.post("/payments", json=payment_payload(db_client, final_rate=rate))
+    assert response.status_code == 201, response.text
+
+
+@pytest.mark.parametrize("rate", ["0.19", "0.61"])
+def test_payment_final_rate_out_of_bounds_returns_409(db_client: TestClient, rate: str):
+    # Q-REM-19 : 0,19 et 0,61 passaient avec le CHECK v2 (de 0 à 1).
+    response = db_client.post("/payments", json=payment_payload(db_client, final_rate=rate))
+    assert response.status_code == 409
+
+
+def test_payment_without_final_rate_returns_409(db_client: TestClient):
+    # Q-REM-10 : hors refus, le taux final est exigé (chk_refused).
+    response = db_client.post("/payments", json=payment_payload(db_client, final_rate=None))
+    assert response.status_code == 409
+
+
+def test_refused_payment_is_accepted(db_client: TestClient):
+    response = db_client.post("/payments", json=payment_payload(db_client, **REFUSED))
+    assert response.status_code == 201, response.text
+
+
+def test_refused_payment_with_final_rate_returns_409(db_client: TestClient):
+    # chk_refused, dans l'autre sens : un refus ne porte aucun taux.
+    payload = payment_payload(db_client, **{**REFUSED, "final_rate": "0.3000"})
+    assert db_client.post("/payments", json=payload).status_code == 409
+
+
+def test_refused_payment_with_performance_score_returns_409(db_client: TestClient):
+    # Q-REM-03 : pas de score figé sur un refus.
+    payload = payment_payload(db_client, **{**REFUSED, "performance_score": "50.0"})
+    assert db_client.post("/payments", json=payload).status_code == 409
+
+
+def test_payment_announced_without_date_returns_409(db_client: TestClient):
+    # Q-REM-17 : chk_announced — annoncé, donc daté.
+    response = db_client.post("/payments", json=payment_payload(db_client, announced_at=None))
+    assert response.status_code == 409
+
+
+def test_payment_scheduled_without_date_returns_409(db_client: TestClient):
+    # Q-REM-17 : chk_scheduled — programmé, donc prévu pour un jour.
+    response = db_client.post("/payments", json=payment_payload(db_client, status="scheduled"))
+    assert response.status_code == 409
+
+
+def test_payment_paid_keeps_its_dates_and_details(db_client: TestClient):
+    # Q-REM-17 : un paiement fait garde ses trois dates. Q-REM-04 : les
+    # termes du calcul se relisent tels quels (noms de rem.py, en exemple).
+    details = {
+        "notes": {"delai": 80, "exclusivite": 100, "ventes": 50, "mandats": 40, "visites": 30},
+        "nb_visites": 12,
+        "annees_anciennete": 2,
+        "ventes_12_mois": 3,
+        "mandats_12_mois": 5,
+    }
+    payload = payment_payload(
+        db_client,
+        status="paid",
+        scheduled_for="2030-03-15",
+        paid_at="2030-03-15T10:00:00Z",
+        calculation_details=details,
+    )
+    created = db_client.post("/payments", json=payload)
+    assert created.status_code == 201, created.text
+
+    read = db_client.get(f"/payments/{created.json()['id']}")
+    assert read.json()["calculation_details"] == details

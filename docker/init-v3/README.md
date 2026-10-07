@@ -36,6 +36,15 @@ deux chemins mènent au même schéma. Décisions : registre
 - Le trigger `trg_mandate_exclusivity` est **activé**, corrigé : parent et enfant d'un renouvellement exclus l'un pour l'autre ; un mandat `'canceled'` libère le client **tout de suite** (Q-MAN-02, Q-JEF-06).
 - Compté avant d'activer, sur les 17 mandats repris : **0** violent les 6 mois, **0** paire viole l'exclusivité.
 
+### Paiement — LOT5, `05_paiement.sql`
+
+- Les statuts **`'invoice_submitted'` et `'verified'` sont retirés** : la facture est hors périmètre (Q-JEF-23). Le paiement va de `'announced'` à `'scheduled'`, puis `'paid'` — choisi le 2026-10-07 (Q-REM-17).
+- Deux dates : **`announced_at`** (chasseur prévenu) et **`scheduled_for`** (jour prévu du virement). `chk_announced` et `chk_scheduled` les exigent dès que l'étape est atteinte, comme `chk_paid` (Q-REM-17).
+- **`final_rate` entre 20 % et 60 %** (R21, Q-REM-19, confirmé par Jeff : Q-JEF-01). ⚠️ Ce sont des paramètres proposés : si Jeff les change, le CHECK change (Q-REM-05).
+- `chk_refused` exige **`final_rate` hors refus** (Q-REM-10), et refuse un score sur un refus.
+- **`performance_score`** fige le score qui a servi au calcul, de 0 à 100 (Q-REM-03) ; **`calculation_details`** (`JSONB`) garde les 5 notes et les entrées (Q-REM-04).
+- Compté avant d'activer : **0** paiement en base de dev, et `02` n'en insère aucun.
+
 ---
 
 ## 1. Pourquoi les euros, et pas les K€
@@ -330,7 +339,7 @@ conteneur avec `docker rm -f pg_essai`.
 | 3 | Confirmer `hire_date` = date de création du compte | §3.4 |
 | 4 | Confirmer `status = 'confirmed'` pour les demandes migrées | §3.5 |
 | 5 | Alimenter `energy_class` depuis la colonne `dpe` du CSV | §2.2 |
-| 6 | Décisions `D2`, `D6`, `D7`, `D9`, `N2`, `R21`, `U02`, `U05` | en-tête du `01` |
+| 6 | Décisions `D2`, `D6`, `D9`, `N2` (`D7`, `U02`, `U05` : LOT4 ; `R21` : LOT5) | en-tête du `01`, §0 |
 | 7 | Acter en ADR le lien chasseur → manager, et remplacer le manager placeholder par le seed | §3.6, §9 |
 
 Les points 1 à 4 et 7 sont des **hypothèses de migration** : elles font
