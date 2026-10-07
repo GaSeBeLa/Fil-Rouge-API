@@ -707,7 +707,9 @@ CREATE TABLE visit (
 
     -- TODO (déroulé 01 -> 02) — une visite ne peut pas précéder la signature
     --   du mandat. Testé : une visite datée 2025 sur un mandat signé en 2026
-    --   est acceptée aujourd'hui. Croise deux tables -> trigger ou API.
+    --   est acceptée aujourd'hui. Croise deux tables.
+    --   ➡️ Contrôlé par l'API (Q-MAN-06, tranché le 2026-10-05), avec un test
+    --   d'intégration ; pas de trigger. Règle et test restent à écrire.
 );
 
 
@@ -760,7 +762,9 @@ CREATE TABLE sale (
     --   mandat, et le mandat doit être signé. Testé : une vente datée 2025 sur
     --   un mandat signé en 2026, une vente en 2030 sur un mandat clos en 2026,
     --   et une vente sur un mandat 'pending_signature' sont toutes acceptées.
-    --   Croise sale et mandate -> trigger ou API.
+    --   Croise sale et mandate.
+    --   ➡️ Contrôlé par l'API (Q-MAN-06, tranché le 2026-10-05), avec un test
+    --   d'intégration ; pas de trigger. Règle et test restent à écrire.
     -- TODO (D3) — cas déjà tranché par les sources officielles : un acte signé
     --   APRÈS la fin du mandat peut ouvrir droit à rémunération sous condition
     --   (REGLES-CALCUL-REMUNERATION.md:98). La règle ci-dessus doit donc tenir
@@ -957,7 +961,9 @@ CREATE TABLE payment (
     --   testé, on peut aujourd'hui payer un chasseur qui n'est PAS celui du
     --   mandat de la vente, et rattacher le paiement à un barème qui n'était
     --   pas en vigueur à la date de l'acte. Croise payment, sale, mandate et
-    --   commission_scale -> trigger à la création du paiement, ou API.
+    --   commission_scale.
+    --   ➡️ Contrôlé par l'API (Q-MAN-06, tranché le 2026-10-05), avec un test
+    --   d'intégration ; pas de trigger. Règle et test restent à écrire.
     --   ADR-024 ne ferme PAS ce TODO : il enregistre le refus, il ne le
     --   calcule pas. Le calcul du droit reste à faire.
 );

@@ -92,6 +92,12 @@ Tout est confirmé par Jeff (Q-JEF-13).
 - Les **18 demandes** passent en **`'launched'`** : toutes ont un mandat signé ; pas de nouvel état pour une recherche finie (Q-MIG-03, tranché à LOT10 ; §3.5).
 - Compté avant d'activer : **17** demandes en `'confirmed'`, **17** mandats dont les 6 en `'active'`, **0** demande pour Nina Girard. La migration s'arrête si Nina n'est pas cliente, ou si l'id 13 est pris par un autre client.
 
+### Clôture — LOT11, sans migration
+
+- Les **3 TODO** de `01` qui croisent plusieurs tables (une visite avant la signature, une vente hors de la validité du mandat, un paiement au mauvais chasseur ou sur un barème périmé) sont annotés **« contrôlé par l'API »** (Q-MAN-06). Aucune table ne change ; les règles et leurs tests restent à écrire dans l'API.
+- **Mot de passe** gardé, haché en Argon2 (Q-JEF-14) : rien à retirer du schéma.
+- ⏸️ Reste le **rôle PostgreSQL en lecture seule** (Q14) : LOT12, après la réponse de Jeff.
+
 ---
 
 ## 1. Pourquoi les euros, et pas les K€
