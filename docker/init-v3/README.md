@@ -9,7 +9,7 @@ coexistent tant que le groupe n'a pas validé le basculement.
 
 | Fichier | Rôle | État |
 |---|---|---|
-| `01_create_fil_rouge_immobilier.sql` | schéma — 19 tables, 255 colonnes (mesuré après LOT7) | testé, 0 erreur |
+| `01_create_fil_rouge_immobilier.sql` | schéma — 19 tables, 257 colonnes (mesuré après LOT8) | testé, 0 erreur |
 | `02_migration.sql` | données `Fil_Rouge_Depart` → cible | testé, 0 erreur |
 | `03_populate_estate.sql` | 2 556 biens + 1 976 photos | testé, 0 erreur |
 
@@ -65,6 +65,15 @@ deux chemins mènent au même schéma. Décisions : registre
 - **`created_at`** sur `client`, `hunter`, `real_estate_manager`, `role` ; les lignes reprises prennent la date de la migration, faute de date source (Q-SCH-09).
 - `hunter.is_cartet` devient **`is_carte_t`** : colonne, modèle, `02`, migration (Q-SCH-10).
 - Compté avant d'activer : **4** téléphones `0000000000`, **0** autre numéro hors format, **18** clients sur 18 avec la ville seule, **0** offre en base de dev. La migration s'arrête si un téléphone ou une adresse ne se complète pas sans inventer une donnée.
+
+### Localisation — LOT8, `08_localisation.sql`
+
+- **`estate.country_iso = 'FR'`** sur les 2 556 biens (dans `03`), **puis** `chk_estate_postal_code_format` : le même contrôle par pays que `client` et `criteria`. Un code postal sans pays est refusé (Q-SCH-11).
+- **Eircode sans espace** (`D02X285`) sur `client`, `criteria` et `estate` ; GB et NL gardent leur espace (Q-SCH-12, confirmé par Jeff le 2026-10-07). La migration retire l'espace d'un Eircode existant.
+- Les **10 secteurs** d'origine ne sont plus ignorés : chacun des **17 critères** repris reçoit la ville, le code postal et le pays `'FR'` du secteur de son mandat (Q-MIG-08). N2 est fermée : la localisation reste sur `criteria` (Q-SCH-02).
+- **`district`** (quartier), `VARCHAR(100)` facultatif, sur `criteria` et `estate` : vide pour 3 critères (Castelnau-le-Lez, Lattes, sans quartier à la source) et pour les 2 556 biens, le CSV n'en ayant pas (Q-MIG-08).
+- **`criteria.budget_min` à NULL**, « inconnu », sur les 17 critères : la source n'avait qu'un budget, recopié dans le minimum (Q-MIG-09).
+- Compté avant d'activer : **2 556** codes postaux de biens sur 2 556 à 5 chiffres, **0** pays renseigné, **0** client ni critère en Irlande. La migration s'arrête si un bien non repris du CSV a un code postal sans pays.
 
 ---
 
@@ -174,6 +183,9 @@ MPD ; la table `real_estate_manager`, elle, garde son nom.
 **légitime** : contrairement aux annonces, la source ne fournit pas de colonne
 en euros, et les budgets sont des montants ronds (`240.0` à `700.0`), saisis
 au millier. Aucune précision n'est perdue.
+
+Depuis LOT8, seul `budget_max` reçoit ce montant : `budget_min`, qui le
+recopiait, est **NULL** (Q-MIG-09, voir §0).
 
 ### 3.3 `hunter.commission_rate` : retirée, mais pas effacée
 
@@ -366,7 +378,7 @@ conteneur avec `docker rm -f pg_essai`.
 | 3 | Confirmer `hire_date` = date de création du compte | §3.4 |
 | 4 | Confirmer `status = 'confirmed'` pour les demandes migrées | §3.5 |
 | 5 | Alimenter `energy_class` depuis la colonne `dpe` du CSV | §2.2 |
-| 6 | Décisions `D2`, `N2` (`D7`, `U02`, `U05` : LOT4 ; `R21` : LOT5 ; `D9` : LOT6 ; `D6` : LOT7) | en-tête du `01`, §0 |
+| 6 | Décision `D2` (`D7`, `U02`, `U05` : LOT4 ; `R21` : LOT5 ; `D9` : LOT6 ; `D6` : LOT7 ; `N2` : LOT8) | en-tête du `01`, §0 |
 | 7 | Acter en ADR le lien chasseur → manager, et remplacer le manager placeholder par le seed | §3.6, §9 |
 
 Les points 1 à 4 et 7 sont des **hypothèses de migration** : elles font

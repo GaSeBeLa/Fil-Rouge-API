@@ -32,6 +32,8 @@ class Client(SQLModel, table=True):
     # repris ont 'non renseigne' et '00000' (Q-SCH-18).
     address: Optional[str] = Field(default=None, max_length=150)
     address_complement: Optional[str] = Field(default=None, max_length=150)
+    # CHECK cote base : format par pays ; l'Eircode s'ecrit sans espace,
+    # ex. D02X285 (ck_client_postal_code_format, Q-SCH-12).
     postal_code: Optional[str] = Field(default=None, max_length=10)
     town: Optional[str] = Field(default=None, max_length=100)
     is_married: Optional[bool] = None

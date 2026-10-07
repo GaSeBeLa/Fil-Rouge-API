@@ -14,6 +14,8 @@ dans 02) et vérifie le code HTTP qui en sort :
   ck_client_marital_status_exclusive (marié ET pacsé refusé) ;
 - client, hunter, real_estate_manager : téléphone au format international
   d'ADR-007 (Q-PRO-08), numéro factice +33000000000 accepté (Q-MIG-07) ;
+- estate, client, criteria : code postal par pays, contrôlé sur estate
+  depuis LOT8 (Q-SCH-11) ; Eircode sans espace (Q-SCH-12) ;
 - mandate : statut de fin 'lost' (Q-REM-02, Q-REM-14) ;
   chk_status_signature, qui permet 'canceled' sans signature (Q-MAN-07) ;
   chk_mandate_six_months (Q-MAN-01) ; trigger d'exclusivité (Q-MAN-02) ;
@@ -167,6 +169,54 @@ def test_person_international_phone_is_accepted(
     db_client: TestClient, create_user: Callable[[str], int], endpoint: str, phone_number: str
 ):
     payload = person_payload(endpoint, create_user("international@exemple.fr"), phone_number)
+    response = db_client.post(endpoint, json=payload)
+    assert response.status_code == 201, response.text
+
+
+# --- code postal : estate, client, criteria ------------------------------------
+
+# Format par pays, même CASE sur les trois tables : estate le contrôle depuis
+# LOT8 (Q-SCH-11), et l'Eircode irlandais s'écrit sans espace (Q-SCH-12).
+
+
+def test_estate_french_postal_code_with_four_digits_returns_409(db_client: TestClient):
+    payload = {**ESTATE, "country_iso": "FR", "postal_code": "3100"}
+    assert db_client.post("/estates", json=payload).status_code == 409
+
+
+def test_estate_french_postal_code_with_five_digits_is_accepted(db_client: TestClient):
+    payload = {**ESTATE, "country_iso": "FR", "postal_code": "31000"}
+    response = db_client.post("/estates", json=payload)
+    assert response.status_code == 201, response.text
+
+
+EIRCODE_ENDPOINTS = ["/estates", "/clients", "/criteria"]
+
+
+def eircode_payload(create_user: Callable[[str], int], endpoint: str, postal_code: str) -> dict[str, Any]:
+    location = {"country_iso": "IE", "postal_code": postal_code}
+    if endpoint == "/estates":
+        return {**ESTATE, **location, "town": "Dublin"}
+    if endpoint == "/clients":
+        user_id = create_user("eircode@exemple.fr")
+        return client_payload(user_id, address="1 Main Street", town="Dublin", **location)
+    # criteria : l'auteur 1 et la demande 1 sont posés par 02.
+    return {"id_author": 1, "id_search_request": 1, "estate_type": "Appartement", "budget_max": 300000, **location}
+
+
+@pytest.mark.parametrize("endpoint", EIRCODE_ENDPOINTS)
+def test_eircode_with_space_returns_409(
+    db_client: TestClient, create_user: Callable[[str], int], endpoint: str
+):
+    payload = eircode_payload(create_user, endpoint, "D02 X285")
+    assert db_client.post(endpoint, json=payload).status_code == 409
+
+
+@pytest.mark.parametrize("endpoint", EIRCODE_ENDPOINTS)
+def test_eircode_without_space_is_accepted(
+    db_client: TestClient, create_user: Callable[[str], int], endpoint: str
+):
+    payload = eircode_payload(create_user, endpoint, "D02X285")
     response = db_client.post(endpoint, json=payload)
     assert response.status_code == 201, response.text
 

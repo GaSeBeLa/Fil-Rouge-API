@@ -13,7 +13,8 @@
 --      'Admin', 'Client', 'Hunter', 'Manager'. 3 lignes migrées, plus
 --      'Admin' ajouté le 2026-09-22 : 4 lignes au total.
 --   2. criteria : budget_min et budget_max convertis de K€ en EUROS (x 1000).
---      320.0 devient 320000.00. 17 lignes.
+--      320.0 devient 320000.00. 17 lignes. budget_min est NULL depuis
+--      LOT8 (point 9).
 --   3. hunter : la colonne "commission_rate" n'existe plus dans le MPD 03
 --      (la tarification vit désormais dans commission_scale et
 --      parameters_fees). Retirée de l'INSERT, mais la valeur source est
@@ -49,6 +50,11 @@
 --      - 4 téléphones manquants (3 clients + le manager placeholder) :
 --        '+33000000000', au format d'ADR-007 (Q-PRO-08, Q-MIG-07).
 --      - la colonne de la carte T s'écrit is_carte_t (Q-SCH-10).
+--   9. LOT8 (2026-10-07) — criteria :
+--      - les 17 critères reçoivent le secteur de leur mandat : pays 'FR',
+--        ville, code postal, quartier (district, NULL pour 2 secteurs)
+--        (Q-MIG-08) ;
+--      - budget_min à NULL, « inconnu » : il recopiait budget_max (Q-MIG-09).
 --
 -- ============================================================================
 
@@ -57,9 +63,9 @@ BEGIN;
 -- Source : Fil_Rouge_Depart, Cible : public (ou Fil_Rouge_Immobilier)
 SET search_path TO public, "Fil_Rouge_Depart";
 
--- NOTE secteurs : 10 lignes parsées mais NON MIGRÉES
--- Raison : la table secteurs n'existe plus dans le MPD cible (remplacée par town)
--- Données secteurs source : 10 lignes ignorées volontairement
+-- NOTE secteurs : la table secteurs n'existe plus dans le MPD cible. Ses 10
+-- lignes ne sont plus ignorées : chaque critère reçoit la ville, le code postal
+-- et le quartier du secteur de son mandat (Q-MIG-08, LOT8 ; section 5).
 
 -- Gender : NULL autorisé par défaut en Postgres (un CHECK ne rejette jamais NULL)
 
@@ -179,26 +185,31 @@ INSERT INTO search_request (id, created_at, id_author, id_client, id_hunter, sta
 INSERT INTO search_request (id, created_at, id_author, id_client, id_hunter, status) OVERRIDING SYSTEM VALUE VALUES (18, '2026-07-01'::date, 24, 24, 2, 'confirmed') ON CONFLICT (id) DO NOTHING;
 
 -- 5. CRITERIA - id_author = chasseur_id (le chasseur traduit le besoin en critères)
--- budget_min/budget_max : NOT NULL, convertis en K€ (colonne cible NUMERIC(6,1))
+-- budget_max : en EUROS (INTEGER), seul montant donné par la source.
+-- budget_min : NULL, « inconnu » (Q-MIG-09, LOT8) : la source n'a qu'un budget,
+--   recopié jusqu'ici dans le minimum ; rien n'est inventé.
+-- country_iso, town, postal_code, district : le secteur du mandat d'origine
+--   (secteurs PgSQL.sql:41-51, mandats :135-159), pays 'FR' (Q-MIG-08, LOT8).
+--   district vaut NULL pour Castelnau-le-Lez et Lattes, sans quartier à la source.
 -- renovation_budget_min/max : nullable côté cible -> NULL (info absente côté source)
 -- typology : NOT NULL, liste fermée -> déduite via parse_typology() ci-dessus
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (1, 1, 320000.00, 320000.00, NULL, NULL, 65, 'Appartement', 'T3 / F3', 'T3 Ecusson, budget 320000, 65m2 min, balcon, calme, DPE C max') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (3, 2, 450000.00, 450000.00, NULL, NULL, 85, 'Appartement', 'T4 / F4', 'T4 Croix-Rousse, budget 450000, 85m2, terrasse ou jardin') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (1, 3, 280000.00, 280000.00, NULL, NULL, 45, 'Appartement', 'T2 / F2', 'T2 Beaux-Arts, budget 280000, 45m2 min, lumineux, proche tram') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (4, 4, 390000.00, 390000.00, NULL, NULL, NULL, 'Maison', 'T4 / F4', 'Maison Ile de Nantes, budget 390000, 3 chambres, petit exterieur') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (2, 5, 550000.00, 550000.00, NULL, NULL, 90, 'Appartement', 'T4 / F4', 'T4 Port Marianne, budget 550000, 90m2, parking, ascenseur, vue') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (5, 6, 240000.00, 240000.00, NULL, NULL, 80, 'Maison', 'T4 / F4', 'Maison Castelnau, budget 240000, 80m2, jardin, travaux OK') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (3, 7, 610000.00, 610000.00, NULL, NULL, 100, 'Loft', 'T3 / F3', 'Loft Confluence, budget 610000, 100m2, standing, terrasse') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (2, 8, 300000.00, 300000.00, NULL, NULL, NULL, 'Appartement', 'T3 / F3', 'T3 Ecusson ou Beaux-Arts, budget 300000, charme ancien, poutres') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (6, 9, 260000.00, 260000.00, NULL, NULL, 60, 'Appartement', 'T3 / F3', 'T3 Sete centre, budget 260000, vue mer si possible, 60m2') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (5, 10, 420000.00, 420000.00, NULL, NULL, NULL, 'Villa', 'T4 / F4', 'Villa Lattes, budget 420000, 4 pieces, piscine ou jardin sud') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (1, 11, 350000.00, 350000.00, NULL, NULL, NULL, 'Appartement', 'T3 / F3', 'T3 Port Marianne, budget 350000, neuf ou recent, balcon, parking') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (4, 12, 480000.00, 480000.00, NULL, NULL, NULL, 'Appartement', 'T4 / F4', 'Appartement Nantes, budget 480000, 4 pieces, dernier etage') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (3, 14, 700000.00, 700000.00, NULL, NULL, 120, 'Appartement', 'T5 / F5', 'T5 Confluence, budget 700000, 120m2, prestations haut de gamme') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (1, 15, 310000.00, 310000.00, NULL, NULL, NULL, 'Appartement', 'T3 / F3', 'T3 Ecusson, budget 310000, ancien renove, cave appreciee') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (6, 16, 290000.00, 290000.00, NULL, NULL, NULL, 'Maison', 'T3 / F3', 'Maison Sete, budget 290000, 3 pieces, garage') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (5, 17, 260000.00, 260000.00, NULL, NULL, 45, 'Appartement', 'T2 / F2', 'T2 Beaux-Arts, budget 260000, 45m2, balcon, DPE D max') ON CONFLICT DO NOTHING;
-INSERT INTO criteria (id_author, id_search_request, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (2, 18, 330000.00, 330000.00, NULL, NULL, 90, 'Maison', 'T4 / F4', 'Maison Castelnau, budget 330000, 90m2, 3 chambres, jardin') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (1, 1, 'FR', 'Montpellier', '34000', 'Écusson', NULL, 320000.00, NULL, NULL, 65, 'Appartement', 'T3 / F3', 'T3 Ecusson, budget 320000, 65m2 min, balcon, calme, DPE C max') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (3, 2, 'FR', 'Lyon', '69004', 'Croix-Rousse', NULL, 450000.00, NULL, NULL, 85, 'Appartement', 'T4 / F4', 'T4 Croix-Rousse, budget 450000, 85m2, terrasse ou jardin') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (1, 3, 'FR', 'Montpellier', '34090', 'Beaux-Arts', NULL, 280000.00, NULL, NULL, 45, 'Appartement', 'T2 / F2', 'T2 Beaux-Arts, budget 280000, 45m2 min, lumineux, proche tram') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (4, 4, 'FR', 'Nantes', '44200', 'Île de Nantes', NULL, 390000.00, NULL, NULL, NULL, 'Maison', 'T4 / F4', 'Maison Ile de Nantes, budget 390000, 3 chambres, petit exterieur') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (2, 5, 'FR', 'Montpellier', '34000', 'Port Marianne', NULL, 550000.00, NULL, NULL, 90, 'Appartement', 'T4 / F4', 'T4 Port Marianne, budget 550000, 90m2, parking, ascenseur, vue') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (5, 6, 'FR', 'Castelnau-le-Lez', '34170', NULL, NULL, 240000.00, NULL, NULL, 80, 'Maison', 'T4 / F4', 'Maison Castelnau, budget 240000, 80m2, jardin, travaux OK') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (3, 7, 'FR', 'Lyon', '69002', 'Confluence', NULL, 610000.00, NULL, NULL, 100, 'Loft', 'T3 / F3', 'Loft Confluence, budget 610000, 100m2, standing, terrasse') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (2, 8, 'FR', 'Montpellier', '34000', 'Écusson', NULL, 300000.00, NULL, NULL, NULL, 'Appartement', 'T3 / F3', 'T3 Ecusson ou Beaux-Arts, budget 300000, charme ancien, poutres') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (6, 9, 'FR', 'Sète', '34200', 'Centre', NULL, 260000.00, NULL, NULL, 60, 'Appartement', 'T3 / F3', 'T3 Sete centre, budget 260000, vue mer si possible, 60m2') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (5, 10, 'FR', 'Lattes', '34970', NULL, NULL, 420000.00, NULL, NULL, NULL, 'Villa', 'T4 / F4', 'Villa Lattes, budget 420000, 4 pieces, piscine ou jardin sud') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (1, 11, 'FR', 'Montpellier', '34000', 'Port Marianne', NULL, 350000.00, NULL, NULL, NULL, 'Appartement', 'T3 / F3', 'T3 Port Marianne, budget 350000, neuf ou recent, balcon, parking') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (4, 12, 'FR', 'Nantes', '44200', 'Île de Nantes', NULL, 480000.00, NULL, NULL, NULL, 'Appartement', 'T4 / F4', 'Appartement Nantes, budget 480000, 4 pieces, dernier etage') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (3, 14, 'FR', 'Lyon', '69002', 'Confluence', NULL, 700000.00, NULL, NULL, 120, 'Appartement', 'T5 / F5', 'T5 Confluence, budget 700000, 120m2, prestations haut de gamme') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (1, 15, 'FR', 'Montpellier', '34000', 'Écusson', NULL, 310000.00, NULL, NULL, NULL, 'Appartement', 'T3 / F3', 'T3 Ecusson, budget 310000, ancien renove, cave appreciee') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (6, 16, 'FR', 'Sète', '34200', 'Centre', NULL, 290000.00, NULL, NULL, NULL, 'Maison', 'T3 / F3', 'Maison Sete, budget 290000, 3 pieces, garage') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (5, 17, 'FR', 'Montpellier', '34090', 'Beaux-Arts', NULL, 260000.00, NULL, NULL, 45, 'Appartement', 'T2 / F2', 'T2 Beaux-Arts, budget 260000, 45m2, balcon, DPE D max') ON CONFLICT DO NOTHING;
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (2, 18, 'FR', 'Castelnau-le-Lez', '34170', NULL, NULL, 330000.00, NULL, NULL, 90, 'Maison', 'T4 / F4', 'Maison Castelnau, budget 330000, 90m2, 3 chambres, jardin') ON CONFLICT DO NOTHING;
 
 -- 6. MANDATE
 INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (1, 'MAND-0001', 'completed', '2025-02-01'::date, ('2025-02-01'::date + INTERVAL '6 months')::date, true, 1, 7, 1) ON CONFLICT (id) DO NOTHING;

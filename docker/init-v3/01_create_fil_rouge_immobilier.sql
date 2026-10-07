@@ -55,9 +55,9 @@
 --      près. Porté à VARCHAR(20), comme tous les autres statuts du schéma.
 --   8. Code postal irlandais : client exigeait un ESPACE ("D02 X285"),
 --      criteria l'interdisait ("D02X285"). Les deux tables décrivaient donc
---      le même pays de deux façons incompatibles. HARMONISÉ AVEC L'ESPACE,
---      qui est le format officiel Eircode. ⚠️ À VALIDER par le groupe : si la
---      saisie se fait sans espace, c'est client qu'il faut aligner, pas criteria.
+--      le même pays de deux façons incompatibles. ✏️ HARMONISÉ SANS ESPACE
+--      le 2026-10-07 (Q-SCH-12, confirmé par Jeff ; LOT8), sur client,
+--      criteria et estate. GB et NL gardent leur espace.
 --   9. criteria.budget_max : « NUMERIC (12.2) » dans MPD 03 4 (un point au
 --      lieu d'une virgule). Lu comme INTEGER, comme tous les prix et budgets.
 --
@@ -134,9 +134,10 @@
 --   métier. Elles croisent plusieurs tables et demandent des triggers ou
 --   l'API. Les TODO ci-dessous portent le SQL prêt à activer.
 --
---   Décisions encore ouvertes : D2 (ancienneté), N2 (localisation :
---   ADR-009 place la localisation sur search_request, le MPD la met sur
---   criteria, ADR-021 ne tranche pas). R21 (bornage du taux final 20-60 %)
+--   Décisions encore ouvertes : D2 (ancienneté). N2 (localisation) est
+--   fermée le 2026-10-05 : elle reste sur criteria, un ADR remplace
+--   ADR-009 (Q-SCH-02) ; les secteurs d'origine y arrivent, avec un
+--   quartier facultatif (LOT8, Q-MIG-08). R21 (bornage du taux final 20-60 %)
 --   est actif depuis le 2026-10-07 (LOT5, Q-REM-19, Jeff : Q-JEF-01).
 --   D9 (deux scores le même jour) est fermée le 2026-10-07 : hunter_performance
 --   devient un journal daté à la seconde (LOT6, Q-SCH-06). D6 (priorité du
@@ -225,7 +226,7 @@ CREATE TABLE client (
             OR (address IS NOT NULL AND postal_code IS NOT NULL AND town IS NOT NULL)),
     CONSTRAINT ck_client_postal_code_needs_country
         CHECK (postal_code IS NULL OR country_iso IS NOT NULL),
-    -- Correction 8 : format IE avec espace, identique à criteria.
+    -- Correction 8 : Eircode sans espace, comme criteria et estate (Q-SCH-12).
     CONSTRAINT ck_client_postal_code_format
         CHECK (postal_code IS NULL OR CASE
             WHEN country_iso IN ('FR','ES','DE','IT') THEN postal_code ~ '^[0-9]{5}$'
@@ -233,7 +234,7 @@ CREATE TABLE client (
             WHEN country_iso = 'LU'                   THEN postal_code ~ '^[0-9]{4}$'
             WHEN country_iso = 'NL'                   THEN postal_code ~ '^[1-9][0-9]{3} [A-Z]{2}$'
             WHEN country_iso = 'GB'                   THEN postal_code ~ '^[A-Z]{1,2}[0-9][A-Z0-9]? [0-9][A-Z]{2}$'
-            WHEN country_iso = 'IE'                   THEN postal_code ~ '^([AC-FHKNPRTV-Y][0-9]{2}|D6W) [0-9AC-FHKNPRTV-Y]{4}$'
+            WHEN country_iso = 'IE'                   THEN postal_code ~ '^([AC-FHKNPRTV-Y][0-9]{2}|D6W)[0-9AC-FHKNPRTV-Y]{4}$'
             ELSE FALSE END)
 );
 
@@ -324,14 +325,16 @@ CREATE TABLE criteria (
     change_reason          VARCHAR(255)
                            CHECK (change_reason = btrim(change_reason) AND change_reason <> ''),
 
-    -- Localisation. TODO (N2) : l'ADR-009 (accepté) place la localisation sur
-    -- search_request via des FK id_town / id_area ; le MPD la met ici en texte ;
-    -- l'ADR-021 ne tranche pas. Le schéma suit le MPD. À arbitrer.
+    -- Localisation, en texte comme dans le MPD. N2 tranché le 2026-10-05 :
+    -- elle reste ici, un ADR remplace ADR-009 (Q-SCH-02).
     country_iso            CHAR(2)
                            CHECK (country_iso IN ('FR','ES','DE','GB','IE','BE','NL','LU','IT','CH')),
     town                   VARCHAR(100)
                            CHECK (town = btrim(town) AND town <> ''),
     postal_code            VARCHAR(10),
+    -- Quartier, facultatif comme dans les secteurs d'origine (Q-MIG-08).
+    district               VARCHAR(100)
+                           CHECK (district = btrim(district) AND district <> ''),
 
     estate_type            VARCHAR(50) NOT NULL
                            CHECK (estate_type IN ('Appartement', 'Maison', 'Studio', 'Loft',
@@ -409,7 +412,7 @@ CREATE TABLE criteria (
         CHECK (town IS NULL OR country_iso IS NOT NULL),
     CONSTRAINT chk_postal_code_needs_country
         CHECK (postal_code IS NULL OR country_iso IS NOT NULL),
-    -- Corrections 1 et 8 : parenthèse en trop retirée, format IE avec espace.
+    -- Corrections 1 et 8 : parenthèse en trop retirée ; Eircode sans espace (Q-SCH-12).
     CONSTRAINT chk_postal_code_format
         CHECK (postal_code IS NULL OR CASE
             WHEN country_iso IN ('FR','ES','DE','IT') THEN postal_code ~ '^[0-9]{5}$'
@@ -417,7 +420,7 @@ CREATE TABLE criteria (
             WHEN country_iso = 'LU'                   THEN postal_code ~ '^[0-9]{4}$'
             WHEN country_iso = 'NL'                   THEN postal_code ~ '^[1-9][0-9]{3} [A-Z]{2}$'
             WHEN country_iso = 'GB'                   THEN postal_code ~ '^[A-Z]{1,2}[0-9][A-Z0-9]? [0-9][A-Z]{2}$'
-            WHEN country_iso = 'IE'                   THEN postal_code ~ '^([AC-FHKNPRTV-Y][0-9]{2}|D6W) [0-9AC-FHKNPRTV-Y]{4}$'
+            WHEN country_iso = 'IE'                   THEN postal_code ~ '^([AC-FHKNPRTV-Y][0-9]{2}|D6W)[0-9AC-FHKNPRTV-Y]{4}$'
             ELSE FALSE END)
 );
 
@@ -603,12 +606,25 @@ CREATE TABLE estate (
                          CHECK (street = btrim(street) AND street <> ''),
     street_number        VARCHAR(10)
                          CHECK (street_number = btrim(street_number) AND street_number <> ''),
-    -- TODO (cohérence) : client et criteria valident le format du code postal
-    -- par pays, pas estate. Volontaire (données scrapées, moins fiables) ou
-    -- oubli ? À acter avant de dupliquer le CASE ici.
     postal_code          VARCHAR(10)
                          CHECK (postal_code = btrim(postal_code) AND postal_code <> ''),
-    information          TEXT CHECK (char_length(information) <= 2000)
+    -- Quartier, facultatif (Q-MIG-08) : vide sur les 2 556 biens repris, le
+    -- CSV source n'a que town, street et postal_code.
+    district             VARCHAR(100)
+                         CHECK (district = btrim(district) AND district <> ''),
+    information          TEXT CHECK (char_length(information) <= 2000),
+
+    -- Format du code postal par pays, même CASE que client et criteria
+    -- (Q-SCH-11, LOT8). Un code postal sans pays tombe dans ELSE : refusé.
+    CONSTRAINT chk_estate_postal_code_format
+        CHECK (postal_code IS NULL OR CASE
+            WHEN country_iso IN ('FR','ES','DE','IT') THEN postal_code ~ '^[0-9]{5}$'
+            WHEN country_iso IN ('BE','CH')           THEN postal_code ~ '^[1-9][0-9]{3}$'
+            WHEN country_iso = 'LU'                   THEN postal_code ~ '^[0-9]{4}$'
+            WHEN country_iso = 'NL'                   THEN postal_code ~ '^[1-9][0-9]{3} [A-Z]{2}$'
+            WHEN country_iso = 'GB'                   THEN postal_code ~ '^[A-Z]{1,2}[0-9][A-Z0-9]? [0-9][A-Z]{2}$'
+            WHEN country_iso = 'IE'                   THEN postal_code ~ '^([AC-FHKNPRTV-Y][0-9]{2}|D6W)[0-9AC-FHKNPRTV-Y]{4}$'
+            ELSE FALSE END)
 );
 
 CREATE TABLE picture (
@@ -1035,8 +1051,8 @@ COMMENT ON COLUMN real_estate_manager.id IS
 COMMIT;
 
 -- ============================================================================
--- FIN — 19 tables, 255 colonnes (mesuré via information_schema le
--- 2026-10-07, après LOT7), 1 extension.
+-- FIN — 19 tables, 257 colonnes (mesuré via information_schema le
+-- 2026-10-07, après LOT8), 1 extension.
 --
 -- Pour activer ce schéma dans docker/docker-compose.yml, remplacer
 --     ./init:/docker-entrypoint-initdb.d

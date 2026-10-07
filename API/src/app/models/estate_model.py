@@ -69,5 +69,9 @@ class Estate(SQLModel, table=True):
     town: str = Field(max_length=100)
     street: Optional[str] = Field(default=None, max_length=100)
     street_number: Optional[str] = Field(default=None, max_length=10)
+    # CHECK côté base : format par pays, comme client et criteria ; un code
+    # postal exige un pays (chk_estate_postal_code_format, Q-SCH-11).
     postal_code: Optional[str] = Field(default=None, max_length=10)
+    # Quartier, facultatif (Q-MIG-08) ; vide sur les biens repris du CSV.
+    district: Optional[str] = Field(default=None, max_length=100)
     information: Optional[str] = None

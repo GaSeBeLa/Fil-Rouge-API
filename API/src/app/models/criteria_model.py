@@ -29,7 +29,11 @@ class Criteria(SQLModel, table=True):
     change_reason: Optional[str] = Field(default=None, max_length=255)
     country_iso: Optional[str] = Field(default=None, max_length=2)
     town: Optional[str] = Field(default=None, max_length=100)
+    # CHECK côté base : format par pays ; l'Eircode s'écrit sans espace,
+    # ex. D02X285 (chk_postal_code_format, Q-SCH-12).
     postal_code: Optional[str] = Field(default=None, max_length=10)
+    # Quartier, facultatif (Q-MIG-08).
+    district: Optional[str] = Field(default=None, max_length=100)
     estate_type: str = Field(max_length=50)
     typology: Optional[str] = Field(default=None, max_length=50)
     budget_min: Optional[int] = None
