@@ -2,7 +2,7 @@
 -- v2 → v3, LOT7 — Personnes : coordonnées, priorité, dates
 -- =====================================================================
 --
--- POURQUOI ? Sept cartes du registre md/questions-a-trancher-2026-10-02.md :
+-- POURQUOI ? Sept cartes du registre md/questions/questions-a-trancher.md :
 --
 --   - Q-SCH-01, Q-SCH-18 : ck_client_address_all_or_nothing reste
 --     tout-ou-rien ; les clients repris sans adresse reçoivent

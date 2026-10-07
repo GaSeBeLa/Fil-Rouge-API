@@ -2,7 +2,7 @@
 -- v2 → v3, LOT6 — Paramètres de rémunération et journal des notes
 -- =====================================================================
 --
--- POURQUOI ? Cinq cartes du registre md/questions-a-trancher-2026-10-02.md :
+-- POURQUOI ? Cinq cartes du registre md/questions/questions-a-trancher.md :
 --
 --   - Q-REM-05 : une table versionnée remuneration_parameters ; les CHECK
 --     de seniority_rate (0 à 0,10) et performance_rate (-0,20 à 0,20) sont

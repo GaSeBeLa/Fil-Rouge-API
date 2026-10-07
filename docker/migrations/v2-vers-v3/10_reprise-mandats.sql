@@ -2,7 +2,7 @@
 -- v2 → v3, LOT10 — Reprendre les anciens mandats
 -- =====================================================================
 --
--- POURQUOI ? Quatre cartes du registre md/questions-a-trancher-2026-10-02.md,
+-- POURQUOI ? Quatre cartes du registre md/questions/questions-a-trancher.md,
 -- toutes confirmées par Jeff (Q-JEF-13) :
 --
 --   - Q-MIG-10 : les 6 mandats « actif » déjà finis à la date de l'audit,

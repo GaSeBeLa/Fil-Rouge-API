@@ -2,7 +2,7 @@
 -- v2 → v3, LOT9 — Biens : énergie et auteur
 -- =====================================================================
 --
--- POURQUOI ? Trois cartes du registre md/questions-a-trancher-2026-10-02.md :
+-- POURQUOI ? Trois cartes du registre md/questions/questions-a-trancher.md :
 --
 --   - Q-MIG-06 : estate.energy_class reçoit la lettre de la colonne dpe de
 --     normalised/annonces_normalised.csv, comme init-v3/03 : 1 623 biens ;

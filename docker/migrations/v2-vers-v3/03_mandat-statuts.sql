@@ -3,7 +3,7 @@
 -- =====================================================================
 --
 -- POURQUOI ? Quatre décisions du registre
---   (md/questions-a-trancher-2026-10-02.md) :
+--   (md/questions/questions-a-trancher.md) :
 --
 --   - 'lost' : statut de fin d'un mandat dont la vente est perdue, vendu
 --     hors agence (Q-REM-02 ; Jeff : « rien pour personne », Q-JEF-03) ou

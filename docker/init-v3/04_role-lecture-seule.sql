@@ -2,7 +2,7 @@
 -- init-v3, LOT12 — Le rôle PostgreSQL en lecture seule
 -- =====================================================================
 --
--- POURQUOI ? Q14 du registre md/questions-a-trancher-2026-10-02.md, ligne
+-- POURQUOI ? Q14 du registre md/questions/questions-a-trancher.md, ligne
 --   « Rôle en lecture seule » ; accord de Jeff sur Discord le 2026-10-07,
 --   à condition de le justifier (docker/init-v3/README.md, « Rôle en
 --   lecture seule — LOT12 »). Un compte qui lit toutes les tables et

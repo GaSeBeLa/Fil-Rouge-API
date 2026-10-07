@@ -2,7 +2,7 @@
 -- v2 → v3, LOT12 — Ajouter le rôle en lecture seule
 -- =====================================================================
 --
--- POURQUOI ? Q14 du registre md/questions-a-trancher-2026-10-02.md, ligne
+-- POURQUOI ? Q14 du registre md/questions/questions-a-trancher.md, ligne
 --   « Rôle en lecture seule » ; accord de Jeff sur Discord le 2026-10-07.
 --   Les deux rôles, justifiés dans docker/init-v3/README.md :
 --   - côté application : la valeur 'Reader' dans role (id 5) ;

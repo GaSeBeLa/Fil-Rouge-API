@@ -22,7 +22,7 @@ Vérifié de bout en bout sur PostgreSQL 16, dans cet ordre, sur une base vierge
 Chaque changement est écrit ici **et** dans sa migration
 `docker/migrations/v2-vers-v3/NN_<thème>.sql` ; le banc (§10) vérifie que les
 deux chemins mènent au même schéma. Décisions : registre
-`md/questions-a-trancher-2026-10-02.md`.
+`md/questions/questions-a-trancher.md`.
 
 ### Mandat et offre — LOT3, `03_mandat-statuts.sql`
 
@@ -444,7 +444,7 @@ scripts.
 
 > ⚠️ **ADR-024 est au statut « proposé »**, pas encore validé par le groupe.
 > Le schéma l'applique déjà : si la décision change, c'est ici qu'il faudra
-> revenir. Justification complète : `md/adr-024-motif-refus-remuneration.md`.
+> revenir. Justification complète : `md/adr/adr-024-motif-refus-remuneration.md`.
 
 ### 8.1 Pourquoi
 
@@ -530,7 +530,7 @@ Le sujet parle du manager d'un chasseur à trois endroits :
 concerné et à son manager ».
 
 ⚠️ ENF-03 est un **exemple rempli dans un modèle**, pas une exigence du
-client (déjà relevé dans `md/securite-mots-de-passe-et-droits.md`). Les
+client (déjà relevé dans `md/securite/securite-mots-de-passe-et-droits.md`). Les
 `.feature` ne citent jamais de manager ; les fixtures n'ont que `client` et
 `chasseur`. Le lien est donc un choix de modélisation, cohérent avec le rôle
 `Manager` déjà en base.

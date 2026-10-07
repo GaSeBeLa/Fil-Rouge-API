@@ -26,7 +26,7 @@
 -- SÛRETÉ : tout est dans une transaction. En cas d'erreur, rien n'est
 --   appliqué. Le script est rejouable : le relancer ne casse rien.
 --
--- Détail et justification : md/adr-024-motif-refus-remuneration.md
+-- Détail et justification : md/adr/adr-024-motif-refus-remuneration.md
 -- =====================================================================
 
 BEGIN;

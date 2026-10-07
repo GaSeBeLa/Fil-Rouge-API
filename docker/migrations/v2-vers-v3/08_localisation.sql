@@ -2,7 +2,7 @@
 -- v2 → v3, LOT8 — Localisation : pays, codes postaux, secteurs
 -- =====================================================================
 --
--- POURQUOI ? Quatre cartes du registre md/questions-a-trancher-2026-10-02.md :
+-- POURQUOI ? Quatre cartes du registre md/questions/questions-a-trancher.md :
 --
 --   - Q-SCH-11 : le code postal des biens se contrôle par pays, comme sur
 --     client et criteria. Les biens repris n'ont pas de pays : 'FR'

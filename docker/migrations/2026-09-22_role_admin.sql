@@ -34,7 +34,7 @@
 --   clair tant que le hachage n'est pas en place (ADR-016, Argon2id).
 --   Le compte admin se crée donc APRÈS le hachage, pas avant.
 --
--- Détail et justification : md/securite-mots-de-passe-et-droits.md
+-- Détail et justification : md/securite/securite-mots-de-passe-et-droits.md
 -- =====================================================================
 
 BEGIN;

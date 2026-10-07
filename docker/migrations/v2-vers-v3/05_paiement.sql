@@ -2,7 +2,7 @@
 -- v2 → v3, LOT5 — Paiement : note figée, taux borné, dates
 -- =====================================================================
 --
--- POURQUOI ? Cinq cartes du registre md/questions-a-trancher-2026-10-02.md :
+-- POURQUOI ? Cinq cartes du registre md/questions/questions-a-trancher.md :
 --
 --   - Q-REM-17 (revue le 2026-10-07) : la facture est hors périmètre
 --     (Q-JEF-23). Les statuts 'invoice_submitted' et 'verified' sortent ;

@@ -4,7 +4,7 @@
 --
 -- POURQUOI ? Deux règles du sujet, écrites en commentaire dans init-v2/01
 --   depuis septembre, jamais branchées (registre
---   md/questions-a-trancher-2026-10-02.md) :
+--   md/questions/questions-a-trancher.md) :
 --
 --   - U05 : un mandat dure EXACTEMENT 6 mois (Q-MAN-01). Le CHECK de
 --     ends_at n'imposait que l'ordre des dates ;
