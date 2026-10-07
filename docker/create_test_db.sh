@@ -7,8 +7,8 @@
 # Ils ne doivent JAMAIS toucher la base de développement `fil_rouge_immobilier`.
 # Cette base de test vit dans le MÊME conteneur PostgreSQL, à côté de l'autre.
 #
-# CE QU'ELLE CONTIENT : les scripts 01 (schéma, 18 tables) et 02 (rôles,
-# comptes migrés, correction de ck_client_address_all_or_nothing) du dossier
+# CE QU'ELLE CONTIENT : les scripts 01 (schéma, 19 tables) et 02 (rôles,
+# comptes migrés, demandes, critères et mandats repris) du dossier
 # monté sur /docker-entrypoint-initdb.d (init-v3 depuis le 2026-10-07),
 # rejoués tels quels — donc exactement les mêmes contraintes que la base de
 # dev. Pas le 03 (2 556 biens) : aucun test n'en a besoin. Le 04 (rôle en
