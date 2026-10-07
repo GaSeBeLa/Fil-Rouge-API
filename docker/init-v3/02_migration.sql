@@ -87,6 +87,8 @@ INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (1, 'Client') ON C
 INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (2, 'Hunter') ON CONFLICT (id) DO NOTHING;
 INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (3, 'Manager') ON CONFLICT (id) DO NOTHING;
 INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (4, 'Admin')   ON CONFLICT (id) DO NOTHING;
+-- 'Reader' (Q14, LOT12) : consulte sans écrire ; aucun utilisateur ne l'a encore.
+INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (5, 'Reader')  ON CONFLICT (id) DO NOTHING;
 
 -- 1. USERS
 -- "user" est désormais minimaliste (choix du groupe, 2026-09) : id, email,

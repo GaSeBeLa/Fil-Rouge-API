@@ -11,10 +11,11 @@
 # comptes migrés, correction de ck_client_address_all_or_nothing) du dossier
 # monté sur /docker-entrypoint-initdb.d (init-v3 depuis le 2026-10-07),
 # rejoués tels quels — donc exactement les mêmes contraintes que la base de
-# dev. Pas le 03 (2 556 biens) : aucun test n'en a besoin.
+# dev. Pas le 03 (2 556 biens) : aucun test n'en a besoin. Le 04 (rôle en
+# lecture seule, LOT12) aussi, pour que les tests vérifient ses droits.
 #
 # REJOUABLE : la base est supprimée puis recréée à chaque lancement. À relancer
-# après toute modification de init-v3/01 ou 02.
+# après toute modification de init-v3/01, 02 ou 04.
 #
 # LANCER (depuis n'importe où, conteneur `db` démarré) :
 #     bash docker/create_test_db.sh
@@ -39,7 +40,8 @@ docker compose exec -T db sh -c "
     createdb -U \"\$POSTGRES_USER\" $TEST_DB
     psql -q -v ON_ERROR_STOP=1 -U \"\$POSTGRES_USER\" -d $TEST_DB \
         -f /docker-entrypoint-initdb.d/01_create_fil_rouge_immobilier.sql \
-        -f /docker-entrypoint-initdb.d/02_migration.sql
+        -f /docker-entrypoint-initdb.d/02_migration.sql \
+        -f /docker-entrypoint-initdb.d/04_role-lecture-seule.sql
     psql -tA -U \"\$POSTGRES_USER\" -d $TEST_DB -c \
         \"SELECT 'tables : ' || count(*) FROM information_schema.tables WHERE table_schema = 'public'\"
 "

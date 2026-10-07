@@ -7,6 +7,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Rôle en lecture seule (LOT12, Q14) : lu par init-v3/04. Vide, le
+      # rôle existe sans pouvoir se connecter.
+      POSTGRES_READER_PASSWORD: ${POSTGRES_READER_PASSWORD:-}
     ports:
       - "5432:5432"
     volumes:

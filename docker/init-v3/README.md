@@ -96,7 +96,37 @@ Tout est confirmé par Jeff (Q-JEF-13).
 
 - Les **3 TODO** de `01` qui croisent plusieurs tables (une visite avant la signature, une vente hors de la validité du mandat, un paiement au mauvais chasseur ou sur un barème périmé) sont annotés **« contrôlé par l'API »** (Q-MAN-06). Aucune table ne change ; les règles et leurs tests restent à écrire dans l'API.
 - **Mot de passe** gardé, haché en Argon2 (Q-JEF-14) : rien à retirer du schéma.
-- ⏸️ Reste le **rôle PostgreSQL en lecture seule** (Q14) : LOT12, après la réponse de Jeff.
+- ✅ Le **rôle en lecture seule** (Q14) est venu ensuite : LOT12, ci-dessous.
+
+### Rôle en lecture seule — LOT12, `04_role-lecture-seule.sql` et `12_role-lecture-seule.sql`
+
+Jeff a dit oui sur Discord le 2026-10-07, **à condition** que le choix soit expliqué au jury, utile et cohérent (Q14). Voici l'explication.
+
+**Ce que c'est** — deux rôles, à deux niveaux :
+
+| Niveau | Nom | Ce qu'il peut faire |
+|---|---|---|
+| PostgreSQL | `fil_rouge_reader` | lire les 19 tables (`SELECT`), et rien d'autre : ni `INSERT`, ni `UPDATE`, ni `DELETE` |
+| Application | `'Reader'` dans `role` (id 5) | consulter dans l'API sans modifier ; aucun utilisateur ne l'a encore |
+
+**À quoi ça sert**
+- Un projet Data-IA **lit** la base : requêtes d'analyse, notebook, outil de rapport. Sans ce rôle, il faut leur donner le compte `postgres`, qui peut tout effacer par erreur.
+- C'est le **moindre privilège** : chacun reçoit les droits de son travail, pas plus.
+- Côté application : quelqu'un qui consulte sans modifier, un auditeur ou le client qui suit l'avancement.
+
+**Pourquoi les deux, et pas un seul**
+- L'API se connecte avec le compte `postgres` : le rôle PostgreSQL **ne limite pas** ce qu'un utilisateur de l'API peut faire. Il protège les accès **directs** à la base.
+- Le rôle `'Reader'` couvre l'autre porte : celle de l'API. ⚠️ L'API ne vérifie pas encore les rôles : ce contrôle viendra avec les outils d'authentification côté back. Aujourd'hui, la valeur existe, la règle reste à écrire.
+
+**Sans risque pour le dépôt**
+- Mot de passe : `POSTGRES_READER_PASSWORD`, dans `docker/.env`, **jamais dans git**. `docker-compose.yml` le passe au conteneur (une ligne, accord du 2026-10-07).
+- Variable vide ou absente : le rôle existe **sans pouvoir se connecter** (`NOLOGIN`).
+- Un rôle vit dans le serveur, partagé par toutes ses bases : sa création est **idempotente**. Ses droits, eux, se donnent base par base, y compris pour les tables futures (`ALTER DEFAULT PRIVILEGES`).
+
+**Mesuré le 2026-10-07**
+- Connecté avec ce rôle : `SELECT` accepté (5 rôles lus), `INSERT` refusé (`permission denied for table role`).
+- Base de dev : **19** tables lisibles sur **19**, **0** modifiable.
+- Tests `test_reader_role_can_select` et `test_reader_role_cannot_write` (insert, update, delete). Avec `GRANT INSERT` ajouté au script, `[insert]` échoue : le test voit bien le défaut.
 
 ---
 

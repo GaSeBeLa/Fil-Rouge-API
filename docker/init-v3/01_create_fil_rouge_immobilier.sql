@@ -157,8 +157,10 @@ BEGIN;
 CREATE TABLE role (
     id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),  -- Q-SCH-09
+    -- 'Reader' : lecture seule côté application (Q14, LOT12, accord de Jeff
+    -- le 2026-10-07) ; son pendant PostgreSQL est dans 04_role-lecture-seule.sql.
     wording    VARCHAR(20) NOT NULL UNIQUE
-            CHECK (wording IN ('Admin', 'Client', 'Hunter', 'Manager'))
+            CHECK (wording IN ('Admin', 'Client', 'Hunter', 'Manager', 'Reader'))
 );
 
 -- "user" est un mot réservé PostgreSQL : il reste quoté partout.

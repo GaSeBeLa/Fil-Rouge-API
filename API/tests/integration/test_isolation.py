@@ -35,7 +35,7 @@ def test_engine_targets_test_database(test_engine: Engine):
 
 def test_reference_roles_are_present(db_session: Session):
     wordings = {role.wording for role in db_session.exec(select(Role)).all()}
-    assert wordings == {"Admin", "Client", "Hunter", "Manager"}
+    assert wordings == {"Admin", "Client", "Hunter", "Manager", "Reader"}  # Reader : Q14, LOT12
 
 
 def test_api_writes_are_invisible_to_other_connections(

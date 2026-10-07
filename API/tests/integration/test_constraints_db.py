@@ -32,7 +32,9 @@ dans 02) et vérifie le code HTTP qui en sort :
 - sale : clé vers sa grille d'honoraires (Q-REM-13) ;
 - hunter_performance : journal des notes, une note par paiement ou mandat
   (Q-SCH-06) ;
-- remuneration_parameters : une version par date de départ (Q-REM-05).
+- remuneration_parameters : une version par date de départ (Q-REM-05) ;
+- fil_rouge_reader : le rôle PostgreSQL en lecture seule lit, n'écrit pas
+  (Q14, LOT12) — vu en SQL, pas par l'API : c'est un droit de la base.
 
 Depuis le 2026-10-05, le routeur commun revalide l'entrée (crud_router.py,
 `_validated`) : un type faux ou un champ obligatoire manquant donne 422,
@@ -46,6 +48,9 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.orm import Session  # mère de sqlmodel.Session, la fixture db_session
 
 ESTATE: dict[str, Any] = {
     "reference": "TEST-0001",
@@ -688,3 +693,32 @@ def test_remuneration_parameters_same_effective_from_returns_409(db_client: Test
     assert first.status_code == 201, first.text
     second = {**REMUNERATION_PARAMETERS, "rate_ceiling": "0.65"}
     assert db_client.post("/remuneration-parameters", json=second).status_code == 409
+
+
+# --- rôle en lecture seule (Q14, LOT12) --------------------------------------
+# SET LOCAL ROLE : la session prend les droits de fil_rouge_reader jusqu'à la
+# fin de sa transaction, annulée par la fixture ; pas besoin de son mot de passe.
+
+
+def test_reader_role_can_select(db_session: Session):
+    connection = db_session.connection()
+    connection.execute(text("SET LOCAL ROLE fil_rouge_reader"))
+    # 'Reader' : le pendant applicatif du rôle (02_migration.sql).
+    wording = connection.execute(text("SELECT wording FROM role WHERE id = 5")).scalar_one()
+    assert wording == "Reader"
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "INSERT INTO role (wording) VALUES ('Reader')",
+        "UPDATE role SET wording = wording WHERE id = 5",
+        "DELETE FROM role WHERE id = 5",
+    ],
+    ids=["insert", "update", "delete"],
+)
+def test_reader_role_cannot_write(db_session: Session, statement: str):
+    connection = db_session.connection()
+    connection.execute(text("SET LOCAL ROLE fil_rouge_reader"))
+    with pytest.raises(ProgrammingError, match="permission denied"):
+        connection.execute(text(statement))
