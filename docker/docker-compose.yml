@@ -16,7 +16,10 @@ services:
       - db_data:/var/lib/postgresql/data
       - ./init-v3:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      # -h 127.0.0.1 : le serveur temporaire de l'init n'écoute pas le réseau ;
+      # « healthy » n'arrive donc qu'après les scripts d'init-v3 (mesuré le
+      # 2026-10-07 : 2 s sans -h, init non finie ; 6 s avec, init finie).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 10

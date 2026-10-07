@@ -407,10 +407,9 @@ après avoir ajouté `POSTGRES_READER_PASSWORD=` à `docker/.env` (LOT12, voir
 docker compose down -v && docker compose up -d
 ```
 
-⚠️ `down -v` efface la base de dev locale. `healthy` arrive **avant** la fin
-de l'init : attendre « init process complete » dans `docker compose logs db`
-avant de lire la base. Puis `bash docker/create_test_db.sh` pour la base de
-test.
+⚠️ `down -v` efface la base de dev locale. `healthy` n'arrive qu'à la fin de
+l'init (`pg_isready -h 127.0.0.1`, mesuré le 2026-10-07). Puis
+`bash docker/create_test_db.sh` pour la base de test.
 
 ### Tester sans rien toucher
 
