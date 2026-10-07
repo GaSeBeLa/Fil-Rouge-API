@@ -11,7 +11,10 @@ dans 02) et vérifie le code HTTP qui en sort :
   CHECK price >= 0, liste fermée de estate_type, NOT NULL, UNIQUE ;
 - client : ck_client_address_all_or_nothing telle que corrigée par 02
   (ville seule acceptée, adresse sans ville refusée), et
-  ck_client_marital_status_exclusive (marié ET pacsé refusé).
+  ck_client_marital_status_exclusive (marié ET pacsé refusé) ;
+- mandate : statut de fin 'lost' (Q-REM-02, Q-REM-14) et
+  chk_status_signature, qui permet 'canceled' sans signature (Q-MAN-07) ;
+- estate_proposed : offre 'signed' (Q-SCH-04).
 
 Depuis le 2026-10-05, le routeur commun revalide l'entrée (crud_router.py,
 `_validated`) : un type faux ou un champ obligatoire manquant donne 422,
@@ -116,3 +119,71 @@ def test_client_second_profile_for_same_user_returns_409(
     user_id = create_user("double@exemple.fr")
     assert db_client.post("/clients", json=client_payload(user_id)).status_code == 201
     assert db_client.post("/clients", json=client_payload(user_id)).status_code == 409  # UNIQUE(id_user)
+
+
+# --- mandate -----------------------------------------------------------------
+
+# Chasseur 1, client 7 et demande 1 : posés par 02 (MAND-0001). Dates en
+# 2030 : aucun mandat repris ne les chevauche, la règle d'exclusivité ne
+# s'en mêle pas.
+MANDATE: dict[str, Any] = {
+    "reference": "TEST-M-0001",
+    "status": "active",
+    "signature_date": "2030-01-01",
+    "ends_at": "2030-07-01",
+    "is_exclusive": False,
+    "id_hunter": 1,
+    "id_client": 7,
+    "id_search_request": 1,
+}
+
+
+def test_mandate_lost_status_is_accepted(db_client: TestClient):
+    # Q-REM-02, Q-REM-14 : vente perdue, personne n'est payé sur ce mandat.
+    response = db_client.post("/mandates", json={**MANDATE, "status": "lost"})
+    assert response.status_code == 201, response.text
+
+
+def test_mandate_unknown_status_returns_409(db_client: TestClient):
+    response = db_client.post("/mandates", json={**MANDATE, "status": "sold_elsewhere"})
+    assert response.status_code == 409
+
+
+def test_mandate_canceled_without_signature_is_accepted(db_client: TestClient):
+    # Q-MAN-07 : un client peut renoncer avant de signer — ni date, ni fin.
+    payload = {**MANDATE, "status": "canceled", "signature_date": None, "ends_at": None}
+    response = db_client.post("/mandates", json=payload)
+    assert response.status_code == 201, response.text
+
+
+def test_mandate_active_without_signature_returns_409(db_client: TestClient):
+    # chk_status_signature reste strict hors 'pending_signature' et 'canceled'.
+    payload = {**MANDATE, "signature_date": None, "ends_at": None}
+    assert db_client.post("/mandates", json=payload).status_code == 409
+
+
+# --- estate_proposed ---------------------------------------------------------
+
+
+def proposition_payload(db_client: TestClient, status: str) -> dict[str, Any]:
+    """Une offre sur un bien neuf, pour le mandat 1 posé par 02."""
+    estate = db_client.post("/estates", json=ESTATE)
+    assert estate.status_code == 201, estate.text
+    return {
+        "proposition_status": status,
+        "amount_proposition": 350000,
+        "id_hunter": 1,
+        "id_estate": estate.json()["id"],
+        "id_mandate": 1,
+    }
+
+
+def test_estate_proposed_signed_status_is_accepted(db_client: TestClient):
+    # Q-SCH-04 : l'offre signée (ferme D5).
+    response = db_client.post("/estate-proposed", json=proposition_payload(db_client, "signed"))
+    assert response.status_code == 201, response.text
+
+
+def test_estate_proposed_unknown_status_returns_409(db_client: TestClient):
+    response = db_client.post("/estate-proposed", json=proposition_payload(db_client, "sent"))
+    assert response.status_code == 409

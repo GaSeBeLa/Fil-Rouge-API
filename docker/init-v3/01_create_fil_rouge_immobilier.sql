@@ -402,9 +402,16 @@ CREATE TABLE mandate (
     created_at        TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     reference         VARCHAR(20) NOT NULL UNIQUE
                       CHECK (reference = btrim(reference) AND reference <> ''),
+    -- 'lost' : vente perdue, personne n'est payé sur ce mandat — vendu hors
+    -- agence (Q-REM-02, Jeff : « rien pour personne », Q-JEF-03) ou par un
+    -- collègue sur l'autre mandat non exclusif (Q-REM-14). Un seul statut pour
+    -- les deux cas (tranché le 2026-10-07, LOT3).
     status            VARCHAR(20) NOT NULL
                       CHECK (status IN ('active', 'completed', 'expired',
-                                        'renewed', 'canceled', 'pending_signature')),
+                                        'renewed', 'canceled', 'pending_signature',
+                                        'lost')),
+    -- Seule trace de la signature du client : is_client_signed est retiré,
+    -- la date et le statut 'pending_signature' suffisent (Q-MAN-05, Q-MAN-09).
     signature_date    DATE,
     signature_type    VARCHAR(20) CHECK (signature_type IN ('electronic', 'paper')),
     -- Date de fin STOCKÉE : décision N1 du 11/09/26 (option A), qui écarte
@@ -412,7 +419,6 @@ CREATE TABLE mandate (
     ends_at           DATE
                       CHECK ((signature_date IS NULL     AND ends_at IS NULL)
                           OR (signature_date IS NOT NULL AND ends_at > signature_date)),
-    is_client_signed  BOOLEAN NOT NULL DEFAULT FALSE,
     is_exclusive      BOOLEAN NOT NULL,
     id_hunter         INTEGER NOT NULL
                       REFERENCES hunter(id_user) ON DELETE RESTRICT,
@@ -427,9 +433,13 @@ CREATE TABLE mandate (
     -- ADR-010 + ADR-013 : 'renewed' désigne le NOUVEAU mandat (décision D8).
     CONSTRAINT chk_renewed
         CHECK (status <> 'renewed' OR id_mandate_parent IS NOT NULL),
+    -- 'canceled' accepte un mandat jamais signé : un client peut renoncer
+    -- avant de signer (Q-MAN-07). Les autres statuts restent stricts.
     CONSTRAINT chk_status_signature
-        CHECK ((status =  'pending_signature' AND signature_date IS NULL)
-            OR (status <> 'pending_signature' AND signature_date IS NOT NULL))
+        CHECK ((status = 'pending_signature' AND signature_date IS NULL)
+            OR  status = 'canceled'
+            OR (status NOT IN ('pending_signature', 'canceled')
+                AND signature_date IS NOT NULL))
 
     -- ------------------------------------------------------------------
     -- TODO (U05) — durée de validité de EXACTEMENT 6 mois
@@ -607,9 +617,10 @@ CREATE TABLE estate_proposed (
     comment_client     TEXT,
     -- Euros.
     amount_proposition INTEGER CHECK (amount_proposition >= 0),
+    -- 'signed' : l'offre est signée (Q-SCH-04, ferme D5).
     proposition_status VARCHAR(20) NOT NULL
                        CHECK (proposition_status IN ('proposed', 'offer_pending',
-                                                     'accepted', 'rejected')),
+                                                     'accepted', 'signed', 'rejected')),
     id_hunter          INTEGER NOT NULL REFERENCES hunter(id_user) ON DELETE RESTRICT,
     id_estate          INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT,
     id_mandate         INTEGER NOT NULL REFERENCES mandate(id) ON DELETE RESTRICT,

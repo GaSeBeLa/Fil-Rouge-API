@@ -16,6 +16,22 @@ Vérifié de bout en bout sur PostgreSQL 16, dans cet ordre, sur une base vierge
 
 ---
 
+## 0. Changements v3, par thème
+
+Chaque changement est écrit ici **et** dans sa migration
+`docker/migrations/v2-vers-v3/NN_<thème>.sql` ; le banc (§10) vérifie que les
+deux chemins mènent au même schéma. Décisions : registre
+`md/questions-a-trancher-2026-10-02.md`.
+
+### Mandat et offre — LOT3, `03_mandat-statuts.sql`
+
+- `mandate.status` accepte **`'lost'`** : vente perdue, personne n'est payé sur ce mandat — hors agence ou par un collègue ; un seul statut pour les deux cas, tranché le 2026-10-07 (Q-REM-02, Q-REM-14, Q-JEF-03).
+- `mandate.is_client_signed` **retiré** : la date de signature et `'pending_signature'` suffisent ; retiré aussi des 17 mandats de `02` (Q-MAN-05, Q-MAN-09).
+- `chk_status_signature` permet **`'canceled'` sans date de signature** ; les autres statuts restent stricts (Q-MAN-07).
+- `estate_proposed.proposition_status` accepte **`'signed'`** (Q-SCH-04).
+
+---
+
 ## 1. Pourquoi les euros, et pas les K€
 
 C'est le changement structurant. Il ne vient pas d'une préférence, mais de

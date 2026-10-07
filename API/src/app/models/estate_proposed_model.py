@@ -20,7 +20,8 @@ class EstateProposed(SQLModel, table=True):
     amount_proposition: Optional[int] = None
     # proposition_status remplace l'ancien booleen is_accepted : une
     # proposition passe par plusieurs etats, pas seulement oui/non.
-    # CHECK cote base — 'proposed', 'offer_pending', 'accepted', 'rejected'.
+    # CHECK cote base — 'proposed', 'offer_pending', 'accepted', 'signed'
+    # (Q-SCH-04), 'rejected'.
     proposition_status: str = Field(max_length=20)
     id_hunter: int = Field(foreign_key="hunter.id_user")
     id_estate: int = Field(foreign_key="estate.id")
