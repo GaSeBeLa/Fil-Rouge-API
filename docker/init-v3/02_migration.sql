@@ -27,9 +27,8 @@
 --      source. Repris de "user".created_at, seule date disponible. 6 lignes.
 --      ⚠️ C'est une HYPOTHÈSE de migration, pas une donnée d'origine.
 --   5. search_request : "status" est NOT NULL et absent de la source.
---      Valeur 'confirmed' (état d'entrée neutre). 17 lignes.
---      ⚠️ HYPOTHÈSE. Voir README point 5 pour l'alternative ('launched'
---      lorsqu'un mandat existe), fournie en UPDATE commenté en fin de script.
+--      Insérées en 'confirmed', puis 'launched' dès qu'un mandat existe :
+--      les 18 demandes (Q-MIG-03, tranché à LOT10 ; section 9).
 --   6. hunter : "id_realestatemanager" est NOT NULL depuis le 2026-09-22
 --      (MPD 03 4) et la source n'a AUCUN manager (deux rôles seulement :
 --      client, chasseur). Un manager PLACEHOLDER est créé (user 25 + profil)
@@ -55,6 +54,13 @@
 --        ville, code postal, quartier (district, NULL pour 2 secteurs)
 --        (Q-MIG-08) ;
 --      - budget_min à NULL, « inconnu » : il recopiait budget_max (Q-MIG-09).
+--  10. LOT10 (2026-10-07) — reprise des anciens mandats, confirmée par Jeff
+--      (Q-JEF-13) :
+--      - mandat 13 rattaché à Nina Girard (user 19), avec sa demande et son
+--        critère : 18 demandes, 18 critères, 18 mandats (Q-MIG-12) ;
+--      - les 6 mandats « actif » échus au 25/07/2026 en 'expired' (Q-MIG-10) ;
+--      - suspendu -> 'canceled', termine -> 'completed' (Q-MIG-13) ;
+--      - demandes en 'launched' (Q-MIG-03, point 5).
 --
 -- ============================================================================
 
@@ -163,7 +169,9 @@ INSERT INTO client (id_user, first_name, last_name, phone_number, gender, countr
 INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (23, 'Manon', 'Roux', '+33717181920', NULL, 'FR', 'Montpellier', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
 INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (24, 'Ethan', 'Faure', '+33718192021', NULL, 'FR', 'Castelnau-le-Lez', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
 
--- SKIP mandat 13 INVALIDE (client_id=3 est un chasseur)
+-- Mandat 13 : la source vise le user 3, un chasseur. Son vrai client est
+-- Nina Girard (user 19, déjà cliente) : confirmé par Jeff (Q-MIG-12,
+-- Q-JEF-13 ; LOT10). Repris avec sa demande et son critère, sans compte en plus.
 
 -- 4. SEARCH_REQUEST - id_author = client_id (le client est l'auteur de sa recherche)
 INSERT INTO search_request (id, created_at, id_author, id_client, id_hunter, status) OVERRIDING SYSTEM VALUE VALUES (1, '2025-02-01'::date, 7, 7, 1, 'confirmed') ON CONFLICT (id) DO NOTHING;
@@ -178,6 +186,7 @@ INSERT INTO search_request (id, created_at, id_author, id_client, id_hunter, sta
 INSERT INTO search_request (id, created_at, id_author, id_client, id_hunter, status) OVERRIDING SYSTEM VALUE VALUES (10, '2025-11-14'::date, 16, 16, 5, 'confirmed') ON CONFLICT (id) DO NOTHING;
 INSERT INTO search_request (id, created_at, id_author, id_client, id_hunter, status) OVERRIDING SYSTEM VALUE VALUES (11, '2026-01-05'::date, 17, 17, 1, 'confirmed') ON CONFLICT (id) DO NOTHING;
 INSERT INTO search_request (id, created_at, id_author, id_client, id_hunter, status) OVERRIDING SYSTEM VALUE VALUES (12, '2026-01-20'::date, 18, 18, 4, 'confirmed') ON CONFLICT (id) DO NOTHING;
+INSERT INTO search_request (id, created_at, id_author, id_client, id_hunter, status) OVERRIDING SYSTEM VALUE VALUES (13, '2026-02-10'::date, 19, 19, 2, 'confirmed') ON CONFLICT (id) DO NOTHING;
 INSERT INTO search_request (id, created_at, id_author, id_client, id_hunter, status) OVERRIDING SYSTEM VALUE VALUES (14, '2026-03-01'::date, 20, 20, 3, 'confirmed') ON CONFLICT (id) DO NOTHING;
 INSERT INTO search_request (id, created_at, id_author, id_client, id_hunter, status) OVERRIDING SYSTEM VALUE VALUES (15, '2026-03-25'::date, 21, 21, 1, 'confirmed') ON CONFLICT (id) DO NOTHING;
 INSERT INTO search_request (id, created_at, id_author, id_client, id_hunter, status) OVERRIDING SYSTEM VALUE VALUES (16, '2026-04-12'::date, 22, 22, 6, 'confirmed') ON CONFLICT (id) DO NOTHING;
@@ -210,20 +219,32 @@ INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_co
 INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (6, 16, 'FR', 'Sète', '34200', 'Centre', NULL, 290000.00, NULL, NULL, NULL, 'Maison', 'T3 / F3', 'Maison Sete, budget 290000, 3 pieces, garage') ON CONFLICT DO NOTHING;
 INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (5, 17, 'FR', 'Montpellier', '34090', 'Beaux-Arts', NULL, 260000.00, NULL, NULL, 45, 'Appartement', 'T2 / F2', 'T2 Beaux-Arts, budget 260000, 45m2, balcon, DPE D max') ON CONFLICT DO NOTHING;
 INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (2, 18, 'FR', 'Castelnau-le-Lez', '34170', NULL, NULL, 330000.00, NULL, NULL, 90, 'Maison', 'T4 / F4', 'Maison Castelnau, budget 330000, 90m2, 3 chambres, jardin') ON CONFLICT DO NOTHING;
+-- Demande 13 (Nina Girard, LOT10) : même lecture du texte source ; secteur 4,
+-- Figuerolles (PgSQL.sql:41-51). Inséré en dernier : id 18, comme dans
+-- migrations/v2-vers-v3/10_reprise-mandats.sql.
+INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (2, 13, 'FR', 'Montpellier', '34070', 'Figuerolles', NULL, 220000.00, NULL, NULL, 40, 'Appartement', 'T2 / F2', 'T2 Figuerolles, budget 220000, premier achat, 40m2 min') ON CONFLICT DO NOTHING;
 
--- 6. MANDATE
+-- 6. MANDATE — statuts source traduits (Q-MIG-13, Jeff : Q-JEF-13 ; LOT10) :
+--   actif -> 'active', termine -> 'completed', expire -> 'expired',
+--   suspendu -> 'canceled' : pas de pause dans la cible, ni de nouvel état.
+-- Les 6 mandats « actif » déjà finis à la date de l'audit, le 25/07/2026
+-- (MAND-0004, 0007, 0009, 0010, 0011, 0012), sont repris en 'expired'
+-- (Q-MIG-10, confirmé par Jeff). Date fixe : le résultat ne dépend pas du
+-- jour du lancement. MAND-0013, 0014, 0015, finis depuis, restent 'active' :
+-- les faire expirer revient à l'application.
 INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (1, 'MAND-0001', 'completed', '2025-02-01'::date, ('2025-02-01'::date + INTERVAL '6 months')::date, true, 1, 7, 1) ON CONFLICT (id) DO NOTHING;
 INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (2, 'MAND-0002', 'expired', '2025-03-10'::date, ('2025-03-10'::date + INTERVAL '6 months')::date, false, 3, 8, 2) ON CONFLICT (id) DO NOTHING;
 INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (3, 'MAND-0003', 'completed', '2025-04-05'::date, ('2025-04-05'::date + INTERVAL '6 months')::date, false, 1, 9, 3) ON CONFLICT (id) DO NOTHING;
-INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (4, 'MAND-0004', 'active', '2025-05-20'::date, ('2025-05-20'::date + INTERVAL '6 months')::date, true, 4, 10, 4) ON CONFLICT (id) DO NOTHING;
+INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (4, 'MAND-0004', 'expired', '2025-05-20'::date, ('2025-05-20'::date + INTERVAL '6 months')::date, true, 4, 10, 4) ON CONFLICT (id) DO NOTHING;
 INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (5, 'MAND-0005', 'completed', '2025-06-18'::date, ('2025-06-18'::date + INTERVAL '6 months')::date, true, 2, 11, 5) ON CONFLICT (id) DO NOTHING;
 INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (6, 'MAND-0006', 'expired', '2025-07-22'::date, ('2025-07-22'::date + INTERVAL '6 months')::date, false, 5, 12, 6) ON CONFLICT (id) DO NOTHING;
-INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (7, 'MAND-0007', 'active', '2025-09-01'::date, ('2025-09-01'::date + INTERVAL '6 months')::date, true, 3, 13, 7) ON CONFLICT (id) DO NOTHING;
+INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (7, 'MAND-0007', 'expired', '2025-09-01'::date, ('2025-09-01'::date + INTERVAL '6 months')::date, true, 3, 13, 7) ON CONFLICT (id) DO NOTHING;
 INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (8, 'MAND-0008', 'canceled', '2025-09-15'::date, ('2025-09-15'::date + INTERVAL '6 months')::date, false, 2, 14, 8) ON CONFLICT (id) DO NOTHING;
-INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (9, 'MAND-0009', 'active', '2025-10-02'::date, ('2025-10-02'::date + INTERVAL '6 months')::date, true, 6, 15, 9) ON CONFLICT (id) DO NOTHING;
-INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (10, 'MAND-0010', 'active', '2025-11-14'::date, ('2025-11-14'::date + INTERVAL '6 months')::date, false, 5, 16, 10) ON CONFLICT (id) DO NOTHING;
-INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (11, 'MAND-0011', 'active', '2026-01-05'::date, ('2026-01-05'::date + INTERVAL '6 months')::date, true, 1, 17, 11) ON CONFLICT (id) DO NOTHING;
-INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (12, 'MAND-0012', 'active', '2026-01-20'::date, ('2026-01-20'::date + INTERVAL '6 months')::date, false, 4, 18, 12) ON CONFLICT (id) DO NOTHING;
+INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (9, 'MAND-0009', 'expired', '2025-10-02'::date, ('2025-10-02'::date + INTERVAL '6 months')::date, true, 6, 15, 9) ON CONFLICT (id) DO NOTHING;
+INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (10, 'MAND-0010', 'expired', '2025-11-14'::date, ('2025-11-14'::date + INTERVAL '6 months')::date, false, 5, 16, 10) ON CONFLICT (id) DO NOTHING;
+INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (11, 'MAND-0011', 'expired', '2026-01-05'::date, ('2026-01-05'::date + INTERVAL '6 months')::date, true, 1, 17, 11) ON CONFLICT (id) DO NOTHING;
+INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (12, 'MAND-0012', 'expired', '2026-01-20'::date, ('2026-01-20'::date + INTERVAL '6 months')::date, false, 4, 18, 12) ON CONFLICT (id) DO NOTHING;
+INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (13, 'MAND-0013', 'active', '2026-02-10'::date, ('2026-02-10'::date + INTERVAL '6 months')::date, false, 2, 19, 13) ON CONFLICT (id) DO NOTHING;
 INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (14, 'MAND-0014', 'active', '2026-03-01'::date, ('2026-03-01'::date + INTERVAL '6 months')::date, true, 3, 20, 14) ON CONFLICT (id) DO NOTHING;
 INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (15, 'MAND-0015', 'active', '2026-03-25'::date, ('2026-03-25'::date + INTERVAL '6 months')::date, false, 1, 21, 15) ON CONFLICT (id) DO NOTHING;
 INSERT INTO mandate (id, reference, status, signature_date, ends_at, is_exclusive, id_hunter, id_client, id_search_request) OVERRIDING SYSTEM VALUE VALUES (16, 'MAND-0016', 'canceled', '2026-04-12'::date, ('2026-04-12'::date + INTERVAL '6 months')::date, false, 6, 22, 16) ON CONFLICT (id) DO NOTHING;
@@ -243,10 +264,13 @@ SELECT setval(pg_get_serial_sequence('criteria', 'id'), COALESCE((SELECT MAX(id)
 SELECT 'user' as tbl, COUNT(*) FROM "user" UNION ALL SELECT 'hunter', COUNT(*) FROM hunter UNION ALL SELECT 'client', COUNT(*) FROM client UNION ALL SELECT 'real_estate_manager', COUNT(*) FROM real_estate_manager UNION ALL SELECT 'search_request', COUNT(*) FROM search_request UNION ALL SELECT 'criteria', COUNT(*) FROM criteria UNION ALL SELECT 'mandate', COUNT(*) FROM mandate;
 
 -- ----------------------------------------------------------------------------
--- OPTION (point 5 du README) — statut déduit de l'existence d'un mandat.
--- Décommenter si le groupe juge qu'une demande sous mandat est « lancée ».
+-- 9. STATUT DES DEMANDES — déduit de l'existence d'un mandat (Q-MIG-03,
+-- tranché à LOT10) : une demande sous mandat signé est « lancée ». Les 18
+-- demandes en ont un. Pas de nouvel état pour une recherche finie (Jeff,
+-- Q-JEF-13).
 -- ----------------------------------------------------------------------------
--- UPDATE search_request sr SET status = 'launched'
---  WHERE EXISTS (SELECT 1 FROM mandate m WHERE m.id_search_request = sr.id);
+UPDATE search_request sr SET status = 'launched'
+ WHERE status = 'confirmed'
+   AND EXISTS (SELECT 1 FROM mandate m WHERE m.id_search_request = sr.id);
 
 COMMIT;

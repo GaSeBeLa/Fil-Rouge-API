@@ -82,6 +82,16 @@ deux chemins mènent au même schéma. Décisions : registre
 - **`estate.id_author`**, `INTEGER` facultatif, clé vers `"user"(id)` `ON DELETE RESTRICT` : qui a saisi le bien à la main (chasseur ou manager) ; vide = bien importé. Même forme que `criteria.id_author` ; le rôle se vérifie dans l'API (Q-ACC-09, Q-JEF-24 ; nom et clé tranchés à LOT9).
 - Compté avant d'activer : **2 556** biens, mêmes références dans le CSV et dans `03` ; A **491**, B **470**, C **121**, D **140**, E **126**, F **138**, G **137**.
 
+### Anciens mandats — LOT10, `10_reprise-mandats.sql`
+
+Tout est confirmé par Jeff (Q-JEF-13).
+
+- Les **6 mandats « actif » échus** au 25/07/2026, date de l'audit (`MAND-0004`, `0007`, `0009`, `0010`, `0011`, `0012`), passent en **`'expired'`** (Q-MIG-10). Date **fixe** : le résultat ne dépend pas du jour du lancement. `MAND-0013`, `0014`, `0015`, finis depuis, restent `'active'` : les faire expirer revient à l'application.
+- Le **mandat 13**, écarté jusqu'ici (son client était un chasseur), se rattache à **Nina Girard** (user 19, déjà cliente), avec sa demande et son critère tirés de la ligne source (T2 Figuerolles, 220 000 €, 40 m² min). Pas de compte en plus (Q-MIG-12). Soit **18** demandes, **18** critères, **18** mandats.
+- Statuts source traduits : `actif` → `'active'`, `termine` → `'completed'`, `expire` → `'expired'`, **`suspendu` → `'canceled'`** : pas de pause dans la cible (Q-MIG-13).
+- Les **18 demandes** passent en **`'launched'`** : toutes ont un mandat signé ; pas de nouvel état pour une recherche finie (Q-MIG-03, tranché à LOT10 ; §3.5).
+- Compté avant d'activer : **17** demandes en `'confirmed'`, **17** mandats dont les 6 en `'active'`, **0** demande pour Nina Girard. La migration s'arrête si Nina n'est pas cliente, ou si l'id 13 est pris par un autre client.
+
 ---
 
 ## 1. Pourquoi les euros, et pas les K€
@@ -229,19 +239,17 @@ plausible — un chasseur reçoit son compte à son arrivée — mais elle reste
 confirmer. Elle est visible dans le script sous forme de sous-requête, pas
 d'une valeur en dur, pour qu'on sache d'où elle vient.
 
-### 3.5 `search_request.status` : hypothèse assumée
+### 3.5 `search_request.status` : `'launched'` sous mandat (LOT10)
 
-La colonne est `NOT NULL` et **absente de la source**. Valeur retenue :
-`'confirmed'`, l'état d'entrée neutre parmi
-`confirmed` / `accepted` / `rejected` / `launched`.
-
-⚠️ Également une **hypothèse**. Une alternative défendable — une demande qui
-porte déjà un mandat est « lancée » — est fournie en `UPDATE` commenté à la
-fin du script :
+La colonne est `NOT NULL` et **absente de la source**. Parmi
+`confirmed` / `accepted` / `rejected` / `launched`, une demande qui porte déjà
+un mandat est « lancée » : tranché à LOT10 (Q-MIG-03). Les 18 demandes en
+ont un ; l'`UPDATE` qui était commenté est actif, en section 9 de `02` :
 
 ```sql
--- UPDATE search_request sr SET status = 'launched'
---  WHERE EXISTS (SELECT 1 FROM mandate m WHERE m.id_search_request = sr.id);
+UPDATE search_request sr SET status = 'launched'
+ WHERE status = 'confirmed'
+   AND EXISTS (SELECT 1 FROM mandate m WHERE m.id_search_request = sr.id);
 ```
 
 ### 3.6 `hunter.id_realestatemanager` : un manager placeholder
@@ -383,12 +391,13 @@ conteneur avec `docker rm -f pg_essai`.
 | 1 | ✅ Fermé (LOT7) : tout-ou-rien gardé, valeurs factices pour les 18 clients | §0, §4 |
 | 2 | Trancher le sens de `commission_rate` (honoraires ou commission ?) | §3.3 |
 | 3 | Confirmer `hire_date` = date de création du compte | §3.4 |
-| 4 | Confirmer `status = 'confirmed'` pour les demandes migrées | §3.5 |
+| 4 | ✅ Fermé (LOT10) : demandes sous mandat en `'launched'` | §0, §3.5 |
 | 5 | ✅ Fermé (LOT9) : `energy_class` rempli depuis `dpe`, 1 623 biens | §0, §2.2 |
 | 6 | Décision `D2` (`D7`, `U02`, `U05` : LOT4 ; `R21` : LOT5 ; `D9` : LOT6 ; `D6` : LOT7 ; `N2` : LOT8) | en-tête du `01`, §0 |
 | 7 | Acter en ADR le lien chasseur → manager, et remplacer le manager placeholder par le seed | §3.6, §9 |
 
-Les points 1 à 4 et 7 sont des **hypothèses de migration** : elles font
+Les points 2, 3 et 7 restent des **hypothèses de migration** (1 et 4 sont
+fermés) : elles font
 tourner la chaîne aujourd'hui, mais elles engagent une lecture du métier qui
 n'a pas été validée. Aucune n'est cachée — toutes sont signalées dans les
 scripts.
