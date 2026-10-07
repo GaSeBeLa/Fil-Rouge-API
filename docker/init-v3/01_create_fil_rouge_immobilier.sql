@@ -169,7 +169,7 @@ CREATE TABLE "user" (
     created_at   TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     email        VARCHAR(150) NOT NULL UNIQUE,
     password     VARCHAR(255) NOT NULL,
-    is_activated BOOLEAN,
+    is_activated BOOLEAN NOT NULL DEFAULT FALSE,
     id_role      INTEGER NOT NULL REFERENCES role(id) ON DELETE RESTRICT
 );
 
