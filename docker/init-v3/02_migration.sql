@@ -203,7 +203,8 @@ INSERT INTO search_request (id, created_at, id_author, id_client, id_hunter, sta
 --   (secteurs PgSQL.sql:41-51, mandats :135-159), pays 'FR' (Q-MIG-08, LOT8).
 --   district vaut NULL pour Castelnau-le-Lez et Lattes, sans quartier à la source.
 -- renovation_budget_min/max : nullable côté cible -> NULL (info absente côté source)
--- typology : NOT NULL, liste fermée -> déduite via parse_typology() ci-dessus
+-- typology : facultative en v3 (vide permis), liste fermée -> déduite via
+--   parse_typology() ci-dessus ; remplie pour les 18 critères
 INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (1, 1, 'FR', 'Montpellier', '34000', 'Écusson', NULL, 320000.00, NULL, NULL, 65, 'Appartement', 'T3 / F3', 'T3 Ecusson, budget 320000, 65m2 min, balcon, calme, DPE C max') ON CONFLICT DO NOTHING;
 INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (3, 2, 'FR', 'Lyon', '69004', 'Croix-Rousse', NULL, 450000.00, NULL, NULL, 85, 'Appartement', 'T4 / F4', 'T4 Croix-Rousse, budget 450000, 85m2, terrasse ou jardin') ON CONFLICT DO NOTHING;
 INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, renovation_budget_min, renovation_budget_max, surface_min, estate_type, typology, change_reason) VALUES (1, 3, 'FR', 'Montpellier', '34090', 'Beaux-Arts', NULL, 280000.00, NULL, NULL, 45, 'Appartement', 'T2 / F2', 'T2 Beaux-Arts, budget 280000, 45m2 min, lumineux, proche tram') ON CONFLICT DO NOTHING;
