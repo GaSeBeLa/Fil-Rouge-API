@@ -8,12 +8,13 @@
 # Cette base de test vit dans le MÊME conteneur PostgreSQL, à côté de l'autre.
 #
 # CE QU'ELLE CONTIENT : les scripts 01 (schéma, 18 tables) et 02 (rôles,
-# comptes migrés, correction de ck_client_address_all_or_nothing) de init-v2,
+# comptes migrés, correction de ck_client_address_all_or_nothing) du dossier
+# monté sur /docker-entrypoint-initdb.d (init-v3 depuis le 2026-10-07),
 # rejoués tels quels — donc exactement les mêmes contraintes que la base de
 # dev. Pas le 03 (2 556 biens) : aucun test n'en a besoin.
 #
 # REJOUABLE : la base est supprimée puis recréée à chaque lancement. À relancer
-# après toute modification de init-v2/01 ou 02.
+# après toute modification de init-v3/01 ou 02.
 #
 # LANCER (depuis n'importe où, conteneur `db` démarré) :
 #     bash docker/create_test_db.sh

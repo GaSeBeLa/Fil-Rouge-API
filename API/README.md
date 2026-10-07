@@ -2,7 +2,7 @@
 # API — Fil Rouge Immobilier
 
 API REST (FastAPI + SQLModel) exposant les 18 tables du schéma PostgreSQL
-`fil_rouge_immobilier` (voir [`../docker/init-v2/01_create_fil_rouge_immobilier.sql`](../docker/init-v2/01_create_fil_rouge_immobilier.sql)).
+`fil_rouge_immobilier` (voir [`../docker/init-v3/01_create_fil_rouge_immobilier.sql`](../docker/init-v3/01_create_fil_rouge_immobilier.sql)).
 
 ## Stack
 
@@ -125,7 +125,7 @@ est le code de référence **du sujet**, extrait tel quel de `REGLES-CALCUL-REMU
 
 **22 tests** dans [`tests/integration/`](tests/integration/), contre une vraie base
 PostgreSQL, **`fil_rouge_test`** — jamais la base de dev. Avant la première fois, et
-après toute modification de `docker/init-v2/01` ou `02` :
+après toute modification de `docker/init-v3/01` ou `02` :
 
 ```bash
 bash docker/create_test_db.sh

@@ -6,7 +6,7 @@ fichier dans ce dossier.
 COMMENT LIRE CE PACKAGE
 ============================================================================
 Chaque fichier `*_model.py` représente UNE table déjà existante dans la
-base (créée par docker/init-v2/01_create_fil_rouge_immobilier.sql). On utilise `table=True`
+base (créée par docker/init-v3/01_create_fil_rouge_immobilier.sql). On utilise `table=True`
 pour dire à SQLModel "cette classe correspond à une vraie table", mais on
 n'appelle JAMAIS `SQLModel.metadata.create_all()` dans ce projet — les
 tables existent déjà, avec leurs contraintes exactes (CHECK, NOT NULL...)

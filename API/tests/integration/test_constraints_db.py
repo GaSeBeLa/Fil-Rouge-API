@@ -1,10 +1,10 @@
 """
-test_constraints_db.py — Contraintes du schéma init-v2, vues par l'API.
+test_constraints_db.py — Contraintes du schéma init-v3, vues par l'API.
 
 ============================================================================
 COMMENT LIRE CE FICHIER
 ============================================================================
-Chaque test vise UNE contrainte de docker/init-v2/01 (ou sa correction
+Chaque test vise UNE contrainte de docker/init-v3/01 (ou sa correction
 dans 02) et vérifie le code HTTP qui en sort :
 
 - estate : prix en euros entiers (INTEGER, Q-REM-01 du 2026-10-05),

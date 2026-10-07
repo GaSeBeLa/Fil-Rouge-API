@@ -8,7 +8,7 @@ facture au client ; là-bas c'est ce que l'agence reverse au chasseur.
 ⚠️ La colonne `hunter.commission_rate` de l'ancienne base (valeurs 2,00 à
 3,25) ressemble à un taux d'honoraires de cette table, pas à un taux de
 commission. Elle n'a **pas** été migrée tant que le groupe n'a pas
-tranché — voir `docker/init-v2/README.md` §3.3.
+tranché — voir `docker/init-v3/README.md` §3.3.
 """
 
 from datetime import date, datetime, timezone

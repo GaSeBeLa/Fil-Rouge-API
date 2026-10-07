@@ -32,7 +32,7 @@ class Hunter(SQLModel, table=True):
     company_name: Optional[str] = Field(default=None, max_length=80)
     # hire_date : NOT NULL en base. Pour les 6 chasseurs migres, la valeur
     # retenue est la date de creation du compte — hypothese assumee,
-    # a confirmer (docker/init-v2/README.md §3.4).
+    # a confirmer (docker/init-v3/README.md §3.4).
     hire_date: date
     education_level: Optional[str] = Field(default=None, max_length=20)
     # Note : la colonne s'appelle "is_cartet" (tout en minuscules) en base,

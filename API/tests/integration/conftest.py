@@ -13,7 +13,7 @@ Deux protections, l'une sur l'autre :
 1. UNE AUTRE BASE. Les tests visent `fil_rouge_test`, jamais la base de
    développement `fil_rouge_immobilier`. Même serveur, même utilisateur :
    seul le nom de la base change. Elle se crée avec
-   `bash docker/create_test_db.sh` (scripts 01 + 02 de init-v2).
+   `bash docker/create_test_db.sh` (scripts 01 + 02 de init-v3).
 
 2. TOUT EST ANNULÉ. Chaque test s'exécute dans une transaction ouverte ici
    et annulée (rollback) à la fin, quoi qu'il arrive. Les `commit()` du code

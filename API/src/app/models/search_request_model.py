@@ -25,5 +25,5 @@ class SearchRequest(SQLModel, table=True):
     )
     # status : NOT NULL + CHECK cote base — 'confirmed', 'accepted',
     # 'rejected', 'launched'. Les demandes migrees valent 'confirmed',
-    # hypothese a confirmer (docker/init-v2/README.md §3.5).
+    # hypothese a confirmer (docker/init-v3/README.md §3.5).
     status: str = Field(max_length=20)
