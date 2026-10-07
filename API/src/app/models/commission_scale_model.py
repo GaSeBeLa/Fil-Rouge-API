@@ -35,6 +35,7 @@ class CommissionScale(SQLModel, table=True):
     # amount_max NULL = derniere tranche, sans plafond.
     amount_max: Optional[int] = None
     # rate : NUMERIC(5,4), un taux, pas un pourcentage — 0.3000 vaut 30 %.
+    # > 0 côté base : une tranche à 0 % n'a pas de sens (Q-SCH-15).
     rate: Decimal = Field(max_digits=5, decimal_places=4)
     valid_from: date
     valid_until: Optional[date] = None

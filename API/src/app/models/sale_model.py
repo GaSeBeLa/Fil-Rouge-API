@@ -32,3 +32,5 @@ class Sale(SQLModel, table=True):
     sale_origin: str = Field(max_length=20)
     id_mandate: int = Field(foreign_key="mandate.id")
     id_estate: int = Field(foreign_key="estate.id")
+    # La grille d'honoraires qui a donné fees_amount (Q-REM-13).
+    id_parameters_fees: int = Field(foreign_key="parameters_fees.id")

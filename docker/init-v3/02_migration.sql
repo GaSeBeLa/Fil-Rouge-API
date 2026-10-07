@@ -1,6 +1,7 @@
 -- ============================================================================
 -- 02_migration.sql — Migration Fil_Rouge_Depart -> Fil_Rouge_Immobilier
--- ADAPTÉ au schéma 18 tables (MPD 03) et à la convention EUROS.
+-- ADAPTÉ au schéma 19 tables (MPD 03, plus remuneration_parameters depuis
+-- LOT6) et à la convention EUROS.
 -- Testé : s'exécute sans erreur à la suite de 01_create_fil_rouge_immobilier.sql.
 -- ============================================================================
 --
@@ -35,6 +36,10 @@
 --      mot de passe placeholder que les 24 autres. Voir README §3.6.
 --      ⚠️ HYPOTHÈSE de migration : ce manager n'existe pas dans la source.
 --      Le seed devra le remplacer par de vrais managers.
+--   7. sale : la clé id_parameters_fees (LOT6, Q-REM-13) n'a rien à
+--      rattacher ici. Compté le 2026-10-07 : la source n'a aucune vente ni
+--      aucune grille d'honoraires, et ce script n'en insère aucune.
+--      remuneration_parameters et hunter_performance restent vides aussi.
 --
 -- ============================================================================
 -- ⚠️ CORRECTION DE CONTRAINTE DU SCHÉMA — À VALIDER PAR LE GROUPE

@@ -1,14 +1,15 @@
 # `init-v3/` — part de `init-v2/` le 2026-10-07 (chantier LOT) ; les changements suivent par thème
 
 Ce dossier contient la chaîne complète de création et de peuplement de la base,
-alignée sur le **MPD 03 4** (18 tables, 2026-09-22) et sur la convention **euros**.
+alignée sur le **MPD 03 4** (18 tables, 2026-09-22) et sur la convention **euros** ;
+une 19e table, `remuneration_parameters`, depuis LOT6 (2026-10-07).
 
 Il ne remplace rien : `docker/init/` reste en place, intact. Les deux dossiers
 coexistent tant que le groupe n'a pas validé le basculement.
 
 | Fichier | Rôle | État |
 |---|---|---|
-| `01_create_fil_rouge_immobilier.sql` | schéma — 18 tables, 226 colonnes | testé, 0 erreur |
+| `01_create_fil_rouge_immobilier.sql` | schéma — 19 tables, 250 colonnes (mesuré après LOT6) | testé, 0 erreur |
 | `02_migration.sql` | données `Fil_Rouge_Depart` → cible | testé, 0 erreur |
 | `03_populate_estate.sql` | 2 556 biens + 1 976 photos | testé, 0 erreur |
 
@@ -44,6 +45,16 @@ deux chemins mènent au même schéma. Décisions : registre
 - `chk_refused` exige **`final_rate` hors refus** (Q-REM-10), et refuse un score sur un refus.
 - **`performance_score`** fige le score qui a servi au calcul, de 0 à 100 (Q-REM-03) ; **`calculation_details`** (`JSONB`) garde les 5 notes et les entrées (Q-REM-04).
 - Compté avant d'activer : **0** paiement en base de dev, et `02` n'en insère aucun.
+
+### Paramètres de rémunération et journal des notes — LOT6, `06_parametres.sql`
+
+- **`remuneration_parameters`**, 19e table : les réglages du calcul (poids, paliers en `JSONB`, notes, points, ancienneté, modulation, bornes) en table versionnée, sans `CHECK` sur les valeurs (Q-REM-05). Une version vaut jusqu'à la suivante, `UNIQUE (effective_from)` — choisi le 2026-10-07 à la place de `valid_from` / `valid_until`. Exposée en CRUD (`/remuneration-parameters`). La grille de notes de Q-JEF-05 n'y est pas : chantier API.
+- `payment.seniority_rate` et `performance_rate` **relâchés** au domaine d'un taux : de **0 à 1** et de **−1 à 1** (v2 : 0 à 0,10 et −0,20 à 0,20). Bornes choisies le 2026-10-07, justifiées par `REGLES-CALCUL-REMUNERATION.md` l. 59, 199 et 203 (Q-REM-05).
+- `parameters_fees` : **`effective_from`** remplace `valid_from` ; `valid_until` et l'`EXCLUDE` sortent ; **`UNIQUE (effective_from)`** — une grille vaut jusqu'à la suivante (Q-SCH-17).
+- `commission_scale.rate` **`> 0`** : une tranche à 0 % est refusée (Q-SCH-15).
+- `sale.id_parameters_fees`, **clé** vers la grille qui a donné les honoraires (Q-REM-13). Que ce soit la grille en vigueur à la date de l'acte n'est pas vérifié : TODO, API.
+- `hunter_performance` devient un **journal** : `scored_at` à la seconde, `UNIQUE (id_payment)`, `UNIQUE (id_mandate)`, index `(id_hunter, scored_at DESC)` ; `valid_from`, `valid_until`, `chk_perf_period` et `excl_perf_no_overlap` sortent. Deux notes le même jour passent ; ferme D9 (Q-SCH-06).
+- Compté avant d'activer : **0** vente, **0** grille, **0** note en base de dev ; `02` n'en insère aucune. La migration s'arrête si une date de fin serait perdue, ou si une vente précède la première grille.
 
 ---
 
@@ -339,7 +350,7 @@ conteneur avec `docker rm -f pg_essai`.
 | 3 | Confirmer `hire_date` = date de création du compte | §3.4 |
 | 4 | Confirmer `status = 'confirmed'` pour les demandes migrées | §3.5 |
 | 5 | Alimenter `energy_class` depuis la colonne `dpe` du CSV | §2.2 |
-| 6 | Décisions `D2`, `D6`, `D9`, `N2` (`D7`, `U02`, `U05` : LOT4 ; `R21` : LOT5) | en-tête du `01`, §0 |
+| 6 | Décisions `D2`, `D6`, `N2` (`D7`, `U02`, `U05` : LOT4 ; `R21` : LOT5 ; `D9` : LOT6) | en-tête du `01`, §0 |
 | 7 | Acter en ADR le lien chasseur → manager, et remplacer le manager placeholder par le seed | §3.6, §9 |
 
 Les points 1 à 4 et 7 sont des **hypothèses de migration** : elles font

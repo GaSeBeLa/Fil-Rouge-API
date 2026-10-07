@@ -1,7 +1,8 @@
 -- ============================================================================
 -- 01_create_fil_rouge_immobilier.sql
--- Schéma cible "Fil_Rouge_Immobilier" — 18 tables
--- Généré depuis « MPD 03 4.drawio.xml » (2026-09-22)
+-- Schéma cible "Fil_Rouge_Immobilier" — 19 tables
+-- Généré depuis « MPD 03 4.drawio.xml » (2026-09-22) ; 19e table,
+-- remuneration_parameters, ajoutée le 2026-10-07 (LOT6, Q-REM-05)
 --
 -- VERSION FUSIONNÉE des deux scripts écrits en parallèle par le groupe.
 -- Testé sur PostgreSQL 16 : création complète sur base vierge, sans erreur.
@@ -134,10 +135,12 @@
 --   l'API. Les TODO ci-dessous portent le SQL prêt à activer.
 --
 --   Décisions encore ouvertes : D2 (ancienneté), D6 (priorité du client),
---   D9 (deux scores le même jour), N2 (localisation :
+--   N2 (localisation :
 --   ADR-009 place la localisation sur search_request, le MPD la met sur
 --   criteria, ADR-021 ne tranche pas). R21 (bornage du taux final 20-60 %)
 --   est actif depuis le 2026-10-07 (LOT5, Q-REM-19, Jeff : Q-JEF-01).
+--   D9 (deux scores le même jour) est fermée le 2026-10-07 : hunter_performance
+--   devient un journal daté à la seconde (LOT6, Q-SCH-06).
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;  -- requis par les contraintes EXCLUDE
@@ -664,6 +667,26 @@ CREATE TABLE visit (
 -- 7. VENTE ET RÉMUNÉRATION
 -- ============================================================================
 
+-- Paramètres d'honoraires, historisés (montant fixe + pourcentage du prix).
+-- Q-SCH-17 (2026-10-05) : une grille vaut jusqu'à la suivante, par
+--   construction. Plus de date de fin, donc plus de trou ni de chevauchement
+--   possible ; deux grilles ne démarrent pas le même jour. La grille d'une
+--   vente = la dernière dont effective_from <= date de l'acte. Seul cas
+--   restant : une vente avant la 1re grille, couvert par le seed (Q-REM-15).
+--   Créée avant sale, qui la référence (Q-REM-13).
+CREATE TABLE parameters_fees (
+    id             INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    created_at     TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
+    -- « En vigueur à partir du » (Q-SCH-17 ; valid_from en v2).
+    effective_from DATE NOT NULL,
+    -- Euros entiers : la source officielle donne « 3000,00 », soit 3000.
+    fixed_amount   INTEGER NOT NULL CHECK (fixed_amount > 0),
+    rate           NUMERIC(5,4) NOT NULL CHECK (rate >= 0 AND rate <= 1),
+
+    -- Q-SCH-17 : remplace l'EXCLUDE de v2 (excl_fees_no_overlap).
+    CONSTRAINT uq_fees_effective_from UNIQUE (effective_from)
+);
+
 CREATE TABLE sale (
     id              INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at      TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
@@ -676,6 +699,12 @@ CREATE TABLE sale (
                     CHECK (sale_origin IN ('hunter', 'client_alone')),
     id_mandate      INTEGER NOT NULL UNIQUE REFERENCES mandate(id) ON DELETE RESTRICT,
     id_estate       INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT,
+    -- Q-REM-13 (2026-10-05) : la grille d'honoraires qui a donné fees_amount.
+    --   Le montant reste figé ici ; la clé dit d'où il vient.
+    --   TODO — que ce soit bien la grille en vigueur à la date de l'acte
+    --   n'est pas vérifié : croise sale et parameters_fees -> API.
+    id_parameters_fees INTEGER NOT NULL
+                       REFERENCES parameters_fees(id) ON DELETE RESTRICT,
 
     CONSTRAINT chk_fees_lower_than_price CHECK (fees_amount < purchase_amount)
 
@@ -690,20 +719,6 @@ CREATE TABLE sale (
     --   compte de ce délai, et non refuser sèchement.
 );
 
--- Paramètres d'honoraires, historisés (montant fixe + pourcentage du prix).
-CREATE TABLE parameters_fees (
-    id           INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    created_at   TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
-    valid_from   DATE NOT NULL,
-    valid_until  DATE,
-    -- Euros entiers : la source officielle donne « 3000,00 », soit 3000.
-    fixed_amount INTEGER NOT NULL CHECK (fixed_amount > 0),
-    rate         NUMERIC(5,4) NOT NULL CHECK (rate >= 0 AND rate <= 1),
-
-    CONSTRAINT excl_fees_no_overlap
-        EXCLUDE USING gist (daterange(valid_from, valid_until, '[]') WITH &&)
-);
-
 -- Barème de commission : tranches de prix -> taux de base.
 -- id_hunter NULL = barème par défaut ; renseigné = barème propre au chasseur.
 CREATE TABLE commission_scale (
@@ -712,7 +727,10 @@ CREATE TABLE commission_scale (
     -- Euros : les tranches officielles montent à 750 000 et au-delà.
     amount_min  INTEGER NOT NULL CHECK (amount_min >= 0),
     amount_max  INTEGER CHECK (amount_max > amount_min),
-    rate        NUMERIC(5,4) NOT NULL CHECK (rate >= 0 AND rate <= 1),
+    -- Q-SCH-15 (2026-10-05) : > 0, comme payment.base_rate. Avec le plancher,
+    --   une tranche à 0 % paierait quand même 20 % (rem.py:264) : un taux nul
+    --   n'a pas de sens.
+    rate        NUMERIC(5,4) NOT NULL CHECK (rate > 0 AND rate <= 1),
     valid_from  DATE NOT NULL,
     valid_until DATE,
     id_hunter   INTEGER REFERENCES hunter(id_user) ON DELETE RESTRICT,
@@ -735,6 +753,53 @@ CREATE TABLE commission_scale (
             numrange(amount_min, amount_max, '[]') WITH &&,
             daterange(valid_from, valid_until, '[]') WITH &&
         ) WHERE (id_hunter IS NULL)
+);
+
+-- Paramètres du calcul de rémunération, versionnés (Q-REM-05, 2026-10-02) :
+--   le sujet veut « une table de paramètres, jamais en dur »
+--   (REGLES-CALCUL-REMUNERATION.md l. 42-47). Une ligne = un jeu complet,
+--   celui de ParametresPerformance et ParametresModulation (rem.py:92-116).
+--   Les honoraires et le barème ont déjà leurs tables (parameters_fees,
+--   commission_scale).
+-- Versions : comme parameters_fees (Q-SCH-17), une version vaut jusqu'à la
+--   suivante — choisi le 2026-10-07 pour cette table, à la place du couple
+--   valid_from / valid_until de la carte Q-REM-05.
+-- Aucun CHECK sur les valeurs : ce sont des paramètres « à valider avec le
+--   client » (l. 59) ; les graver refait l'erreur que Q-REM-05 corrige.
+-- La grille de notes du taux de transformation (Q-JEF-05) n'est pas ici :
+--   chantier API.
+CREATE TABLE remuneration_parameters (
+    id                      INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    created_at              TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
+    effective_from          DATE NOT NULL,
+    -- Performance (rem.py:92-105) : les poids des 5 critères ...
+    weight_delay            NUMERIC(5,4) NOT NULL,
+    weight_exclusivity      NUMERIC(5,4) NOT NULL,
+    weight_sales            NUMERIC(5,4) NOT NULL,
+    weight_mandates         NUMERIC(5,4) NOT NULL,
+    weight_visits           NUMERIC(5,4) NOT NULL,
+    -- ... les paliers, borne haute incluse -> note, la dernière ouverte :
+    --   [{"maximum": 12, "note": 100}, ..., {"maximum": null, "note": 0}]
+    delay_tiers             JSONB NOT NULL,  -- en semaines
+    visit_tiers             JSONB NOT NULL,
+    -- ... les notes, les points et la fenêtre glissante.
+    score_exclusive         NUMERIC(4,1) NOT NULL,
+    score_non_exclusive     NUMERIC(4,1) NOT NULL,
+    points_per_sale         NUMERIC(4,1) NOT NULL,
+    points_per_mandate      NUMERIC(4,1) NOT NULL,
+    window_months           INTEGER NOT NULL,
+    -- Modulation (rem.py:108-116) : a = min(taux × années ; plafond),
+    --   p = (S - pivot) / demi-amplitude × amplitude, r borné.
+    seniority_rate_per_year NUMERIC(5,4) NOT NULL,
+    seniority_cap           NUMERIC(5,4) NOT NULL,
+    score_pivot             NUMERIC(4,1) NOT NULL,
+    score_half_range        NUMERIC(4,1) NOT NULL,
+    performance_amplitude   NUMERIC(5,4) NOT NULL,
+    rate_floor              NUMERIC(5,4) NOT NULL,
+    rate_ceiling            NUMERIC(5,4) NOT NULL,
+
+    -- Deux versions ne démarrent pas le même jour (comme uq_fees_effective_from).
+    CONSTRAINT uq_remuneration_effective_from UNIQUE (effective_from)
 );
 
 CREATE TABLE payment (
@@ -778,8 +843,15 @@ CREATE TABLE payment (
     final_rate          NUMERIC(5,4) CHECK (final_rate BETWEEN 0.20 AND 0.60),
     -- Majoration d'ancienneté, modulation de performance (décision D2).
     -- NULL toutes les deux sur une ligne de refus (ADR-024).
-    seniority_rate      NUMERIC(5,4) CHECK (seniority_rate BETWEEN 0 AND 0.10),
-    performance_rate    NUMERIC(5,4) CHECK (performance_rate BETWEEN -0.20 AND 0.20),
+    -- Q-REM-05 : +10 % max et ±20 % sont des paramètres « à valider avec le
+    --   client » (REGLES-CALCUL-REMUNERATION.md l. 59) ; ils vivent dans
+    --   remuneration_parameters, plus dans ces CHECK (v2 : 0 à 0,10 et
+    --   -0,20 à 0,20). Restent les bornes du domaine, choisies le 2026-10-07 :
+    --     a >= 0 : a = min(taux × années ; plafond), jamais négatif (l. 199) ;
+    --     p >= -1 : r = r0 × (1 + a + p) (l. 203), le facteur reste positif ;
+    --     <= 1 : domaine d'un taux, comme base_rate.
+    seniority_rate      NUMERIC(5,4) CHECK (seniority_rate BETWEEN 0 AND 1),
+    performance_rate    NUMERIC(5,4) CHECK (performance_rate BETWEEN -1 AND 1),
     -- Q-REM-03 : le score qui a servi au calcul, figé à la date de l'acte
     --   (F10:275-287). hunter_performance.score est recalculé APRÈS le
     --   paiement : ce n'est pas le même. Même domaine que lui (0 à 100).
@@ -842,35 +914,36 @@ CREATE TABLE payment (
     --   calcule pas. Le calcul du droit reste à faire.
 );
 
--- Score de performance du chasseur, historisé par période.
+-- Score de performance du chasseur : un journal des notes (Q-SCH-06,
+--   2026-10-05, ferme D9). Une note = une ligne datée à la seconde, sans
+--   période ; la note actuelle = la dernière ligne du chasseur. Q-REM-06
+--   recalcule la note à chaque vente : deux ventes le même jour doivent
+--   passer, ce que les périodes de v2 (valid_from, valid_until, au jour près)
+--   refusaient.
 CREATE TABLE hunter_performance (
     id           INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at   TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     score        NUMERIC(4,1) NOT NULL CHECK (score BETWEEN 0 AND 100),
-    valid_from   DATE NOT NULL,
-    valid_until  DATE,
+    scored_at    TIMESTAMP NOT NULL,
     trigger_type VARCHAR(20) NOT NULL
                  CHECK (trigger_type IN ('initial', 'payment', 'mandate_expired')),
     id_hunter    INTEGER NOT NULL REFERENCES hunter(id_user) ON DELETE RESTRICT,
     id_payment   INTEGER REFERENCES payment(id) ON DELETE RESTRICT,
     id_mandate   INTEGER REFERENCES mandate(id) ON DELETE RESTRICT,
 
-    CONSTRAINT chk_perf_period
-        CHECK (valid_until IS NULL OR valid_until > valid_from),
     -- Chaque type de déclencheur impose sa source, et interdit l'autre.
     CONSTRAINT chk_perf_source
         CHECK ((trigger_type = 'payment'         AND id_payment IS NOT NULL AND id_mandate IS NULL)
             OR (trigger_type = 'mandate_expired' AND id_mandate IS NOT NULL AND id_payment IS NULL)
             OR (trigger_type = 'initial'         AND id_payment IS NULL     AND id_mandate IS NULL)),
-    -- TODO (décision D9) — les bornes sont inclusives '[]', donc deux scores
-    --   d'un même chasseur le MÊME JOUR sont refusés : il faut au moins un
-    --   jour d'écart. Si le métier veut l'autoriser, passer en '[)'.
-    CONSTRAINT excl_perf_no_overlap
-        EXCLUDE USING gist (
-            id_hunter WITH =,
-            daterange(valid_from, valid_until, '[]') WITH &&
-        )
+    -- Q-SCH-06 : un paiement, ou un mandat échu, donne une note et une seule.
+    CONSTRAINT uq_perf_payment UNIQUE (id_payment),
+    CONSTRAINT uq_perf_mandate UNIQUE (id_mandate)
 );
+
+-- Q-SCH-06 : « la dernière note du chasseur » se lit par cet index.
+CREATE INDEX idx_perf_hunter_scored_at
+    ON hunter_performance (id_hunter, scored_at DESC);
 
 
 -- ============================================================================
@@ -939,7 +1012,8 @@ COMMENT ON COLUMN real_estate_manager.id IS
 COMMIT;
 
 -- ============================================================================
--- FIN — 18 tables, 226 colonnes (mesuré via information_schema), 1 extension.
+-- FIN — 19 tables, 250 colonnes (mesuré via information_schema le
+-- 2026-10-07, après LOT6), 1 extension.
 --
 -- Pour activer ce schéma dans docker/docker-compose.yml, remplacer
 --     ./init:/docker-entrypoint-initdb.d

@@ -1,6 +1,11 @@
 """
 parameters_fees_model.py — Les honoraires de l'agence : une part fixe et
-un taux, valables sur une période.
+un taux, en vigueur à partir d'une date.
+
+Une grille vaut jusqu'à la suivante, par construction (Q-SCH-17) : pas de
+date de fin, et deux grilles ne démarrent pas le même jour (UNIQUE côté
+base). La grille d'une vente = la dernière dont `effective_from` <= la date
+de l'acte ; `sale.id_parameters_fees` la désigne (Q-REM-13).
 
 À ne pas confondre avec `commission_scale` : ici c'est ce que l'agence
 facture au client ; là-bas c'est ce que l'agence reverse au chasseur.
@@ -23,8 +28,8 @@ class ParametersFees(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    valid_from: date
-    valid_until: Optional[date] = None
+    # « En vigueur à partir du » ; UNIQUE côté base (Q-SCH-17).
+    effective_from: date
     fixed_amount: int  # euros entiers (INTEGER) : la source donne 3000,00
     # rate : NUMERIC(5,4) — 0.0300 vaut 3 %.
     rate: Decimal = Field(max_digits=5, decimal_places=4)

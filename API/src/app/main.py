@@ -21,7 +21,7 @@ séparées, dans l'ordre où une requête les traverse :
 Chacune de ces trois couches hérite d'une classe de base générique
 (routes/crud_router.py, services/base_service.py,
 repositories/base_repository.py) qui porte le comportement CRUD commun aux
-18 tables — évite de le dupliquer 11 fois, comme le faisaient déjà
+19 tables — évite de le dupliquer 11 fois, comme le faisaient déjà
 list_all/get_one_or_404/create_one/... dans l'ancienne version de ce
 fichier.
 
@@ -58,6 +58,7 @@ from .routes import (
     payment_router,
     hunter_performance_router,
     parameters_fees_router,
+    remuneration_parameters_router,
     visit_router,
 )
 
@@ -96,3 +97,5 @@ app.include_router(parameters_fees_router.router)
 app.include_router(commission_scale_router.router)
 app.include_router(payment_router.router)
 app.include_router(hunter_performance_router.router)
+# Q-REM-05 : les réglages du calcul de rémunération, versionnés.
+app.include_router(remuneration_parameters_router.router)

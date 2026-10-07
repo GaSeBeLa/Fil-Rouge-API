@@ -2,10 +2,11 @@
 hunter_performance_model.py — Le score de performance d'un chasseur, daté,
 et ce qui l'a déclenché.
 
-La table garde un **historique** : chaque score vaut sur une période
-(`valid_from` / `valid_until`), au lieu d'écraser le précédent. C'est ce
-qui permet de rejouer un calcul de rémunération tel qu'il était au moment
-de la vente.
+La table est un **journal des notes** (Q-SCH-06) : une note = une ligne
+datée à la seconde (`scored_at`), sans période ; la note actuelle est la
+dernière ligne du chasseur. Rien n'est écrasé. Deux ventes le même jour
+donnent deux lignes, puisque la note est recalculée à chaque vente
+(Q-REM-06).
 
 `trigger_type` dit d'où vient la ligne :
 
@@ -13,10 +14,11 @@ de la vente.
     payment           recalculé à la suite d'un versement
     mandate_expired   recalculé parce qu'un mandat s'est éteint sans vente
 
-`id_payment` et `id_mandate` sont donc `NULL` selon le déclencheur.
+`id_payment` et `id_mandate` sont donc `NULL` selon le déclencheur ; un
+même paiement, ou un même mandat, ne donne qu'une note (UNIQUE côté base).
 """
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -30,12 +32,12 @@ class HunterPerformance(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     # score : NUMERIC(4,1).
     score: Decimal = Field(max_digits=4, decimal_places=1)
-    valid_from: date
-    valid_until: Optional[date] = None
+    # TIMESTAMP NOT NULL : le moment de la note, à la seconde (Q-SCH-06).
+    scored_at: datetime
     # trigger_type : NOT NULL + CHECK cote base — 'initial', 'payment',
     # 'mandate_expired'.
     trigger_type: str = Field(max_length=20)
     id_hunter: int = Field(foreign_key="hunter.id_user")
-    # Renseigne selon le declencheur, NULL sinon.
+    # Renseigne selon le declencheur, NULL sinon ; UNIQUE chacun (Q-SCH-06).
     id_payment: Optional[int] = Field(default=None, foreign_key="payment.id")
     id_mandate: Optional[int] = Field(default=None, foreign_key="mandate.id")
