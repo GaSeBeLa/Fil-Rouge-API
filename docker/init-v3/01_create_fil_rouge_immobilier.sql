@@ -412,6 +412,8 @@ CREATE TABLE criteria (
     CONSTRAINT chk_land_surface     CHECK (land_surface_max >= land_surface_min),
     CONSTRAINT chk_town_requires_country
         CHECK (town IS NULL OR country_iso IS NOT NULL),
+    CONSTRAINT chk_criteria_district_needs_town
+        CHECK (district IS NULL OR town IS NOT NULL),
     CONSTRAINT chk_postal_code_needs_country
         CHECK (postal_code IS NULL OR country_iso IS NOT NULL),
     -- Corrections 1 et 8 : parenthèse en trop retirée ; Eircode sans espace (Q-SCH-12).
