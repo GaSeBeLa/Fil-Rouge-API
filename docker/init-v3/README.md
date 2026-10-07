@@ -9,7 +9,7 @@ coexistent tant que le groupe n'a pas validé le basculement.
 
 | Fichier | Rôle | État |
 |---|---|---|
-| `01_create_fil_rouge_immobilier.sql` | schéma — 19 tables, 257 colonnes (mesuré après LOT8) | testé, 0 erreur |
+| `01_create_fil_rouge_immobilier.sql` | schéma — 19 tables, 258 colonnes (mesuré après LOT9) | testé, 0 erreur |
 | `02_migration.sql` | données `Fil_Rouge_Depart` → cible | testé, 0 erreur |
 | `03_populate_estate.sql` | 2 556 biens + 1 976 photos | testé, 0 erreur |
 
@@ -74,6 +74,13 @@ deux chemins mènent au même schéma. Décisions : registre
 - **`district`** (quartier), `VARCHAR(100)` facultatif, sur `criteria` et `estate` : vide pour 3 critères (Castelnau-le-Lez, Lattes, sans quartier à la source) et pour les 2 556 biens, le CSV n'en ayant pas (Q-MIG-08).
 - **`criteria.budget_min` à NULL**, « inconnu », sur les 17 critères : la source n'avait qu'un budget, recopié dans le minimum (Q-MIG-09).
 - Compté avant d'activer : **2 556** codes postaux de biens sur 2 556 à 5 chiffres, **0** pays renseigné, **0** client ni critère en Irlande. La migration s'arrête si un bien non repris du CSV a un code postal sans pays.
+
+### Biens — LOT9, `09_biens.sql`
+
+- **`estate.energy_class`** reçoit la lettre de la colonne `dpe` du CSV (dans `03`) : **1 623** biens ; **933** restent vides (NULL), le CSV n'en donne pas (Q-MIG-06). Le CSV n'étant pas monté dans le conteneur, `09` recopie les 1 623 lettres, classe par classe.
+- Les quatre autres colonnes d'énergie restent **vides** ; l'ancien score unique n'existe ni en v2 ni en v3 (Q-MIG-05, §2.2).
+- **`estate.id_author`**, `INTEGER` facultatif, clé vers `"user"(id)` `ON DELETE RESTRICT` : qui a saisi le bien à la main (chasseur ou manager) ; vide = bien importé. Même forme que `criteria.id_author` ; le rôle se vérifie dans l'API (Q-ACC-09, Q-JEF-24 ; nom et clé tranchés à LOT9).
+- Compté avant d'activer : **2 556** biens, mêmes références dans le CSV et dans `03` ; A **491**, B **470**, C **121**, D **140**, E **126**, F **138**, G **137**.
 
 ---
 
@@ -148,8 +155,8 @@ Elle n'existe pas dans le MPD 03, qui décrit l'énergie de façon plus fine :
 Elle était `NULL` sur les 2 556 lignes : **aucune donnée n'est perdue**. La
 colonne a simplement été retirée des `INSERT`.
 
-> ➡️ À faire plus tard : alimenter `energy_class` depuis la colonne `dpe` du
-> CSV, qui n'était pas exploitée par l'ancien script.
+> ✅ Fait à LOT9 : `energy_class` reçoit la lettre de la colonne `dpe` du CSV
+> (1 623 biens, Q-MIG-06 ; voir §0).
 
 ---
 
@@ -377,7 +384,7 @@ conteneur avec `docker rm -f pg_essai`.
 | 2 | Trancher le sens de `commission_rate` (honoraires ou commission ?) | §3.3 |
 | 3 | Confirmer `hire_date` = date de création du compte | §3.4 |
 | 4 | Confirmer `status = 'confirmed'` pour les demandes migrées | §3.5 |
-| 5 | Alimenter `energy_class` depuis la colonne `dpe` du CSV | §2.2 |
+| 5 | ✅ Fermé (LOT9) : `energy_class` rempli depuis `dpe`, 1 623 biens | §0, §2.2 |
 | 6 | Décision `D2` (`D7`, `U02`, `U05` : LOT4 ; `R21` : LOT5 ; `D9` : LOT6 ; `D6` : LOT7 ; `N2` : LOT8) | en-tête du `01`, §0 |
 | 7 | Acter en ADR le lien chasseur → manager, et remplacer le manager placeholder par le seed | §3.6, §9 |
 

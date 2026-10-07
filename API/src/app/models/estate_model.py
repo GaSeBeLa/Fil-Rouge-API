@@ -11,8 +11,11 @@ Deux choses à savoir avant d'écrire du code sur cette table :
   `test_estate_price_with_cents_is_refused`.
 - **L'énergie est décrite en cinq colonnes** (`energy_class`,
   `energy_class_scheme`, `energy_class_date`, `energy_kwh_m2`,
-  `energy_co2_m2`), et non plus par l'ancien `energetic_score`, qui
-  n'existe plus.
+  `energy_co2_m2`) ; l'ancien score unique est retiré (Q-MIG-05). Les
+  biens repris n'ont que la lettre du DPE, quand le CSV la donne
+  (Q-MIG-06).
+- **`id_author`** : qui a saisi le bien à la main, chasseur ou manager ;
+  vide = bien importé (Q-ACC-09, Q-JEF-24).
 
 Les colonnes à liste fermée (`estate_type`, `typology`, `floor`,
 `energy_class`, `country_iso`) portent un CHECK côté base : c'est
@@ -75,3 +78,5 @@ class Estate(SQLModel, table=True):
     # Quartier, facultatif (Q-MIG-08) ; vide sur les biens repris du CSV.
     district: Optional[str] = Field(default=None, max_length=100)
     information: Optional[str] = None
+    # Clé vers "user" ; le rôle (chasseur ou manager) se vérifie dans l'API.
+    id_author: Optional[int] = Field(default=None, foreign_key="user.id")

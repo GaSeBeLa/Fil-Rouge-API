@@ -564,6 +564,9 @@ CREATE TABLE estate (
     -- Euros. Charger depuis annonces_normalised.csv colonne « price_eur ».
     price                INTEGER CHECK (price >= 0),
     construction_date    DATE,
+    -- Lettre du DPE, recopiée de la colonne dpe du CSV : 1 623 biens repris,
+    -- vide (NULL) pour les 933 sans lettre (Q-MIG-06, LOT9). Les quatre
+    -- autres colonnes d'énergie restent vides, la source n'en a rien (Q-MIG-05).
     energy_class         CHAR(1) CHECK (energy_class IN ('A','B','C','D','E','F','G')),
     energy_class_scheme  VARCHAR(20),
     energy_class_date    DATE,
@@ -613,6 +616,12 @@ CREATE TABLE estate (
     district             VARCHAR(100)
                          CHECK (district = btrim(district) AND district <> ''),
     information          TEXT CHECK (char_length(information) <= 2000),
+    -- Auteur d'un bien saisi à la main, chasseur ou manager ; vide (NULL) :
+    -- bien importé (Q-ACC-09, Q-JEF-24 ; LOT9). Même forme que
+    -- criteria.id_author : un auteur inconnu est refusé, le rôle se vérifie
+    -- dans l'API.
+    id_author            INTEGER
+                         REFERENCES "user"(id) ON DELETE RESTRICT,
 
     -- Format du code postal par pays, même CASE que client et criteria
     -- (Q-SCH-11, LOT8). Un code postal sans pays tombe dans ELSE : refusé.
@@ -1051,8 +1060,8 @@ COMMENT ON COLUMN real_estate_manager.id IS
 COMMIT;
 
 -- ============================================================================
--- FIN — 19 tables, 257 colonnes (mesuré via information_schema le
--- 2026-10-07, après LOT8), 1 extension.
+-- FIN — 19 tables, 258 colonnes (mesuré via information_schema le
+-- 2026-10-07, après LOT9), 1 extension.
 --
 -- Pour activer ce schéma dans docker/docker-compose.yml, remplacer
 --     ./init:/docker-entrypoint-initdb.d

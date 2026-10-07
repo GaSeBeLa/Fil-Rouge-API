@@ -9,6 +9,7 @@ dans 02) et vérifie le code HTTP qui en sort :
 
 - estate : prix en euros entiers (INTEGER, Q-REM-01 du 2026-10-05),
   CHECK price >= 0, liste fermée de estate_type, NOT NULL, UNIQUE ;
+  auteur connu de "user" (Q-ACC-09) ;
 - client : ck_client_address_all_or_nothing, tout-ou-rien (Q-SCH-01 :
   ville seule refusée, adresse sans ville refusée), et
   ck_client_marital_status_exclusive (marié ET pacsé refusé) ;
@@ -109,6 +110,17 @@ def test_estate_constraint_violation_returns_409(db_client: TestClient, field: s
 def test_estate_duplicate_reference_returns_409(db_client: TestClient):
     assert db_client.post("/estates", json=ESTATE).status_code == 201
     assert db_client.post("/estates", json=ESTATE).status_code == 409
+
+
+def test_estate_unknown_author_returns_409(db_client: TestClient):
+    # Auteur d'un bien saisi à la main : clé vers "user" (Q-ACC-09, Q-JEF-24).
+    response = db_client.post("/estates", json={**ESTATE, "id_author": 999999})
+    assert response.status_code == 409
+
+
+def test_estate_known_author_is_accepted(db_client: TestClient):
+    response = db_client.post("/estates", json={**ESTATE, "id_author": 1})  # chasseur posé par 02
+    assert response.status_code == 201, response.text
 
 
 # --- client ------------------------------------------------------------------
