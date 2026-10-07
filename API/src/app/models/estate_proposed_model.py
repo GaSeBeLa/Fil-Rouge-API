@@ -26,3 +26,6 @@ class EstateProposed(SQLModel, table=True):
     id_hunter: int = Field(foreign_key="hunter.id_user")
     id_estate: int = Field(foreign_key="estate.id")
     id_mandate: int = Field(foreign_key="mandate.id")
+    # Priorite donnee par le client au bien, de 1 a 5 ; vide tant qu'il n'a
+    # pas donne son avis. CHECK cote base (D6, Q-SCH-05, Q-JEF-18).
+    client_priority: Optional[int] = None

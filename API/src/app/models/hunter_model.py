@@ -13,7 +13,7 @@ first_name/last_name/phone_number/gender/country_iso : redescendus
 depuis User (choix du groupe, 2026-09).
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
@@ -23,9 +23,12 @@ class Hunter(SQLModel, table=True):
     __tablename__ = "hunter"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))  # Q-SCH-09
     id_user: int = Field(foreign_key="user.id", unique=True)
     first_name: str = Field(max_length=80)
     last_name: str = Field(max_length=80)
+    # CHECK cote base : format international d'ADR-007, ex. +33612345678
+    # (ck_hunter_phone_number_format, Q-PRO-08).
     phone_number: str = Field(max_length=20)
     gender: Optional[str] = Field(default=None, max_length=10)
     country_iso: Optional[str] = Field(default=None, max_length=2)
@@ -35,10 +38,9 @@ class Hunter(SQLModel, table=True):
     # a confirmer (docker/init-v3/README.md §3.4).
     hire_date: date
     education_level: Optional[str] = Field(default=None, max_length=20)
-    # Note : la colonne s'appelle "is_cartet" (tout en minuscules) en base,
-    # pas "is_carteT" — PostgreSQL met automatiquement en minuscules les
-    # identifiants non "quotés" à la création. On utilise donc le nom réel.
-    is_cartet: Optional[bool] = None
+    # La « carte T » (carte professionnelle d'agent immobilier). Renommée
+    # depuis le nom replié du MPD le 2026-10-07 (Q-SCH-10).
+    is_carte_t: Optional[bool] = None
     certification_date: Optional[date] = None
     # is_hunter_ai : le chasseur est-il l'agent automatique ?
     is_hunter_ai: Optional[bool] = None

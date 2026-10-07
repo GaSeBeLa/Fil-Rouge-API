@@ -9,7 +9,7 @@ coexistent tant que le groupe n'a pas validé le basculement.
 
 | Fichier | Rôle | État |
 |---|---|---|
-| `01_create_fil_rouge_immobilier.sql` | schéma — 19 tables, 250 colonnes (mesuré après LOT6) | testé, 0 erreur |
+| `01_create_fil_rouge_immobilier.sql` | schéma — 19 tables, 255 colonnes (mesuré après LOT7) | testé, 0 erreur |
 | `02_migration.sql` | données `Fil_Rouge_Depart` → cible | testé, 0 erreur |
 | `03_populate_estate.sql` | 2 556 biens + 1 976 photos | testé, 0 erreur |
 
@@ -55,6 +55,16 @@ deux chemins mènent au même schéma. Décisions : registre
 - `sale.id_parameters_fees`, **clé** vers la grille qui a donné les honoraires (Q-REM-13). Que ce soit la grille en vigueur à la date de l'acte n'est pas vérifié : TODO, API.
 - `hunter_performance` devient un **journal** : `scored_at` à la seconde, `UNIQUE (id_payment)`, `UNIQUE (id_mandate)`, index `(id_hunter, scored_at DESC)` ; `valid_from`, `valid_until`, `chk_perf_period` et `excl_perf_no_overlap` sortent. Deux notes le même jour passent ; ferme D9 (Q-SCH-06).
 - Compté avant d'activer : **0** vente, **0** grille, **0** note en base de dev ; `02` n'en insère aucune. La migration s'arrête si une date de fin serait perdue, ou si une vente précède la première grille.
+
+### Personnes — LOT7, `07_personnes.sql`
+
+- `ck_client_address_all_or_nothing` reste **tout-ou-rien** : l'`ALTER` qui l'assouplissait sort de `02` (Q-SCH-01). Les **18 clients** repris reçoivent `address = 'non renseigné'` et `postal_code = '00000'` ; leur ville est gardée (Q-SCH-18). Valeurs **factices**, à remplacer quand Jeff fournit les vraies (Q-JEF-26).
+- **Téléphone** au format d'ADR-007 sur `client`, `hunter`, `real_estate_manager` : `ck_<table>_phone_number_format`, un `+`, puis 2 à 15 chiffres, le premier de 1 à 9, au plus un espace ou un tiret entre deux chiffres (« regex E.164 souple » d'ADR-007). `0612345678` est refusé (Q-PRO-08).
+- Les **4 téléphones `0000000000`** (3 clients et le manager placeholder, §3.6) deviennent **`+33000000000`** : valeur **factice**, au format (Q-MIG-07).
+- `estate_proposed.client_priority`, **`SMALLINT` de 1 à 5**, vide tant que le client n'a pas donné son avis : ferme D6 (Q-SCH-05, Jeff : Q-JEF-18).
+- **`created_at`** sur `client`, `hunter`, `real_estate_manager`, `role` ; les lignes reprises prennent la date de la migration, faute de date source (Q-SCH-09).
+- `hunter.is_cartet` devient **`is_carte_t`** : colonne, modèle, `02`, migration (Q-SCH-10).
+- Compté avant d'activer : **4** téléphones `0000000000`, **0** autre numéro hors format, **18** clients sur 18 avec la ville seule, **0** offre en base de dev. La migration s'arrête si un téléphone ou une adresse ne se complète pas sans inventer une donnée.
 
 ---
 
@@ -225,7 +235,8 @@ La source n'a **aucun manager** : deux rôles seulement, `client` et
 
 Valeur retenue : un **compte placeholder** unique,
 `manager.migration@chassimmo.fr` (user 25, rôle `Manager`), au nom
-volontairement bidon (« Manager Migration », téléphone `0000000000`), bloqué
+volontairement bidon (« Manager Migration », téléphone `+33000000000` depuis
+LOT7, `0000000000` avant), bloqué
 par le même mot de passe placeholder que les 24 autres comptes. Les 6
 chasseurs lui sont rattachés.
 
@@ -237,7 +248,12 @@ qu'aucun chasseur ne pointe plus vers lui.
 
 ## 4. ⚠️ Une contrainte du schéma a dû être corrigée
 
-C'est le point qui demande une **décision du groupe**.
+✏️ **Tranché le 2026-10-05, appliqué le 2026-10-07 (LOT7)** : le groupe garde
+le tout-ou-rien (Q-SCH-01). L'`ALTER` ci-dessous est **retiré** de `02` ; les
+18 clients reçoivent « non renseigné » et `00000` (Q-SCH-18, §0). La suite
+décrit l'état d'avant, gardée pour l'historique.
+
+C'était le point qui demandait une **décision du groupe**.
 
 ### Le problème, mesuré
 
@@ -345,12 +361,12 @@ conteneur avec `docker rm -f pg_essai`.
 
 | # | Sujet | Où |
 |---|---|---|
-| 1 | Valider la correction de `ck_client_address_all_or_nothing` | §4 |
+| 1 | ✅ Fermé (LOT7) : tout-ou-rien gardé, valeurs factices pour les 18 clients | §0, §4 |
 | 2 | Trancher le sens de `commission_rate` (honoraires ou commission ?) | §3.3 |
 | 3 | Confirmer `hire_date` = date de création du compte | §3.4 |
 | 4 | Confirmer `status = 'confirmed'` pour les demandes migrées | §3.5 |
 | 5 | Alimenter `energy_class` depuis la colonne `dpe` du CSV | §2.2 |
-| 6 | Décisions `D2`, `D6`, `N2` (`D7`, `U02`, `U05` : LOT4 ; `R21` : LOT5 ; `D9` : LOT6) | en-tête du `01`, §0 |
+| 6 | Décisions `D2`, `N2` (`D7`, `U02`, `U05` : LOT4 ; `R21` : LOT5 ; `D9` : LOT6 ; `D6` : LOT7) | en-tête du `01`, §0 |
 | 7 | Acter en ADR le lien chasseur → manager, et remplacer le manager placeholder par le seed | §3.6, §9 |
 
 Les points 1 à 4 et 7 sont des **hypothèses de migration** : elles font

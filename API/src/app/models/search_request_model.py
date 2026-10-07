@@ -17,9 +17,9 @@ class SearchRequest(SQLModel, table=True):
     id_author: int = Field(foreign_key="user.id")
     id_client: int = Field(foreign_key="client.id_user")
     id_hunter: Optional[int] = Field(default=None, foreign_key="hunter.id_user")
-    # Même remarque que pour is_cartet (voir hunter_model.py) :
     # "id_realestatemanager" tout en minuscules côté base, malgré le
-    # "camelCase" du diagramme source.
+    # "camelCase" du diagramme source : PostgreSQL replie en minuscules
+    # les identifiants non "quotés".
     id_realestatemanager: Optional[int] = Field(
         default=None, foreign_key="real_estate_manager.id_user"
     )

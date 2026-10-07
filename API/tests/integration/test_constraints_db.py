@@ -9,13 +9,16 @@ dans 02) et vérifie le code HTTP qui en sort :
 
 - estate : prix en euros entiers (INTEGER, Q-REM-01 du 2026-10-05),
   CHECK price >= 0, liste fermée de estate_type, NOT NULL, UNIQUE ;
-- client : ck_client_address_all_or_nothing telle que corrigée par 02
-  (ville seule acceptée, adresse sans ville refusée), et
+- client : ck_client_address_all_or_nothing, tout-ou-rien (Q-SCH-01 :
+  ville seule refusée, adresse sans ville refusée), et
   ck_client_marital_status_exclusive (marié ET pacsé refusé) ;
+- client, hunter, real_estate_manager : téléphone au format international
+  d'ADR-007 (Q-PRO-08), numéro factice +33000000000 accepté (Q-MIG-07) ;
 - mandate : statut de fin 'lost' (Q-REM-02, Q-REM-14) ;
   chk_status_signature, qui permet 'canceled' sans signature (Q-MAN-07) ;
   chk_mandate_six_months (Q-MAN-01) ; trigger d'exclusivité (Q-MAN-02) ;
-- estate_proposed : offre 'signed' (Q-SCH-04) ;
+- estate_proposed : offre 'signed' (Q-SCH-04) ; priorité du client de 1 à
+  5 (D6, Q-SCH-05) ;
 - payment : final_rate entre 0,20 et 0,60 (Q-REM-19), exigé hors refus et
   interdit sur un refus (chk_refused, Q-REM-10) ; score figé (Q-REM-03) ;
   une date par étape, chk_announced et chk_scheduled (Q-REM-17) ; termes
@@ -55,7 +58,7 @@ def client_payload(user_id: int, **overrides: Any) -> dict[str, Any]:
         "id_user": user_id,
         "first_name": "Ada",
         "last_name": "Lovelace",
-        "phone_number": "0600000000",
+        "phone_number": "+33600000000",  # format d'ADR-007 (Q-PRO-08)
     }
     payload.update(overrides)
     return payload
@@ -109,10 +112,11 @@ def test_estate_duplicate_reference_returns_409(db_client: TestClient):
 # --- client ------------------------------------------------------------------
 
 
-def test_client_town_without_address_is_accepted(db_client: TestClient, create_user: Callable[[str], int]):
-    # Correction de 02 : connaître la ville sans l'adresse est un cas normal.
-    response = db_client.post("/clients", json=client_payload(create_user("ville@exemple.fr"), town="Toulouse"))
-    assert response.status_code == 201, response.text
+def test_client_town_without_address_returns_409(db_client: TestClient, create_user: Callable[[str], int]):
+    # Tout-ou-rien gardé (Q-SCH-01) : une adresse inconnue s'écrit
+    # 'non renseigné', comme pour les 18 clients repris (Q-SCH-18).
+    payload = client_payload(create_user("ville@exemple.fr"), town="Toulouse")
+    assert db_client.post("/clients", json=payload).status_code == 409
 
 
 def test_client_address_without_town_returns_409(db_client: TestClient, create_user: Callable[[str], int]):
@@ -131,6 +135,40 @@ def test_client_second_profile_for_same_user_returns_409(
     user_id = create_user("double@exemple.fr")
     assert db_client.post("/clients", json=client_payload(user_id)).status_code == 201
     assert db_client.post("/clients", json=client_payload(user_id)).status_code == 409  # UNIQUE(id_user)
+
+
+# --- téléphone : client, hunter, real_estate_manager ---------------------------
+
+# ADR-007 (Q-PRO-08) : un seul champ international, indicatif compris, même
+# CHECK sur les trois tables. +33000000000 est le numéro factice des données
+# reprises (Q-MIG-07) : un format trop strict le refuserait.
+PERSON_FIELDS: dict[str, dict[str, Any]] = {
+    "/clients": {},
+    "/hunters": {"hire_date": "2024-01-02", "id_realestatemanager": 25},  # manager posé par 02
+    "/real-estate-managers": {},
+}
+
+
+def person_payload(endpoint: str, user_id: int, phone_number: str) -> dict[str, Any]:
+    return {**client_payload(user_id, phone_number=phone_number), **PERSON_FIELDS[endpoint]}
+
+
+@pytest.mark.parametrize("endpoint", list(PERSON_FIELDS))
+def test_person_national_phone_returns_409(
+    db_client: TestClient, create_user: Callable[[str], int], endpoint: str
+):
+    payload = person_payload(endpoint, create_user("national@exemple.fr"), "0612345678")
+    assert db_client.post(endpoint, json=payload).status_code == 409
+
+
+@pytest.mark.parametrize("phone_number", ["+33612345678", "+33000000000"])
+@pytest.mark.parametrize("endpoint", list(PERSON_FIELDS))
+def test_person_international_phone_is_accepted(
+    db_client: TestClient, create_user: Callable[[str], int], endpoint: str, phone_number: str
+):
+    payload = person_payload(endpoint, create_user("international@exemple.fr"), phone_number)
+    response = db_client.post(endpoint, json=payload)
+    assert response.status_code == 201, response.text
 
 
 # --- mandate -----------------------------------------------------------------
@@ -256,6 +294,20 @@ def test_estate_proposed_signed_status_is_accepted(db_client: TestClient):
 def test_estate_proposed_unknown_status_returns_409(db_client: TestClient):
     response = db_client.post("/estate-proposed", json=proposition_payload(db_client, "sent"))
     assert response.status_code == 409
+
+
+# D6 : la priorité du client sur un bien proposé, de 1 à 5 (Q-SCH-05, Q-JEF-18).
+@pytest.mark.parametrize("priority", [1, 5])
+def test_estate_proposed_priority_at_bounds_is_accepted(db_client: TestClient, priority: int):
+    payload = {**proposition_payload(db_client, "offer_pending"), "client_priority": priority}
+    response = db_client.post("/estate-proposed", json=payload)
+    assert response.status_code == 201, response.text
+
+
+@pytest.mark.parametrize("priority", [0, 6])
+def test_estate_proposed_priority_out_of_range_returns_409(db_client: TestClient, priority: int):
+    payload = {**proposition_payload(db_client, "offer_pending"), "client_priority": priority}
+    assert db_client.post("/estate-proposed", json=payload).status_code == 409
 
 
 # --- payment -----------------------------------------------------------------

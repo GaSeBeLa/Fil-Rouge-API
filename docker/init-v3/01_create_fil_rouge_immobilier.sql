@@ -134,13 +134,14 @@
 --   métier. Elles croisent plusieurs tables et demandent des triggers ou
 --   l'API. Les TODO ci-dessous portent le SQL prêt à activer.
 --
---   Décisions encore ouvertes : D2 (ancienneté), D6 (priorité du client),
---   N2 (localisation :
+--   Décisions encore ouvertes : D2 (ancienneté), N2 (localisation :
 --   ADR-009 place la localisation sur search_request, le MPD la met sur
 --   criteria, ADR-021 ne tranche pas). R21 (bornage du taux final 20-60 %)
 --   est actif depuis le 2026-10-07 (LOT5, Q-REM-19, Jeff : Q-JEF-01).
 --   D9 (deux scores le même jour) est fermée le 2026-10-07 : hunter_performance
---   devient un journal daté à la seconde (LOT6, Q-SCH-06).
+--   devient un journal daté à la seconde (LOT6, Q-SCH-06). D6 (priorité du
+--   client) est fermée le 2026-10-07 : estate_proposed.client_priority, de 1
+--   à 5 (LOT7, Q-SCH-05, Jeff : Q-JEF-18).
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;  -- requis par les contraintes EXCLUDE
@@ -153,8 +154,9 @@ BEGIN;
 -- ============================================================================
 
 CREATE TABLE role (
-    id      INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    wording VARCHAR(20) NOT NULL UNIQUE
+    id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    created_at TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),  -- Q-SCH-09
+    wording    VARCHAR(20) NOT NULL UNIQUE
             CHECK (wording IN ('Admin', 'Client', 'Hunter', 'Manager'))
 );
 
@@ -172,11 +174,20 @@ CREATE TABLE "user" (
 -- ============================================================================
 -- 2. SOUS-TYPES D'UTILISATEUR
 -- ============================================================================
--- TODO (cohérence) : client, hunter, real_estate_manager et role sont les
--- seules tables du schéma sans created_at. Omission du MPD ou choix ? À acter.
+-- created_at sur client, hunter, real_estate_manager et role, comme sur les
+-- autres tables (Q-SCH-09, 2026-10-07, LOT7).
+--
+-- TÉLÉPHONE (ADR-007, Q-PRO-08 ; LOT7) : un seul champ international,
+-- indicatif compris (ex. +33612345678). ADR-007 demande une « regex E.164
+-- souple » : un « + », puis 2 à 15 chiffres (borne E.164), le premier de 1
+-- à 9, avec au plus un espace ou un tiret entre deux chiffres — les
+-- « espaces, tirets » qu'ADR-007 veut tolérer. Le format national
+-- 0612345678 est refusé. Les 4 numéros manquants de la reprise valent
+-- +33000000000, accepté ici (Q-MIG-07, README §0).
 
 CREATE TABLE client (
     id                       INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    created_at               TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),  -- Q-SCH-09
     id_user                  INTEGER NOT NULL UNIQUE
                              REFERENCES "user"(id) ON DELETE RESTRICT,
     first_name               VARCHAR(80) NOT NULL
@@ -203,8 +214,12 @@ CREATE TABLE client (
     nb_children              SMALLINT CHECK (nb_children >= 0),
     birth_date               DATE CHECK (birth_date <= CURRENT_DATE),
 
+    CONSTRAINT ck_client_phone_number_format                     -- ADR-007, Q-PRO-08
+        CHECK (phone_number ~ '^\+[1-9]([ -]?[0-9]){1,14}$'),
     CONSTRAINT ck_client_marital_status_exclusive
         CHECK (NOT (is_married AND is_civil_solidarity_pact)),
+    -- Tout-ou-rien gardé (Q-SCH-01) : les 18 clients repris sans adresse
+    -- reçoivent « non renseigné » et le code postal 00000 (Q-SCH-18, 02).
     CONSTRAINT ck_client_address_all_or_nothing
         CHECK ((address IS NULL     AND postal_code IS NULL     AND town IS NULL)
             OR (address IS NOT NULL AND postal_code IS NOT NULL AND town IS NOT NULL)),
@@ -225,6 +240,7 @@ CREATE TABLE client (
 -- Créée avant hunter : hunter.id_realestatemanager la référence.
 CREATE TABLE real_estate_manager (
     id           INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    created_at   TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),  -- Q-SCH-09
     id_user      INTEGER NOT NULL UNIQUE
                  REFERENCES "user"(id) ON DELETE RESTRICT,
     first_name   VARCHAR(80) NOT NULL
@@ -238,11 +254,15 @@ CREATE TABLE real_estate_manager (
     gender       VARCHAR(10)
                  CHECK (gender IN ('male', 'female', 'other')),
     company_name VARCHAR(80)
-                 CHECK (company_name = btrim(company_name) AND company_name <> '')
+                 CHECK (company_name = btrim(company_name) AND company_name <> ''),
+
+    CONSTRAINT ck_real_estate_manager_phone_number_format        -- ADR-007, Q-PRO-08
+        CHECK (phone_number ~ '^\+[1-9]([ -]?[0-9]){1,14}$')
 );
 
 CREATE TABLE hunter (
     id                   INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    created_at           TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),  -- Q-SCH-09
     id_user              INTEGER NOT NULL UNIQUE
                          REFERENCES "user"(id) ON DELETE RESTRICT,
     first_name           VARCHAR(80) NOT NULL
@@ -260,17 +280,20 @@ CREATE TABLE hunter (
     hire_date            DATE NOT NULL CHECK (hire_date <= CURRENT_DATE),
     education_level      VARCHAR(20)
                          CHECK (education_level = btrim(education_level) AND education_level <> ''),
-    -- Nom repris tel quel du MPD. Désigne vraisemblablement la « carte T »
-    -- (carte professionnelle d'agent immobilier) : is_carte_t serait plus
-    -- clair, mais le renommage toucherait l'API — à acter avant de bouger.
-    is_cartet            BOOLEAN,
+    -- La « carte T » (carte professionnelle d'agent immobilier). Le MPD
+    -- l'écrivait is_carteT, replié par PostgreSQL ; renommée le 2026-10-07
+    -- (Q-SCH-10, LOT7).
+    is_carte_t           BOOLEAN,
     certification_date   DATE,
     -- Non quoté : PostgreSQL le replie en minuscules -> is_hunter_ai.
     is_hunter_ai         BOOLEAN,
     -- Le manager du chasseur (MPD 03 4, 2026-09-22). NOT NULL : un chasseur
     -- a toujours un manager. Voir l'en-tête « CHAQUE CHASSEUR A UN MANAGER ».
     id_realestatemanager INTEGER NOT NULL
-                         REFERENCES real_estate_manager(id_user) ON DELETE RESTRICT
+                         REFERENCES real_estate_manager(id_user) ON DELETE RESTRICT,
+
+    CONSTRAINT ck_hunter_phone_number_format                     -- ADR-007, Q-PRO-08
+        CHECK (phone_number ~ '^\+[1-9]([ -]?[0-9]){1,14}$')
 );
 
 
@@ -640,12 +663,12 @@ CREATE TABLE estate_proposed (
     -- état, le montant devient obligatoire.
     CONSTRAINT chk_offer
         CHECK ((proposition_status =  'proposed' AND amount_proposition IS NULL)
-            OR (proposition_status <> 'proposed' AND amount_proposition IS NOT NULL))
+            OR (proposition_status <> 'proposed' AND amount_proposition IS NOT NULL)),
 
-    -- TODO (décision D6) — priorité donnée par le client à un bien proposé.
-    --   L'échelle n'est pas tranchée (1 à 5 ? haute/moyenne/basse ?), donc la
-    --   colonne manque au schéma. Une fois décidé :
-    -- , client_priority SMALLINT CHECK (client_priority BETWEEN 1 AND 5)
+    -- Décision D6 : priorité donnée par le client à un bien proposé, de 1 à
+    -- 5 (Q-SCH-05, Jeff : Q-JEF-18 ; LOT7). Vide tant que le client n'a pas
+    -- donné son avis.
+    client_priority    SMALLINT CHECK (client_priority BETWEEN 1 AND 5)
 );
 
 -- Visites (décision D10 : la table manquait, le MPD 03 la crée).
@@ -1012,8 +1035,8 @@ COMMENT ON COLUMN real_estate_manager.id IS
 COMMIT;
 
 -- ============================================================================
--- FIN — 19 tables, 250 colonnes (mesuré via information_schema le
--- 2026-10-07, après LOT6), 1 extension.
+-- FIN — 19 tables, 255 colonnes (mesuré via information_schema le
+-- 2026-10-07, après LOT7), 1 extension.
 --
 -- Pour activer ce schéma dans docker/docker-compose.yml, remplacer
 --     ./init:/docker-entrypoint-initdb.d

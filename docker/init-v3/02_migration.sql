@@ -40,35 +40,20 @@
 --      rattacher ici. Compté le 2026-10-07 : la source n'a aucune vente ni
 --      aucune grille d'honoraires, et ce script n'en insère aucune.
 --      remuneration_parameters et hunter_performance restent vides aussi.
+--   8. LOT7 (2026-10-07) — valeurs factices documentées, la colonne restant
+--      obligatoire (Q-JEF-26 : aucune donnée ancienne supprimée) :
+--      - 18 clients sans adresse ni code postal : address = 'non renseigné',
+--        postal_code = '00000'. ck_client_address_all_or_nothing reste
+--        tout-ou-rien (Q-SCH-01, Q-SCH-18) : l'ALTER qui l'assouplissait ici
+--        est retiré. La ville, fournie par la source, est gardée.
+--      - 4 téléphones manquants (3 clients + le manager placeholder) :
+--        '+33000000000', au format d'ADR-007 (Q-PRO-08, Q-MIG-07).
+--      - la colonne de la carte T s'écrit is_carte_t (Q-SCH-10).
 --
--- ============================================================================
--- ⚠️ CORRECTION DE CONTRAINTE DU SCHÉMA — À VALIDER PAR LE GROUPE
--- ============================================================================
---
---   Les 18 clients de la source ont une VILLE mais pas d'adresse de rue ni de
---   code postal. La contrainte ck_client_address_all_or_nothing du script 01
---   exige que address, postal_code et town soient TOUS renseignés ou TOUS
---   nuls : elle rejette donc les 18 clients.
---
---   Or connaître la ville d'un client sans son adresse complète est un cas
---   normal. La règle juste est l'implication dans UN SEUL SENS : une adresse
---   de rue n'a de sens qu'accompagnée d'un code postal et d'une ville ;
---   l'inverse n'est pas vrai.
---
---   L'ALTER ci-dessous applique cette règle. Il est ici, et non dans le 01,
---   pour rester VISIBLE tant que le groupe n'a pas tranché. Une fois validé,
---   le reporter dans 01 et supprimer ces deux lignes.
---
---   Alternative si le groupe préfère garder la contrainte d'origine :
---   commenter l'ALTER et vider town pour les 18 clients — mais c'est une
---   PERTE d'information, alors que la source la fournit.
 -- ============================================================================
 
 BEGIN;
 
-ALTER TABLE client DROP CONSTRAINT ck_client_address_all_or_nothing;
-ALTER TABLE client ADD CONSTRAINT ck_client_address_all_or_nothing
-    CHECK (address IS NULL OR (postal_code IS NOT NULL AND town IS NOT NULL));
 -- Source : Fil_Rouge_Depart, Cible : public (ou Fil_Rouge_Immobilier)
 SET search_path TO public, "Fil_Rouge_Depart";
 
@@ -130,44 +115,47 @@ INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM 
 -- « bidon » pour qu'on ne le confonde jamais avec une personne réelle.
 -- created_at = date de la migration (valeur par défaut) : aucune date source.
 INSERT INTO "user" (id, email, password, id_role) OVERRIDING SYSTEM VALUE VALUES (25, 'manager.migration@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 3) ON CONFLICT (id) DO NOTHING;
-INSERT INTO real_estate_manager (id_user, first_name, last_name, phone_number, gender, country_iso, company_name) VALUES (25, 'Manager', 'Migration', '0000000000', NULL, NULL, NULL) ON CONFLICT (id_user) DO NOTHING;  -- placeholder, pas une personne
+INSERT INTO real_estate_manager (id_user, first_name, last_name, phone_number, gender, country_iso, company_name) VALUES (25, 'Manager', 'Migration', '+33000000000', NULL, NULL, NULL) ON CONFLICT (id_user) DO NOTHING;  -- placeholder, pas une personne
 
 -- 2. HUNTERS
 -- first_name/last_name/phone_number/gender/country_iso : redescendus depuis "user"
 -- company_name = NULL : la source n'a pas cette info, on n'invente pas de nom d'agence
--- is_carteT = NULL    : idem, la 'carte T' (habilitation légale) n'existe pas côté source
+-- is_carte_t = NULL    : idem, la 'carte T' (habilitation légale) n'existe pas côté source
 -- id_realestatemanager = 25 : le manager placeholder ci-dessus (HYPOTHÈSE, point 6)
-INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date, id_realestatemanager) VALUES (1, 'Marina', 'Roussel', '+33611223344', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 1), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.50 (voir README, point 3)
-INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date, id_realestatemanager) VALUES (2, 'Thomas', 'Nguyen', '+33622334455', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 2), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 3.00 (voir README, point 3)
-INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date, id_realestatemanager) VALUES (3, 'Inès', 'Delacroix', '+33633445566', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 3), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.75 (voir README, point 3)
-INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date, id_realestatemanager) VALUES (4, 'Marco', 'Baldini', '+33644556677', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 4), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.50 (voir README, point 3)
-INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date, id_realestatemanager) VALUES (5, 'Awa', 'Kone', '+33655667788', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 5), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 3.25 (voir README, point 3)
-INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carteT, hire_date, id_realestatemanager) VALUES (6, 'Lucas', 'Perrin', '+33666778899', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 6), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.00 (voir README, point 3)
+INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carte_t, hire_date, id_realestatemanager) VALUES (1, 'Marina', 'Roussel', '+33611223344', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 1), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.50 (voir README, point 3)
+INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carte_t, hire_date, id_realestatemanager) VALUES (2, 'Thomas', 'Nguyen', '+33622334455', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 2), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 3.00 (voir README, point 3)
+INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carte_t, hire_date, id_realestatemanager) VALUES (3, 'Inès', 'Delacroix', '+33633445566', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 3), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.75 (voir README, point 3)
+INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carte_t, hire_date, id_realestatemanager) VALUES (4, 'Marco', 'Baldini', '+33644556677', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 4), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.50 (voir README, point 3)
+INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carte_t, hire_date, id_realestatemanager) VALUES (5, 'Awa', 'Kone', '+33655667788', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 5), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 3.25 (voir README, point 3)
+INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, country_iso, company_name, is_carte_t, hire_date, id_realestatemanager) VALUES (6, 'Lucas', 'Perrin', '+33666778899', NULL, 'FR', NULL, NULL, (SELECT created_at::date FROM "user" WHERE id = 6), 25) ON CONFLICT (id_user) DO NOTHING;  -- commission_rate source = 2.00 (voir README, point 3)
 
 -- 3. CLIENTS
 -- first_name/last_name/phone_number/gender/country_iso : redescendus depuis "user"
 -- phone_number : NOT NULL côté cible ; 3 clients sans tel (Petit, Andre, Lambert)
---                -> placeholder '0000000000', à corriger manuellement si besoin
--- address = NULL : on ne connaît pas la vraie adresse postale, mettre la ville dedans
---                  serait trompeur (ça ressemblerait à une donnée réelle qui ne l'est pas)
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (7, 'Alice', 'Martin', '+33701020304', NULL, 'FR', 'Montpellier', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (8, 'Karim', 'Benali', '+33702030405', NULL, 'FR', 'Lyon', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (9, 'Chloé', 'Dubois', '+33703040506', NULL, 'FR', 'Montpellier', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (10, 'Jean', 'Petit', '0000000000', NULL, 'FR', 'Nantes', NULL, NULL) ON CONFLICT (id_user) DO NOTHING; -- tel manquant source, placeholder
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (11, 'Lucia', 'Garcia', '+33705060708', NULL, 'FR', 'Montpellier', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (12, 'Paul', 'Moreau', '+33706070809', NULL, 'FR', 'Castelnau-le-Lez', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (13, 'Emma', 'Lefevre', '+33707080910', NULL, 'FR', 'Lyon', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (14, 'Giulia', 'Rossi', '+33708091011', NULL, 'FR', 'Montpellier', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (15, 'Hugo', 'Fournier', '+33709101112', NULL, 'FR', 'Sète', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (16, 'Sofia', 'Andre', '0000000000', NULL, 'FR', 'Lattes', NULL, NULL) ON CONFLICT (id_user) DO NOTHING; -- tel manquant source, placeholder
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (17, 'Louis', 'Mercier', '+33711121314', NULL, 'FR', 'Montpellier', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (18, 'Léa', 'Blanc', '+33712131415', NULL, 'FR', 'Nantes', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (19, 'Nina', 'Girard', '+33713141516', NULL, 'FR', 'Montpellier', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (20, 'Adam', 'Bonnet', '+33714151617', NULL, 'FR', 'Lyon', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (21, 'Zoé', 'Dupont', '+33715161718', NULL, 'FR', 'Montpellier', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (22, 'Théo', 'Lambert', '0000000000', NULL, 'FR', 'Sète', NULL, NULL) ON CONFLICT (id_user) DO NOTHING; -- tel manquant source, placeholder
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (23, 'Manon', 'Roux', '+33717181920', NULL, 'FR', 'Montpellier', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
-INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (24, 'Ethan', 'Faure', '+33718192021', NULL, 'FR', 'Castelnau-le-Lez', NULL, NULL) ON CONFLICT (id_user) DO NOTHING;
+--                -> placeholder '+33000000000', au format d'ADR-007 (Q-MIG-07),
+--                   à corriger manuellement si besoin
+-- address = 'non renseigné', postal_code = '00000' : la source n'a ni adresse ni
+--                  code postal ; le tout-ou-rien les exige avec la ville (Q-SCH-01,
+--                  Q-SCH-18). Mettre la ville dans l'adresse serait trompeur (ça
+--                  ressemblerait à une donnée réelle qui ne l'est pas).
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (7, 'Alice', 'Martin', '+33701020304', NULL, 'FR', 'Montpellier', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (8, 'Karim', 'Benali', '+33702030405', NULL, 'FR', 'Lyon', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (9, 'Chloé', 'Dubois', '+33703040506', NULL, 'FR', 'Montpellier', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (10, 'Jean', 'Petit', '+33000000000', NULL, 'FR', 'Nantes', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING; -- tel manquant source, placeholder
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (11, 'Lucia', 'Garcia', '+33705060708', NULL, 'FR', 'Montpellier', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (12, 'Paul', 'Moreau', '+33706070809', NULL, 'FR', 'Castelnau-le-Lez', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (13, 'Emma', 'Lefevre', '+33707080910', NULL, 'FR', 'Lyon', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (14, 'Giulia', 'Rossi', '+33708091011', NULL, 'FR', 'Montpellier', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (15, 'Hugo', 'Fournier', '+33709101112', NULL, 'FR', 'Sète', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (16, 'Sofia', 'Andre', '+33000000000', NULL, 'FR', 'Lattes', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING; -- tel manquant source, placeholder
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (17, 'Louis', 'Mercier', '+33711121314', NULL, 'FR', 'Montpellier', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (18, 'Léa', 'Blanc', '+33712131415', NULL, 'FR', 'Nantes', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (19, 'Nina', 'Girard', '+33713141516', NULL, 'FR', 'Montpellier', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (20, 'Adam', 'Bonnet', '+33714151617', NULL, 'FR', 'Lyon', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (21, 'Zoé', 'Dupont', '+33715161718', NULL, 'FR', 'Montpellier', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (22, 'Théo', 'Lambert', '+33000000000', NULL, 'FR', 'Sète', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING; -- tel manquant source, placeholder
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (23, 'Manon', 'Roux', '+33717181920', NULL, 'FR', 'Montpellier', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
+INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (24, 'Ethan', 'Faure', '+33718192021', NULL, 'FR', 'Castelnau-le-Lez', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
 
 -- SKIP mandat 13 INVALIDE (client_id=3 est un chasseur)
 
