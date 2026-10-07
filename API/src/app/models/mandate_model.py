@@ -25,6 +25,8 @@ class Mandate(SQLModel, table=True):
     signature_type: Optional[str] = Field(default=None, max_length=20)
     # Vide tant que le mandat n'est pas signé, comme en base (01 : DATE sans
     # NOT NULL) — un mandat 'canceled' jamais signé n'a pas de fin (Q-MAN-07).
+    # Sinon, exactement signature_date + 6 mois : chk_mandate_six_months
+    # (Q-MAN-01). L'exclusivité est un trigger côté base (Q-MAN-02).
     ends_at: Optional[date] = None
     is_exclusive: bool
     id_hunter: int = Field(foreign_key="hunter.id_user")

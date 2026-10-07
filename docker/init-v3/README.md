@@ -30,6 +30,12 @@ deux chemins mènent au même schéma. Décisions : registre
 - `chk_status_signature` permet **`'canceled'` sans date de signature** ; les autres statuts restent stricts (Q-MAN-07).
 - `estate_proposed.proposition_status` accepte **`'signed'`** (Q-SCH-04).
 
+### Mandat : durée et exclusivité — LOT4, `04_mandat-duree-exclusivite.sql`
+
+- `chk_mandate_six_months` remplace le CHECK de `ends_at` : un mandat dure **exactement 6 mois** (Q-MAN-01).
+- Le trigger `trg_mandate_exclusivity` est **activé**, corrigé : parent et enfant d'un renouvellement exclus l'un pour l'autre ; un mandat `'canceled'` libère le client **tout de suite** (Q-MAN-02, Q-JEF-06).
+- Compté avant d'activer, sur les 17 mandats repris : **0** violent les 6 mois, **0** paire viole l'exclusivité.
+
 ---
 
 ## 1. Pourquoi les euros, et pas les K€

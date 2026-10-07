@@ -12,8 +12,9 @@ dans 02) et vérifie le code HTTP qui en sort :
 - client : ck_client_address_all_or_nothing telle que corrigée par 02
   (ville seule acceptée, adresse sans ville refusée), et
   ck_client_marital_status_exclusive (marié ET pacsé refusé) ;
-- mandate : statut de fin 'lost' (Q-REM-02, Q-REM-14) et
+- mandate : statut de fin 'lost' (Q-REM-02, Q-REM-14) ;
   chk_status_signature, qui permet 'canceled' sans signature (Q-MAN-07) ;
+  chk_mandate_six_months (Q-MAN-01) ; trigger d'exclusivité (Q-MAN-02) ;
 - estate_proposed : offre 'signed' (Q-SCH-04).
 
 Depuis le 2026-10-05, le routeur commun revalide l'entrée (crud_router.py,
@@ -160,6 +161,63 @@ def test_mandate_active_without_signature_returns_409(db_client: TestClient):
     # chk_status_signature reste strict hors 'pending_signature' et 'canceled'.
     payload = {**MANDATE, "signature_date": None, "ends_at": None}
     assert db_client.post("/mandates", json=payload).status_code == 409
+
+
+def test_mandate_six_months_is_accepted(db_client: TestClient):
+    # Q-MAN-01 : signé le 2030-01-01, fini le 2030-07-01.
+    response = db_client.post("/mandates", json=MANDATE)
+    assert response.status_code == 201, response.text
+
+
+def test_mandate_seven_months_returns_409(db_client: TestClient):
+    # Q-MAN-01 : exactement 6 mois ; 7 mois passaient avec le CHECK v2.
+    payload = {**MANDATE, "ends_at": "2030-08-01"}
+    assert db_client.post("/mandates", json=payload).status_code == 409
+
+
+def test_mandate_second_mandate_during_exclusive_returns_409(db_client: TestClient):
+    # Q-MAN-02 : un exclusif bloque tout autre mandat du même client.
+    first = db_client.post("/mandates", json={**MANDATE, "is_exclusive": True})
+    assert first.status_code == 201, first.text
+    second = {**MANDATE, "reference": "TEST-M-0002", "is_exclusive": True}
+    assert db_client.post("/mandates", json=second).status_code == 409
+
+
+def test_mandate_accepted_after_exclusive_canceled(db_client: TestClient):
+    # Q-JEF-06 : l'annulation d'un exclusif libère le client tout de suite.
+    first_payload = {**MANDATE, "is_exclusive": True}
+    first = db_client.post("/mandates", json=first_payload)
+    assert first.status_code == 201, first.text
+    canceled = db_client.put(f"/mandates/{first.json()['id']}", json={**first_payload, "status": "canceled"})
+    assert canceled.status_code == 200, canceled.text
+
+    second = {**MANDATE, "reference": "TEST-M-0002", "is_exclusive": True}
+    response = db_client.post("/mandates", json=second)
+    assert response.status_code == 201, response.text
+
+
+def test_mandate_renewal_of_exclusive_is_accepted(db_client: TestClient):
+    # Q-MAN-02 : le renouvellement, signé à l'échéance, touche la fin de son
+    # parent ; le parent est exclu du contrôle, et le parent reste modifiable.
+    parent_payload = {**MANDATE, "is_exclusive": True}
+    parent = db_client.post("/mandates", json=parent_payload)
+    assert parent.status_code == 201, parent.text
+    parent_id = parent.json()["id"]
+
+    renewal = {
+        **MANDATE,
+        "reference": "TEST-M-0002",
+        "status": "renewed",
+        "signature_date": "2030-07-01",
+        "ends_at": "2031-01-01",
+        "is_exclusive": True,
+        "id_mandate_parent": parent_id,
+    }
+    response = db_client.post("/mandates", json=renewal)
+    assert response.status_code == 201, response.text
+
+    closed = db_client.put(f"/mandates/{parent_id}", json={**parent_payload, "status": "completed"})
+    assert closed.status_code == 200, closed.text
 
 
 # --- estate_proposed ---------------------------------------------------------

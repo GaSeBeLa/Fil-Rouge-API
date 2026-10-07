@@ -126,13 +126,15 @@
 --       2 réussites / 14 lacunes / 1 à trancher  (17 tests)
 --   En activant les deux TODO de mandate (six mois + exclusivité) :
 --       5 réussites / 11 lacunes / 1 à trancher
+--   ✏️ Ces deux règles sont actives depuis le 2026-10-07 (LOT4, Q-MAN-01,
+--   Q-MAN-02) ; le jeu de tests adverses n'a pas été rejoué depuis.
 --
 --   Autrement dit : un schéma seul ne protège PAS la plupart des règles
 --   métier. Elles croisent plusieurs tables et demandent des triggers ou
 --   l'API. Les TODO ci-dessous portent le SQL prêt à activer.
 --
 --   Décisions encore ouvertes : D2 (ancienneté), D6 (priorité du client),
---   D7 (mandat annulé), D9 (deux scores le même jour), N2 (localisation :
+--   D9 (deux scores le même jour), N2 (localisation :
 --   ADR-009 place la localisation sur search_request, le MPD la met sur
 --   criteria, ADR-021 ne tranche pas), R21 (bornage du taux final 20-60 %).
 -- ============================================================================
@@ -416,9 +418,8 @@ CREATE TABLE mandate (
     signature_type    VARCHAR(20) CHECK (signature_type IN ('electronic', 'paper')),
     -- Date de fin STOCKÉE : décision N1 du 11/09/26 (option A), qui écarte
     -- l'ADR-004 (durée calculée) au profit de l'ADR-018 (figer la date).
-    ends_at           DATE
-                      CHECK ((signature_date IS NULL     AND ends_at IS NULL)
-                          OR (signature_date IS NOT NULL AND ends_at > signature_date)),
+    -- Sa valeur est imposée par chk_mandate_six_months, plus bas.
+    ends_at           DATE,
     is_exclusive      BOOLEAN NOT NULL,
     id_hunter         INTEGER NOT NULL
                       REFERENCES hunter(id_user) ON DELETE RESTRICT,
@@ -439,25 +440,21 @@ CREATE TABLE mandate (
         CHECK ((status = 'pending_signature' AND signature_date IS NULL)
             OR  status = 'canceled'
             OR (status NOT IN ('pending_signature', 'canceled')
-                AND signature_date IS NOT NULL))
+                AND signature_date IS NOT NULL)),
 
-    -- ------------------------------------------------------------------
-    -- TODO (U05) — durée de validité de EXACTEMENT 6 mois
-    --   Le CHECK de ends_at ci-dessus n'impose que l'ordre des dates : un
-    --   mandat peut durer 10 ans ou 1 jour (les deux cas sont acceptés, testé).
-    --   Règle : 00_regles_metier_mandat_remuneration.feature:37, exemple l. 39
-    --   (signature 2026-02-25 -> fin 2026-08-25).
-    --   Pour activer : retirer le CHECK de ends_at et poser à la place
-    -- , CONSTRAINT chk_mandate_six_months
-    --     CHECK ((signature_date IS NULL AND ends_at IS NULL)
-    --         OR (signature_date IS NOT NULL
-    --             AND ends_at = (signature_date + INTERVAL '6 months')::date))
-    --   Vérifié : fait passer 2 tests adverses de LACUNE à ok.
-    -- ------------------------------------------------------------------
+    -- U05 : durée de validité de EXACTEMENT 6 mois (Q-MAN-01), à la place
+    -- de l'ancien CHECK de ends_at, qui n'imposait que l'ordre des dates.
+    -- Règle : 00_regles_metier_mandat_remuneration.feature:37, exemple l. 39
+    -- (signature 2026-02-25 -> fin 2026-08-25). Fin de mois : le 31/08
+    -- + 6 mois rend le 28 ou 29/02 — l'API devra calculer pareil (Q-MAN-01).
+    CONSTRAINT chk_mandate_six_months
+        CHECK ((signature_date IS NULL AND ends_at IS NULL)
+            OR (signature_date IS NOT NULL
+                AND ends_at = (signature_date + INTERVAL '6 months')::date))
 );
 
 -- ----------------------------------------------------------------------------
--- TODO (U02 / décision D7) — EXCLUSIVITÉ DU MANDAT
+-- U02 / décision D7 — EXCLUSIVITÉ DU MANDAT (Q-MAN-02 ; activé le 2026-10-07, LOT4)
 --
 --   Règle : « aucun autre chasseur ne peut agir pour le compte d'Alice
 --   pendant la durée du mandat » (00_regles_metier..., scénario @exclusif,
@@ -474,39 +471,48 @@ CREATE TABLE mandate (
 --   Un EXCLUDE ne sait pas exprimer « si l'UN DES DEUX est exclusif » :
 --   son prédicat ne regarde qu'une ligne à la fois. Il faut un TRIGGER.
 --
---   Décision D7 à trancher avant d'activer : un mandat 'canceled' libère-t-il
---   le client tout de suite (garder la ligne status <> 'canceled'), ou
---   bloque-t-il jusqu'à ends_at (la retirer) ?
+--   D7 tranchée (Q-MAN-02, Jeff : Q-JEF-06) : un mandat 'canceled' libère le
+--   client TOUT DE SUITE — il ne bloque personne, et rien ne le bloque.
+--
+--   Renouvellement (Q-MAN-02) : signé à l'échéance, il touche la date de fin
+--   de son parent ('[]'). Le parent et l'enfant sont donc exclus l'un pour
+--   l'autre, dans les deux sens : à la création de l'enfant, et à la mise à
+--   jour du parent. IS DISTINCT FROM, jamais <> : sans parent, <> vaut NULL
+--   et le trigger ne bloquerait plus rien.
 --
 --   L'ERRCODE 23514 est volontaire : il range le refus dans la classe 23
 --   (violation d'intégrité), que le harnais de tests adverses reconnaît.
---
--- CREATE OR REPLACE FUNCTION check_mandate_exclusivity() RETURNS trigger
--- LANGUAGE plpgsql AS $fn$
--- BEGIN
---     IF NEW.signature_date IS NULL OR NEW.ends_at IS NULL THEN
---         RETURN NEW;                       -- mandat pas encore signé
---     END IF;
---     IF EXISTS (
---         SELECT 1 FROM mandate m
---          WHERE m.id        <> NEW.id
---            AND m.id_client  = NEW.id_client
---            AND m.status    <> 'canceled'
---            AND (m.is_exclusive OR NEW.is_exclusive)
---            AND m.signature_date IS NOT NULL AND m.ends_at IS NOT NULL
---            AND daterange(m.signature_date, m.ends_at, '[]')
---             && daterange(NEW.signature_date, NEW.ends_at, '[]')
---     ) THEN
---         RAISE EXCEPTION
---             'U02 : un mandat exclusif interdit tout autre mandat pour ce client sur la periode'
---             USING ERRCODE = '23514', CONSTRAINT = 'u02_mandate_exclusivity';
---     END IF;
---     RETURN NEW;
--- END $fn$;
---
--- CREATE TRIGGER trg_mandate_exclusivity
---     BEFORE INSERT OR UPDATE ON mandate
---     FOR EACH ROW EXECUTE FUNCTION check_mandate_exclusivity();
+-- ----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION check_mandate_exclusivity() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+BEGIN
+    IF NEW.signature_date IS NULL OR NEW.ends_at IS NULL
+       OR NEW.status = 'canceled' THEN
+        RETURN NEW;                       -- pas encore signé, ou annulé
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM mandate m
+         WHERE m.id        <> NEW.id
+           AND m.id_client  = NEW.id_client
+           AND m.status    <> 'canceled'
+           AND (m.is_exclusive OR NEW.is_exclusive)
+           AND m.id IS DISTINCT FROM NEW.id_mandate_parent   -- son parent
+           AND m.id_mandate_parent IS DISTINCT FROM NEW.id   -- ses enfants
+           AND m.signature_date IS NOT NULL AND m.ends_at IS NOT NULL
+           AND daterange(m.signature_date, m.ends_at, '[]')
+            && daterange(NEW.signature_date, NEW.ends_at, '[]')
+    ) THEN
+        RAISE EXCEPTION
+            'U02 : un mandat exclusif interdit tout autre mandat pour ce client sur la periode'
+            USING ERRCODE = '23514', CONSTRAINT = 'u02_mandate_exclusivity';
+    END IF;
+    RETURN NEW;
+END $fn$;
+
+CREATE TRIGGER trg_mandate_exclusivity
+    BEFORE INSERT OR UPDATE ON mandate
+    FOR EACH ROW EXECUTE FUNCTION check_mandate_exclusivity();
 -- ----------------------------------------------------------------------------
 
 
