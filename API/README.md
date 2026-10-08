@@ -98,6 +98,9 @@ touchent pas PostgreSQL (vérifié avec le conteneur `db` arrêté), dont les
 désormais l'entrée (voir « Codes de réponse ») ; deux tests y sont dédiés :
 un prix à virgule et un champ obligatoire manquant rendent `422`.
 
+**Au 2026-10-08** : **190 tests, `190 passed`** — 99 unitaires, 91 d'intégration
+(chantier LOT, puis migration 13 : `is_activated` et quartier → ville).
+
 | Fichier | Ce qu'il prouve |
 |---|---|
 | [`test_health.py`](tests/test_health.py) | `/` répond |
