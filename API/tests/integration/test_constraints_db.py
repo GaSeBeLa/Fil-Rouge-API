@@ -340,7 +340,6 @@ def test_mandate_renewal_of_exclusive_is_accepted(db_client: TestClient):
     renewal = {
         **MANDATE,
         "reference": "TEST-M-0002",
-        "status": "renewed",
         "signature_date": "2030-07-01",
         "ends_at": "2031-01-01",
         "is_exclusive": True,
@@ -349,8 +348,23 @@ def test_mandate_renewal_of_exclusive_is_accepted(db_client: TestClient):
     response = db_client.post("/mandates", json=renewal)
     assert response.status_code == 201, response.text
 
-    closed = db_client.put(f"/mandates/{parent_id}", json={**parent_payload, "status": "completed"})
+    # 'renewed' est le statut de l'ANCIEN mandat (décision du 2026-10-08).
+    closed = db_client.put(f"/mandates/{parent_id}", json={**parent_payload, "status": "renewed"})
     assert closed.status_code == 200, closed.text
+
+
+def test_mandate_second_successor_returns_409(db_client: TestClient):
+    # Pas d'avenant : un mandat n'a qu'un successeur (UNIQUE sur id_mandate_parent).
+    parent = db_client.post("/mandates", json=MANDATE)
+    assert parent.status_code == 201, parent.text
+    parent_id = parent.json()["id"]
+
+    first = {**MANDATE, "reference": "TEST-M-0002", "signature_date": "2030-07-01",
+             "ends_at": "2031-01-01", "id_mandate_parent": parent_id}
+    assert db_client.post("/mandates", json=first).status_code == 201
+
+    second = {**first, "reference": "TEST-M-0003"}
+    assert db_client.post("/mandates", json=second).status_code == 409
 
 
 # --- estate_proposed ---------------------------------------------------------

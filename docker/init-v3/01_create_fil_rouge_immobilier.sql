@@ -462,13 +462,13 @@ CREATE TABLE mandate (
                       REFERENCES client(id_user) ON DELETE RESTRICT,
     id_search_request INTEGER NOT NULL
                       REFERENCES search_request(id) ON DELETE RESTRICT,
-    -- Relation réflexive : renouvellements (ADR-010) ET avenants (ADR-013).
-    id_mandate_parent INTEGER REFERENCES mandate(id) ON DELETE RESTRICT,
+    -- Renouvellement : le NOUVEAU mandat pointe vers le précédent, et lui seul.
+    -- Pas d'avenant (décision du groupe, 2026-10-08) : un mandat a au plus un
+    -- successeur, d'où le UNIQUE. Le statut 'renewed' est celui de l'ANCIEN
+    -- mandat. Cela remplace D8, ADR-010 et ADR-013 (ADR à écrire) ; chk_renewed
+    -- est retiré : l'ancien mandat n'a pas de parent à exiger.
+    id_mandate_parent INTEGER UNIQUE REFERENCES mandate(id) ON DELETE RESTRICT,
 
-    -- Correction 4 : la virgule manquait ici dans le diagramme.
-    -- ADR-010 + ADR-013 : 'renewed' désigne le NOUVEAU mandat (décision D8).
-    CONSTRAINT chk_renewed
-        CHECK (status <> 'renewed' OR id_mandate_parent IS NOT NULL),
     -- 'canceled' accepte un mandat jamais signé : un client peut renoncer
     -- avant de signer (Q-MAN-07). Les autres statuts restent stricts.
     CONSTRAINT chk_status_signature
