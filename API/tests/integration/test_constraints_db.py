@@ -32,7 +32,7 @@ dans 02) et vérifie le code HTTP qui en sort :
 - sale : clé vers sa grille d'honoraires (Q-REM-13) ;
 - hunter_performance : journal des notes, une note par paiement ou mandat
   (Q-SCH-06) ;
-- remuneration_parameters : une version par date de départ (Q-REM-05) ;
+- hunter_rate_parameters : une version par date de départ (Q-REM-05) ;
 - fil_rouge_reader : le rôle PostgreSQL en lecture seule lit, n'écrit pas
   (Q14, LOT12) — vu en SQL, pas par l'API : c'est un droit de la base.
 
@@ -651,10 +651,10 @@ def test_hunter_performance_two_scores_same_day_are_accepted(db_client: TestClie
     assert response.status_code == 201, response.text
 
 
-# --- remuneration_parameters -------------------------------------------------
+# --- hunter_rate_parameters -------------------------------------------------
 
 # Les valeurs par défaut du sujet (rem.py:310-337), en exemple.
-REMUNERATION_PARAMETERS: dict[str, Any] = {
+HUNTER_RATE_PARAMETERS: dict[str, Any] = {
     "effective_from": "2025-01-01",
     "weight_delay": "0.25",
     "weight_exclusivity": "0.10",
@@ -692,24 +692,24 @@ REMUNERATION_PARAMETERS: dict[str, Any] = {
 }
 
 
-def test_remuneration_parameters_keep_their_tiers(db_client: TestClient):
+def test_hunter_rate_parameters_keep_their_tiers(db_client: TestClient):
     # Q-REM-05 : la table est exposée comme les 18 autres ; les paliers se
     # relisent tels qu'écrits.
-    created = db_client.post("/remuneration-parameters", json=REMUNERATION_PARAMETERS)
+    created = db_client.post("/hunter-rate-parameters", json=HUNTER_RATE_PARAMETERS)
     assert created.status_code == 201, created.text
 
-    read = db_client.get(f"/remuneration-parameters/{created.json()['id']}")
-    assert read.json()["delay_tiers"] == REMUNERATION_PARAMETERS["delay_tiers"]
-    assert read.json()["visit_tiers"] == REMUNERATION_PARAMETERS["visit_tiers"]
+    read = db_client.get(f"/hunter-rate-parameters/{created.json()['id']}")
+    assert read.json()["delay_tiers"] == HUNTER_RATE_PARAMETERS["delay_tiers"]
+    assert read.json()["visit_tiers"] == HUNTER_RATE_PARAMETERS["visit_tiers"]
 
 
-def test_remuneration_parameters_same_effective_from_returns_409(db_client: TestClient):
+def test_hunter_rate_parameters_same_effective_from_returns_409(db_client: TestClient):
     # Q-REM-05, versions comme Q-SCH-17 : deux versions ne démarrent pas le
-    # même jour (uq_remuneration_effective_from).
-    first = db_client.post("/remuneration-parameters", json=REMUNERATION_PARAMETERS)
+    # même jour (uq_hunter_rate_effective_from).
+    first = db_client.post("/hunter-rate-parameters", json=HUNTER_RATE_PARAMETERS)
     assert first.status_code == 201, first.text
-    second = {**REMUNERATION_PARAMETERS, "rate_ceiling": "0.65"}
-    assert db_client.post("/remuneration-parameters", json=second).status_code == 409
+    second = {**HUNTER_RATE_PARAMETERS, "rate_ceiling": "0.65"}
+    assert db_client.post("/hunter-rate-parameters", json=second).status_code == 409
 
 
 # --- rôle en lecture seule (Q14, LOT12) --------------------------------------

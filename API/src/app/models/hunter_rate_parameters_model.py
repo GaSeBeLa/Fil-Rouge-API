@@ -1,7 +1,11 @@
 """
-remuneration_parameters_model.py — Les réglages du calcul de rémunération :
-poids, paliers, notes et points de la performance, effets de l'ancienneté
-et de la performance, bornes du taux final.
+hunter_rate_parameters_model.py — Les réglages du taux du chasseur : tout ce
+qui fait passer du taux du barème au taux final — poids, paliers, notes et
+points de la performance, effets de l'ancienneté et de la performance, bornes
+du taux final.
+
+Nommée `remuneration_parameters` jusqu'au 2026-10-08 : renommée (G2) parce
+que le nom se confondait avec `parameters_fees`, les honoraires de l'agence.
 
 Le sujet veut ces valeurs « dans une table de paramètres, jamais en dur »
 (REGLES-CALCUL-REMUNERATION.md l. 47 ; Q-REM-05). Une ligne = un jeu
@@ -27,8 +31,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import SQLModel, Field
 
 
-class RemunerationParameters(SQLModel, table=True):
-    __tablename__ = "remuneration_parameters"
+class HunterRateParameters(SQLModel, table=True):
+    __tablename__ = "hunter_rate_parameters"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

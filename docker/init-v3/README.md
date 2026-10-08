@@ -2,7 +2,8 @@
 
 Ce dossier contient la chaîne complète de création et de peuplement de la base,
 alignée sur le **MPD 03 4** (18 tables, 2026-09-22) et sur la convention **euros** ;
-une 19e table, `remuneration_parameters`, depuis LOT6 (2026-10-07).
+une 19e table, `hunter_rate_parameters` (nommée `remuneration_parameters` jusqu'au
+2026-10-08), depuis LOT6 (2026-10-07).
 
 Il ne remplace rien : `docker/init/` reste en place, intact. Les deux dossiers
 coexistent tant que le groupe n'a pas validé le basculement.
@@ -48,7 +49,7 @@ deux chemins mènent au même schéma. Décisions : registre
 
 ### Paramètres de rémunération et journal des notes — LOT6, `06_parametres.sql`
 
-- **`remuneration_parameters`**, 19e table : les réglages du calcul (poids, paliers en `JSONB`, notes, points, ancienneté, modulation, bornes) en table versionnée, sans `CHECK` sur les valeurs (Q-REM-05). Une version vaut jusqu'à la suivante, `UNIQUE (effective_from)` — choisi le 2026-10-07 à la place de `valid_from` / `valid_until`. Exposée en CRUD (`/remuneration-parameters`). La grille de notes de Q-JEF-05 n'y est pas : chantier API.
+- **`remuneration_parameters`** (renommée `hunter_rate_parameters` le 2026-10-08, voir plus bas), 19e table : les réglages du calcul (poids, paliers en `JSONB`, notes, points, ancienneté, modulation, bornes) en table versionnée, sans `CHECK` sur les valeurs (Q-REM-05). Une version vaut jusqu'à la suivante, `UNIQUE (effective_from)` — choisi le 2026-10-07 à la place de `valid_from` / `valid_until`. Exposée en CRUD (`/remuneration-parameters`). La grille de notes de Q-JEF-05 n'y est pas : chantier API.
 - `payment.seniority_rate` et `performance_rate` **relâchés** au domaine d'un taux : de **0 à 1** et de **−1 à 1** (v2 : 0 à 0,10 et −0,20 à 0,20). Bornes choisies le 2026-10-07, justifiées par `REGLES-CALCUL-REMUNERATION.md` l. 59, 199 et 203 (Q-REM-05).
 - `parameters_fees` : **`effective_from`** remplace `valid_from` ; `valid_until` et l'`EXCLUDE` sortent ; **`UNIQUE (effective_from)`** — une grille vaut jusqu'à la suivante (Q-SCH-17).
 - `commission_scale.rate` **`> 0`** : une tranche à 0 % est refusée (Q-SCH-15).
@@ -105,6 +106,13 @@ Posées le 2026-10-07 dans `01` par CaBaSS (`88ab154`, `8024210`) ; migration, m
 - **`user.is_activated`** : `NOT NULL DEFAULT FALSE`, comme le MPD de l'équipe. Il acceptait le vide (relevé en Q-ACC-08). Un compte créé sans le dire n'est pas activé ; le modèle `User` / `UserCreate` passe à `bool = False`.
 - **`chk_criteria_district_needs_town`** : un quartier exige une ville, comme une ville exige un pays. Oublié à LOT8, qui a ajouté `district` (Q-MIG-08).
 - Compté avant d'activer : **25** comptes sur 25 avec `is_activated` vide, qui deviennent `FALSE` ; **0** critère avec un quartier sans ville. La migration s'arrête si un quartier n'a pas de ville.
+
+### Réglages du taux du chasseur — après le lot, `14_reglages-taux-chasseur.sql`
+
+Décidé par le groupe le 2026-10-08 (G2, rapport `md/journal/2026-10-08-tables-parametres-et-schema.html`, option A).
+
+- **`remuneration_parameters` devient `hunter_rate_parameters`** : « paramètres de rémunération » se confondait avec `parameters_fees` (les honoraires de l'agence). Le nouveau nom dit ce que règle la table : tout ce qui fait passer du taux du barème au taux final du chasseur (performance, ancienneté, bornes).
+- Suivent : la séquence, la clé primaire (`hunter_rate_parameters_pkey`), `uq_hunter_rate_effective_from`, le modèle `HunterRateParameters` et la route **`/hunter-rate-parameters`**. `06_parametres.sql` garde l'ancien nom : c'est l'historique.
 
 ### Rôle en lecture seule — LOT12, `04_role-lecture-seule.sql` et `12_role-lecture-seule.sql`
 

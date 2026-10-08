@@ -1,6 +1,7 @@
 """
 models — Définitions SQLModel des 19 tables du projet, une classe par
-fichier dans ce dossier (`remuneration_parameters` depuis LOT6, Q-REM-05).
+fichier dans ce dossier (`hunter_rate_parameters` depuis LOT6, Q-REM-05 ;
+nommée `remuneration_parameters` jusqu'au 2026-10-08, G2).
 
 ============================================================================
 COMMENT LIRE CE PACKAGE
@@ -49,7 +50,7 @@ from .commission_scale_model import CommissionScale
 from .payment_model import Payment
 from .hunter_performance_model import HunterPerformance
 from .parameters_fees_model import ParametersFees
-from .remuneration_parameters_model import RemunerationParameters
+from .hunter_rate_parameters_model import HunterRateParameters
 from .visit_model import Visit
 
 __all__ = [
@@ -73,6 +74,6 @@ __all__ = [
     "Payment",
     "HunterPerformance",
     "ParametersFees",
-    "RemunerationParameters",
+    "HunterRateParameters",
     "Visit",
 ]

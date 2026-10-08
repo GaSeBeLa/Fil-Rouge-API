@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 02_migration.sql — Migration Fil_Rouge_Depart -> Fil_Rouge_Immobilier
--- ADAPTÉ au schéma 19 tables (MPD 03, plus remuneration_parameters depuis
--- LOT6) et à la convention EUROS.
+-- ADAPTÉ au schéma 19 tables (MPD 03, plus hunter_rate_parameters depuis
+-- LOT6, ex-remuneration_parameters) et à la convention EUROS.
 -- Testé : s'exécute sans erreur à la suite de 01_create_fil_rouge_immobilier.sql.
 -- ============================================================================
 --
@@ -39,7 +39,7 @@
 --   7. sale : la clé id_parameters_fees (LOT6, Q-REM-13) n'a rien à
 --      rattacher ici. Compté le 2026-10-07 : la source n'a aucune vente ni
 --      aucune grille d'honoraires, et ce script n'en insère aucune.
---      remuneration_parameters et hunter_performance restent vides aussi.
+--      hunter_rate_parameters et hunter_performance restent vides aussi.
 --   8. LOT7 (2026-10-07) — valeurs factices documentées, la colonne restant
 --      obligatoire (Q-JEF-26 : aucune donnée ancienne supprimée) :
 --      - 18 clients sans adresse ni code postal : address = 'non renseigné',

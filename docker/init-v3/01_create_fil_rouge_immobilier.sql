@@ -2,7 +2,8 @@
 -- 01_create_fil_rouge_immobilier.sql
 -- Schéma cible "Fil_Rouge_Immobilier" — 19 tables
 -- Généré depuis « MPD 03 4.drawio.xml » (2026-09-22) ; 19e table,
--- remuneration_parameters, ajoutée le 2026-10-07 (LOT6, Q-REM-05)
+-- remuneration_parameters, ajoutée le 2026-10-07 (LOT6, Q-REM-05),
+-- renommée hunter_rate_parameters le 2026-10-08 (G2)
 --
 -- VERSION FUSIONNÉE des deux scripts écrits en parallèle par le groupe.
 -- Testé sur PostgreSQL 16 : création complète sur base vierge, sans erreur.
@@ -817,6 +818,9 @@ CREATE TABLE commission_scale (
 --   celui de ParametresPerformance et ParametresModulation (rem.py:92-116).
 --   Les honoraires et le barème ont déjà leurs tables (parameters_fees,
 --   commission_scale).
+-- Nom (G2, 2026-10-08) : « réglages du taux du chasseur ». Ex-
+--   remuneration_parameters, qui se confondait avec parameters_fees ; tout
+--   ce qui suit fait passer du taux du barème au taux final.
 -- Versions : comme parameters_fees (Q-SCH-17), une version vaut jusqu'à la
 --   suivante — choisi le 2026-10-07 pour cette table, à la place du couple
 --   valid_from / valid_until de la carte Q-REM-05.
@@ -824,7 +828,7 @@ CREATE TABLE commission_scale (
 --   client » (l. 59) ; les graver refait l'erreur que Q-REM-05 corrige.
 -- La grille de notes du taux de transformation (Q-JEF-05) n'est pas ici :
 --   chantier API.
-CREATE TABLE remuneration_parameters (
+CREATE TABLE hunter_rate_parameters (
     id                      INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at              TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     effective_from          DATE NOT NULL,
@@ -855,7 +859,7 @@ CREATE TABLE remuneration_parameters (
     rate_ceiling            NUMERIC(5,4) NOT NULL,
 
     -- Deux versions ne démarrent pas le même jour (comme uq_fees_effective_from).
-    CONSTRAINT uq_remuneration_effective_from UNIQUE (effective_from)
+    CONSTRAINT uq_hunter_rate_effective_from UNIQUE (effective_from)
 );
 
 CREATE TABLE payment (
@@ -901,7 +905,7 @@ CREATE TABLE payment (
     -- NULL toutes les deux sur une ligne de refus (ADR-024).
     -- Q-REM-05 : +10 % max et ±20 % sont des paramètres « à valider avec le
     --   client » (REGLES-CALCUL-REMUNERATION.md l. 59) ; ils vivent dans
-    --   remuneration_parameters, plus dans ces CHECK (v2 : 0 à 0,10 et
+    --   hunter_rate_parameters, plus dans ces CHECK (v2 : 0 à 0,10 et
     --   -0,20 à 0,20). Restent les bornes du domaine, choisies le 2026-10-07 :
     --     a >= 0 : a = min(taux × années ; plafond), jamais négatif (l. 199) ;
     --     p >= -1 : r = r0 × (1 + a + p) (l. 203), le facteur reste positif ;

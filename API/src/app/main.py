@@ -58,7 +58,7 @@ from .routes import (
     payment_router,
     hunter_performance_router,
     parameters_fees_router,
-    remuneration_parameters_router,
+    hunter_rate_parameters_router,
     visit_router,
 )
 
@@ -98,4 +98,4 @@ app.include_router(commission_scale_router.router)
 app.include_router(payment_router.router)
 app.include_router(hunter_performance_router.router)
 # Q-REM-05 : les réglages du calcul de rémunération, versionnés.
-app.include_router(remuneration_parameters_router.router)
+app.include_router(hunter_rate_parameters_router.router)
