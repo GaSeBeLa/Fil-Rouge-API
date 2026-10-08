@@ -98,8 +98,9 @@ touchent pas PostgreSQL (vérifié avec le conteneur `db` arrêté), dont les
 désormais l'entrée (voir « Codes de réponse ») ; deux tests y sont dédiés :
 un prix à virgule et un champ obligatoire manquant rendent `422`.
 
-**Au 2026-10-08** : **190 tests, `190 passed`** — 99 unitaires, 91 d'intégration
-(chantier LOT, puis migration 13 : `is_activated` et quartier → ville).
+**Au 2026-10-08** : **193 tests, `193 passed`** — 99 unitaires, 94 d'intégration
+(chantier LOT, puis migrations 13 à 15 : `is_activated` et quartier → ville,
+`hunter_rate_parameters`, clé du paiement vers ses réglages).
 
 | Fichier | Ce qu'il prouve |
 |---|---|

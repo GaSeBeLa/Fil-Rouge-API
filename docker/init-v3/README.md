@@ -114,6 +114,14 @@ Décidé par le groupe le 2026-10-08 (G2, rapport `md/journal/2026-10-08-tables-
 - **`remuneration_parameters` devient `hunter_rate_parameters`** : « paramètres de rémunération » se confondait avec `parameters_fees` (les honoraires de l'agence). Le nouveau nom dit ce que règle la table : tout ce qui fait passer du taux du barème au taux final du chasseur (performance, ancienneté, bornes).
 - Suivent : la séquence, la clé primaire (`hunter_rate_parameters_pkey`), `uq_hunter_rate_effective_from`, le modèle `HunterRateParameters` et la route **`/hunter-rate-parameters`**. `06_parametres.sql` garde l'ancien nom : c'est l'historique.
 
+### Le paiement pointe vers ses réglages — après le lot, `15_paiement-reglages-taux.sql`
+
+Décidé par le groupe le 2026-10-08 (G1, même rapport).
+
+- **`payment.id_hunter_rate_parameters`** → `hunter_rate_parameters(id)`, `ON DELETE RESTRICT` : la version des réglages qui a servi au calcul, comme `id_commission_scale` pour la tranche et `sale.id_parameters_fees` pour les honoraires (Q-REM-13). Le paiement se rejoue sans chercher la version par date.
+- **`chk_refused`** : la clé est `NULL` sur un refus, exigée sinon, comme `id_commission_scale`. Que ce soit la version en vigueur à la date de l'acte : contrôlé par l'API, pas par la base (même TODO que le barème).
+- Compté avant d'activer : **0** paiement, **0** version de réglages en base de dev. La migration s'arrête si un paiement non refusé n'a pas de version : on ne la devine pas.
+
 ### Rôle en lecture seule — LOT12, `04_role-lecture-seule.sql` et `12_role-lecture-seule.sql`
 
 Jeff a dit oui sur Discord le 2026-10-07, **à condition** que le choix soit expliqué au jury, utile et cohérent (Q14). Voici l'explication.

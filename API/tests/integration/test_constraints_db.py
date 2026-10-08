@@ -409,6 +409,7 @@ REFUSED: dict[str, Any] = {
     "final_rate": None,
     "performance_score": None,
     "id_commission_scale": None,
+    "id_hunter_rate_parameters": None,
 }
 
 
@@ -420,6 +421,13 @@ def fees_grid(db_client: TestClient, effective_from: str = "2025-01-01") -> int:
     )
     assert grid.status_code == 201, grid.text
     return grid.json()["id"]
+
+
+def rate_parameters(db_client: TestClient) -> int:
+    """Une version des réglages du taux (valeurs : HUNTER_RATE_PARAMETERS, plus bas)."""
+    version = db_client.post("/hunter-rate-parameters", json=HUNTER_RATE_PARAMETERS)
+    assert version.status_code == 201, version.text
+    return version.json()["id"]
 
 
 def sale_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
@@ -461,6 +469,7 @@ def payment_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
         "id_sale": sale.json()["id"],
         "id_hunter": 1,
         "id_commission_scale": scale.json()["id"],
+        "id_hunter_rate_parameters": rate_parameters(db_client),
     }
     payload.update(overrides)
     return payload
@@ -500,6 +509,26 @@ def test_refused_payment_with_final_rate_returns_409(db_client: TestClient):
 def test_refused_payment_with_performance_score_returns_409(db_client: TestClient):
     # Q-REM-03 : pas de score figé sur un refus.
     payload = payment_payload(db_client, **{**REFUSED, "performance_score": "50.0"})
+    assert db_client.post("/payments", json=payload).status_code == 409
+
+
+def test_payment_without_rate_parameters_returns_409(db_client: TestClient):
+    # G1 : hors refus, la version des réglages du taux est exigée (chk_refused).
+    payload = payment_payload(db_client, id_hunter_rate_parameters=None)
+    assert db_client.post("/payments", json=payload).status_code == 409
+
+
+def test_refused_payment_with_rate_parameters_returns_409(db_client: TestClient):
+    # G1, dans l'autre sens : un refus ne désigne aucune version de réglages.
+    # Le refus garde la version que payment_payload a créée.
+    refused = {k: v for k, v in REFUSED.items() if k != "id_hunter_rate_parameters"}
+    payload = payment_payload(db_client, **refused)
+    assert db_client.post("/payments", json=payload).status_code == 409
+
+
+def test_payment_unknown_rate_parameters_returns_409(db_client: TestClient):
+    # G1 : la clé étrangère refuse une version qui n'existe pas.
+    payload = payment_payload(db_client, id_hunter_rate_parameters=999999)
     assert db_client.post("/payments", json=payload).status_code == 409
 
 

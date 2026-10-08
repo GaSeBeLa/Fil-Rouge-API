@@ -20,8 +20,8 @@ par la règle métier, et impossible dans l'ancienne unité en K€.
 
 Une ligne en statut `refused` (ADR-024) n'est pas un paiement à zero, mais un
 **droit ferme** : elle porte son motif, un `amount` a 0, et **aucun** taux ni
-bareme. C'est pourquoi les quatre taux et `id_commission_scale` sont
-facultatifs ici. La contrainte `chk_refused`, cote base, interdit qu'une ligne
+bareme. C'est pourquoi les quatre taux, `id_commission_scale` et
+`id_hunter_rate_parameters` sont facultatifs ici. La contrainte `chk_refused`, cote base, interdit qu'une ligne
 soit un refus a moitie.
 """
 
@@ -66,4 +66,9 @@ class Payment(SQLModel, table=True):
     # NULL sur une ligne de refus : un droit ferme ne designe aucune tranche.
     id_commission_scale: Optional[int] = Field(
         default=None, foreign_key="commission_scale.id"
+    )
+    # G1 (2026-10-08) : la version des réglages du taux qui a servi au calcul.
+    # NULL sur un refus, exigée sinon (chk_refused).
+    id_hunter_rate_parameters: Optional[int] = Field(
+        default=None, foreign_key="hunter_rate_parameters.id"
     )

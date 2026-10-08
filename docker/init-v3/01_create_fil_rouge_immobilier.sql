@@ -925,6 +925,13 @@ CREATE TABLE payment (
     id_hunter           INTEGER NOT NULL REFERENCES hunter(id_user) ON DELETE RESTRICT,
     -- NULL sur une ligne de refus : un droit fermé ne désigne aucune tranche.
     id_commission_scale INTEGER REFERENCES commission_scale(id) ON DELETE RESTRICT,
+    -- G1 (groupe, 2026-10-08) : la version des réglages du taux qui a servi
+    --   au calcul, comme id_commission_scale pour la tranche et
+    --   sale.id_parameters_fees pour les honoraires (Q-REM-13) : le paiement
+    --   se rejoue sans chercher la version par date. NULL sur une
+    --   ligne de refus (chk_refused). Que ce soit la version en vigueur à la
+    --   date de l'acte : contrôlé par l'API, comme le barème (TODO plus bas).
+    id_hunter_rate_parameters INTEGER REFERENCES hunter_rate_parameters(id) ON DELETE RESTRICT,
 
     CONSTRAINT chk_paid
         CHECK ((status =  'paid' AND paid_at IS NOT NULL)
@@ -956,14 +963,16 @@ CREATE TABLE payment (
                 AND performance_rate    IS NULL
                 AND final_rate          IS NULL
                 AND performance_score   IS NULL
-                AND id_commission_scale IS NULL)
+                AND id_commission_scale IS NULL
+                AND id_hunter_rate_parameters IS NULL)
             OR (status <> 'refused'
                 AND refusal_reason      IS NULL
                 AND base_rate           IS NOT NULL
                 AND seniority_rate      IS NOT NULL
                 AND performance_rate    IS NOT NULL
                 AND final_rate          IS NOT NULL
-                AND id_commission_scale IS NOT NULL))
+                AND id_commission_scale IS NOT NULL
+                AND id_hunter_rate_parameters IS NOT NULL))
 
     -- TODO (U01/U04, R01-R04, T17) — le droit à être payé n'est pas vérifié :
     --   testé, on peut aujourd'hui payer un chasseur qui n'est PAS celui du
