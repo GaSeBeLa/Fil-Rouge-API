@@ -660,16 +660,24 @@ CREATE TABLE estate_searchrequest (
     id                INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at        TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     review_hunter     TEXT CHECK (char_length(review_hunter) <= 2000),
-    media_url         TEXT,
-    media_type        VARCHAR(10) CHECK (media_type IN ('audio', 'video')),
     id_estate         INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT,
     id_search_request INTEGER NOT NULL REFERENCES search_request(id) ON DELETE RESTRICT,
     id_hunter         INTEGER NOT NULL REFERENCES hunter(id_user) ON DELETE RESTRICT,
 
-    CONSTRAINT chk_media
-        CHECK ((media_url IS NULL     AND media_type IS NULL)
-            OR (media_url IS NOT NULL AND media_type IS NOT NULL)),
     CONSTRAINT uq_estate_search UNIQUE (id_estate, id_search_request)
+);
+
+-- Médias (audio, vidéo) joints à la note d'avis du chasseur : plusieurs par
+-- note (scénario 06 : « des commentaires audio et des vidéos »). Remplace les
+-- colonnes media_url / media_type de estate_searchrequest, qui n'en
+-- permettaient qu'un (décision du groupe, 2026-10-08).
+CREATE TABLE review_media (
+    id                       INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    created_at               TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
+    media_url                TEXT NOT NULL,
+    media_type               VARCHAR(10) NOT NULL CHECK (media_type IN ('audio', 'video')),
+    id_estate_searchrequest  INTEGER NOT NULL
+                             REFERENCES estate_searchrequest(id) ON DELETE RESTRICT
 );
 
 -- Biens effectivement proposés au client, et suivi de l'offre.

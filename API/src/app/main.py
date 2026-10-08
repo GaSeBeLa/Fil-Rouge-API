@@ -50,6 +50,7 @@ from .routes import (
     mandate_router,
     picture_router,
     real_estate_manager_router,
+    review_media_router,
     role_router,
     search_request_router,
     user_router,
@@ -90,6 +91,7 @@ app.include_router(mandate_router.router)
 app.include_router(estate_router.router)
 app.include_router(estate_proposed_router.router)
 app.include_router(estate_search_request_router.router)
+app.include_router(review_media_router.router)
 app.include_router(picture_router.router)
 app.include_router(visit_router.router)
 app.include_router(sale_router.router)

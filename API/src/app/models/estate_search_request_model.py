@@ -1,7 +1,7 @@
 """
 estate_search_request_model.py — Table de jonction N:N entre estate et
-search_request, qui stocke aussi le média (audio/vidéo) et l'avis du
-chasseur sur ce bien pour cette demande.
+search_request, qui stocke aussi l'avis du chasseur sur ce bien pour cette
+demande. Ses médias (audio/vidéo) sont dans review_media.
 """
 
 from datetime import datetime, timezone
@@ -16,8 +16,6 @@ class EstateSearchRequest(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     review_hunter: Optional[str] = None
-    media_url: Optional[str] = None
-    media_type: str = Field(max_length=10)  # NOT NULL + CHECK ('audio'/'video')
     id_estate: int = Field(foreign_key="estate.id")
     id_search_request: int = Field(foreign_key="search_request.id")
     id_hunter: int = Field(foreign_key="hunter.id_user")

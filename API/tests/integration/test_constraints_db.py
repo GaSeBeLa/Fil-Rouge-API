@@ -367,6 +367,48 @@ def test_mandate_second_successor_returns_409(db_client: TestClient):
     assert db_client.post("/mandates", json=second).status_code == 409
 
 
+# --- review_media ------------------------------------------------------------
+
+
+def review_payload(db_client: TestClient) -> dict[str, Any]:
+    """Une note d'avis sur un bien neuf, pour la demande 1 posée par 02."""
+    estate = db_client.post("/estates", json=ESTATE)
+    assert estate.status_code == 201, estate.text
+    return {
+        "review_hunter": "Bien conforme à la demande.",
+        "id_estate": estate.json()["id"],
+        "id_search_request": 1,
+        "id_hunter": 1,
+    }
+
+
+def test_review_accepts_several_media(db_client: TestClient):
+    # Scénario 06 : « des commentaires audio et des vidéos » — plusieurs médias.
+    review = db_client.post("/estate-search-requests", json=review_payload(db_client))
+    assert review.status_code == 201, review.text
+    review_id = review.json()["id"]
+
+    for media_type, url in (("audio", "https://exemple.test/a.mp3"),
+                            ("video", "https://exemple.test/v.mp4"),
+                            ("audio", "https://exemple.test/b.mp3")):
+        media = {"media_url": url, "media_type": media_type, "id_estate_searchrequest": review_id}
+        response = db_client.post("/review-media", json=media)
+        assert response.status_code == 201, response.text
+
+
+def test_review_media_unknown_type_returns_409(db_client: TestClient):
+    review = db_client.post("/estate-search-requests", json=review_payload(db_client))
+    media = {"media_url": "https://exemple.test/x.gif", "media_type": "image",
+             "id_estate_searchrequest": review.json()["id"]}
+    assert db_client.post("/review-media", json=media).status_code == 409
+
+
+def test_review_media_without_review_returns_409(db_client: TestClient):
+    media = {"media_url": "https://exemple.test/a.mp3", "media_type": "audio",
+             "id_estate_searchrequest": 999999}
+    assert db_client.post("/review-media", json=media).status_code == 409
+
+
 # --- estate_proposed ---------------------------------------------------------
 
 

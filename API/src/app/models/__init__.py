@@ -44,6 +44,7 @@ from .mandate_model import Mandate
 from .estate_model import Estate
 from .estate_proposed_model import EstateProposed
 from .estate_search_request_model import EstateSearchRequest
+from .review_media_model import ReviewMedia
 from .picture_model import Picture
 from .sale_model import Sale
 from .commission_scale_model import CommissionScale
@@ -68,6 +69,7 @@ __all__ = [
     "Estate",
     "EstateProposed",
     "EstateSearchRequest",
+    "ReviewMedia",
     "Picture",
     "Sale",
     "CommissionScale",
