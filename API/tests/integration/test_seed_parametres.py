@@ -14,11 +14,13 @@ la fin, voir conftest.py) : c'est bien le script livré qui est testé, pas une
 copie. La base de test ne contient pas le seed : create_test_db.sh ne rejoue
 que 01, 02 et 04.
 
+La relecture passe par `ParametrageService`, le vrai service : ce test prouve
+donc aussi que le service sait lire ce que le seed écrit.
+
 Ce qui est vérifié :
 - le seed remplit les trois tables (1 / 5 / 1 lignes) ;
 - il est rejouable (une 2e passe n'ajoute rien) ;
-- les lignes relues en base, remises dans un `Parametrage`, sont ÉGALES à
-  `parametrage_par_defaut()` ;
+- le `Parametrage` lu en base est ÉGAL à `parametrage_par_defaut()` ;
 - ce `Parametrage` donne l'exemple de Bruno du sujet (§10) : 6 231,60 €.
 ============================================================================
 """
@@ -29,21 +31,20 @@ from pathlib import Path
 
 from sqlmodel import Session
 
+from src.app.repositories.commission_scale_repository import CommissionScaleRepository
+from src.app.repositories.hunter_rate_parameters_repository import HunterRateParametersRepository
+from src.app.repositories.parameters_fees_repository import ParametersFeesRepository
+from src.app.services.parametrage_service import ParametrageService
 from src.app.services.remuneration import (
     Exclusivite,
-    LigneBareme,
     OrigineVente,
-    Palier,
-    Parametrage,
-    ParametresHonoraires,
-    ParametresModulation,
-    ParametresPerformance,
     Vente,
     calculer_remuneration,
     parametrage_par_defaut,
 )
 
 SEED = Path(__file__).resolve().parents[3] / "docker" / "init-v3" / "05_parametres.sql"
+ACTE = date(2026, 7, 30)
 
 
 def apply_seed(db_session: Session) -> None:
@@ -61,57 +62,8 @@ def count(db_session: Session, table: str) -> int:
     return db_session.connection().exec_driver_sql(f"SELECT count(*) FROM {table}").scalar_one()
 
 
-def tiers(raw: list[dict]) -> tuple[Palier, ...]:
-    return tuple(Palier(None if t["maximum"] is None else D(t["maximum"]), D(t["note"])) for t in raw)
-
-
-def parametrage_depuis_la_base(db_session: Session) -> Parametrage:
-    """Le `Parametrage` que construirait un service lisant les trois tables."""
-    connection = db_session.connection()
-    fees = connection.exec_driver_sql(
-        "SELECT effective_from, fixed_amount, rate FROM parameters_fees ORDER BY effective_from"
-    ).all()
-    scale = connection.exec_driver_sql(
-        "SELECT valid_from, amount_min, rate, amount_max, valid_until, id_hunter"
-        " FROM commission_scale ORDER BY amount_min"
-    ).all()
-    (rate,) = connection.exec_driver_sql(
-        "SELECT weight_delay, weight_exclusivity, weight_sales, weight_mandates, weight_visits,"
-        " delay_tiers, visit_tiers, score_exclusive, score_non_exclusive,"
-        " points_per_sale, points_per_mandate, window_months,"
-        " seniority_rate_per_year, seniority_cap, score_pivot, score_half_range,"
-        " performance_amplitude, rate_floor, rate_ceiling"
-        " FROM hunter_rate_parameters ORDER BY effective_from DESC LIMIT 1"
-    ).all()
-    return Parametrage(
-        honoraires=tuple(ParametresHonoraires(f[0], D(f[1]), f[2]) for f in fees),
-        bareme=tuple(
-            LigneBareme(s[0], D(s[1]), s[2], None if s[3] is None else D(s[3]), s[4], s[5]) for s in scale
-        ),
-        performance=ParametresPerformance(
-            poids_delai=rate[0],
-            poids_exclusivite=rate[1],
-            poids_ventes=rate[2],
-            poids_mandats=rate[3],
-            poids_visites=rate[4],
-            paliers_delai=tiers(rate[5]),
-            paliers_visites=tiers(rate[6]),
-            note_exclusif=rate[7],
-            note_non_exclusif=rate[8],
-            points_par_vente=rate[9],
-            points_par_mandat=rate[10],
-            fenetre_mois=rate[11],
-        ),
-        modulation=ParametresModulation(
-            taux_par_annee=rate[12],
-            plafond_anciennete=rate[13],
-            score_pivot=rate[14],
-            demi_amplitude_score=rate[15],
-            amplitude_performance=rate[16],
-            taux_plancher=rate[17],
-            taux_plafond=rate[18],
-        ),
-    )
+def service() -> ParametrageService:
+    return ParametrageService(ParametersFeesRepository(), CommissionScaleRepository(), HunterRateParametersRepository())
 
 
 def test_seed_fills_the_three_parameter_tables(db_session: Session):
@@ -135,7 +87,7 @@ def test_seed_can_be_replayed(db_session: Session):
 def test_seed_equals_the_default_parametrage_of_the_code(db_session: Session):
     # Deux endroits disent la même chose (le code et la base) : ils ne divergent pas.
     apply_seed(db_session)
-    assert parametrage_depuis_la_base(db_session) == parametrage_par_defaut()
+    assert service().charger(db_session, ACTE) == parametrage_par_defaut()
 
 
 def test_seed_gives_the_worked_example_of_the_subject(db_session: Session):
@@ -144,7 +96,7 @@ def test_seed_gives_the_worked_example_of_the_subject(db_session: Session):
     bruno = Vente(
         chasseur_id=1,
         prix_acte=D(420000),
-        date_acte=date(2026, 7, 30),
+        date_acte=ACTE,
         date_signature_mandat=date(2025, 11, 14),
         date_fin_mandat=date(2026, 8, 14),
         exclusivite=Exclusivite.EXCLUSIF,
@@ -154,7 +106,7 @@ def test_seed_gives_the_worked_example_of_the_subject(db_session: Session):
         ventes_12_mois=4,
         mandats_12_mois=9,
     )
-    result = calculer_remuneration(bruno, parametrage_depuis_la_base(db_session))
+    result = calculer_remuneration(bruno, service().charger(db_session, ACTE))
     assert result.honoraires == D("13500.00")
     assert result.taux_final == D("0.4616")
     assert result.montant == D("6231.60")
