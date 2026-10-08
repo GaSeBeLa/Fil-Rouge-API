@@ -26,7 +26,9 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     email: str = Field(max_length=150, unique=True)
     password: str = Field(max_length=255)
-    is_activated: Optional[bool] = None
+    # NOT NULL DEFAULT FALSE en base (88ab154, migration 13) : un None serait
+    #   envoyé tel quel, et refusé.
+    is_activated: bool = False
     id_role: int = Field(foreign_key="role.id")
 
 
@@ -59,7 +61,8 @@ class UserCreate(SQLModel):
     # min_length=12 : proposition du tuto, pas une décision actée par le
     # groupe (contrairement à ADR-016 lui-même). À confirmer en réunion.
     password: str = Field(min_length=12)
-    is_activated: Optional[bool] = None
+    # Omis : le compte n'est pas activé (même défaut que la base).
+    is_activated: bool = False
     id_role: int
 
 

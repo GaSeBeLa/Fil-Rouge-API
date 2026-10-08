@@ -36,6 +36,14 @@ def test_post_returns_201_without_password(db_client: TestClient):
     assert "password" not in body
 
 
+def test_post_without_is_activated_stores_false(db_client: TestClient, db_session: Session):
+    # NOT NULL DEFAULT FALSE (88ab154, migration 13) : omis, il vaut FALSE en base.
+    response = db_client.post("/users", json={"email": EMAIL, "password": USER_PASSWORD, "id_role": 1})
+    assert response.status_code == 201, response.text
+    stored = db_session.get(User, response.json()["id"])
+    assert stored is not None and stored.is_activated is False
+
+
 def test_password_is_stored_hashed(create_user: Callable[[str], int], db_session: Session):
     stored = db_session.get(User, create_user(EMAIL))
     assert stored is not None

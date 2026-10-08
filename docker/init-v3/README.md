@@ -98,6 +98,14 @@ Tout est confirmé par Jeff (Q-JEF-13).
 - **Mot de passe** gardé, haché en Argon2 (Q-JEF-14) : rien à retirer du schéma.
 - ✅ Le **rôle en lecture seule** (Q14) est venu ensuite : LOT12, ci-dessous.
 
+### Compte activé et quartier — après le lot, `13_compte-active-et-quartier.sql`
+
+Posées le 2026-10-07 dans `01` par CaBaSS (`88ab154`, `8024210`) ; migration, modèle et tests ajoutés le 2026-10-08.
+
+- **`user.is_activated`** : `NOT NULL DEFAULT FALSE`, comme le MPD de l'équipe. Il acceptait le vide (relevé en Q-ACC-08). Un compte créé sans le dire n'est pas activé ; le modèle `User` / `UserCreate` passe à `bool = False`.
+- **`chk_criteria_district_needs_town`** : un quartier exige une ville, comme une ville exige un pays. Oublié à LOT8, qui a ajouté `district` (Q-MIG-08).
+- Compté avant d'activer : **25** comptes sur 25 avec `is_activated` vide, qui deviennent `FALSE` ; **0** critère avec un quartier sans ville. La migration s'arrête si un quartier n'a pas de ville.
+
 ### Rôle en lecture seule — LOT12, `04_role-lecture-seule.sql` et `12_role-lecture-seule.sql`
 
 Jeff a dit oui sur Discord le 2026-10-07, **à condition** que le choix soit expliqué au jury, utile et cohérent (Q14). Voici l'explication.

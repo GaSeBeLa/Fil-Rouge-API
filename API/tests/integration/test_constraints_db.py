@@ -238,6 +238,23 @@ def test_eircode_without_space_is_accepted(
     assert response.status_code == 201, response.text
 
 
+# chk_criteria_district_needs_town (8024210, migration 13) : un quartier exige
+# une ville. L'auteur 1 et la demande 1 sont posés par 02.
+CRITERIA: dict[str, Any] = {
+    "id_author": 1, "id_search_request": 1, "estate_type": "Appartement",
+    "budget_max": 300000, "country_iso": "FR", "district": "Écusson",
+}
+
+
+def test_criteria_district_without_town_returns_409(db_client: TestClient):
+    assert db_client.post("/criteria", json=CRITERIA).status_code == 409
+
+
+def test_criteria_district_with_town_is_accepted(db_client: TestClient):
+    response = db_client.post("/criteria", json={**CRITERIA, "town": "Montpellier"})
+    assert response.status_code == 201, response.text
+
+
 # --- mandate -----------------------------------------------------------------
 
 # Chasseur 1, client 7 et demande 1 : posés par 02 (MAND-0001). Dates en
