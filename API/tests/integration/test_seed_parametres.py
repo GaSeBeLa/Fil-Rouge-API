@@ -29,6 +29,7 @@ from datetime import date
 from decimal import Decimal as D
 from pathlib import Path
 
+import pytest
 from sqlmodel import Session
 
 from src.app.repositories.commission_scale_repository import CommissionScaleRepository
@@ -53,6 +54,9 @@ def apply_seed(db_session: Session) -> None:
     Passe par le curseur du pilote, sans paramètres : le fichier contient des `%`
     (dans ses commentaires) qu'une exécution paramétrée tenterait d'interpréter.
     """
+    if not SEED.exists():
+        # Le conteneur `api` ne monte que src/ et tests/ (docker-compose.yml) : il ne voit pas docker/.
+        pytest.skip(f"Seed introuvable ({SEED}) : lancer ces tests depuis API/, sur la machine, pas dans le conteneur.")
     cursor = db_session.connection().connection.cursor()
     cursor.execute(SEED.read_text(encoding="utf-8"))
 
