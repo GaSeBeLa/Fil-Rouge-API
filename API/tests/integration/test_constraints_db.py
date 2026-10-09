@@ -824,3 +824,29 @@ def test_reader_role_cannot_write(db_session: Session, statement: str):
     connection.execute(text("SET LOCAL ROLE fil_rouge_reader"))
     with pytest.raises(ProgrammingError, match="permission denied"):
         connection.execute(text(statement))
+
+
+def test_reader_role_cannot_read_password(db_session: Session):
+    # Rapport « Rôle lecteur et mots de passe » (2026-10-08) : le mot de passe
+    # reste fermé au rôle, même si la table est ouverte pour le reste.
+    connection = db_session.connection()
+    connection.execute(text("SET LOCAL ROLE fil_rouge_reader"))
+    with pytest.raises(ProgrammingError, match="permission denied"):
+        connection.execute(text('SELECT password FROM "user"'))
+
+
+def test_reader_role_reads_every_other_user_column(db_session: Session):
+    # La liste vient de la base, pas du test : une colonne ajoutée à "user"
+    # sans décision (ouverte au rôle, ou fermée ici) fait échouer ce test.
+    connection = db_session.connection()
+    columns = connection.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'user' "
+            "AND column_name <> 'password'"
+        )
+    ).scalars().all()
+    assert columns, "aucune colonne lue dans information_schema"
+    connection.execute(text("SET LOCAL ROLE fil_rouge_reader"))
+    quoted = ", ".join(f'"{name}"' for name in columns)
+    connection.execute(text(f'SELECT {quoted} FROM "user"')).all()

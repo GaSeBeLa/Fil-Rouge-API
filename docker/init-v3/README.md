@@ -130,7 +130,7 @@ Jeff a dit oui sur Discord le 2026-10-07, **à condition** que le choix soit exp
 
 | Niveau | Nom | Ce qu'il peut faire |
 |---|---|---|
-| PostgreSQL | `fil_rouge_reader` | lire les 19 tables (`SELECT`), et rien d'autre : ni `INSERT`, ni `UPDATE`, ni `DELETE` |
+| PostgreSQL | `fil_rouge_reader` | lire les 19 tables (`SELECT`), sauf `"user".password`, et rien d'autre : ni `INSERT`, ni `UPDATE`, ni `DELETE` |
 | Application | `'Reader'` dans `role` (id 5) | consulter dans l'API sans modifier ; aucun utilisateur ne l'a encore |
 
 **À quoi ça sert**
