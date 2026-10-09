@@ -931,7 +931,9 @@ CREATE TABLE payment (
     performance_score   NUMERIC(4,1) CHECK (performance_score BETWEEN 0 AND 100),
     -- Q-REM-04 : tous les termes du calcul — les 5 notes et les entrées
     --   (visites, ancienneté, ventes et mandats sur 12 mois) —, pour qu'un
-    --   paiement se rejoue même si ces valeurs changent ensuite.
+    --   paiement se rejoue même si ces valeurs changent ensuite. Exigé hors
+    --   refus, vide sur un refus, comme performance_score (ADR-033, Décision 3,
+    --   confirmée par Sébastien le 2026-10-09 ; migration 20).
     calculation_details JSONB,
     id_sale             INTEGER NOT NULL UNIQUE REFERENCES sale(id) ON DELETE RESTRICT,
     id_hunter           INTEGER NOT NULL REFERENCES hunter(id_user) ON DELETE RESTRICT,
@@ -975,6 +977,7 @@ CREATE TABLE payment (
                 AND performance_rate    IS NULL
                 AND final_rate          IS NULL
                 AND performance_score   IS NULL
+                AND calculation_details IS NULL
                 AND id_commission_scale IS NULL
                 AND id_hunter_rate_parameters IS NULL)
             OR (status <> 'refused'
@@ -983,6 +986,8 @@ CREATE TABLE payment (
                 AND seniority_rate      IS NOT NULL
                 AND performance_rate    IS NOT NULL
                 AND final_rate          IS NOT NULL
+                AND performance_score   IS NOT NULL
+                AND calculation_details IS NOT NULL
                 AND id_commission_scale IS NOT NULL
                 AND id_hunter_rate_parameters IS NOT NULL))
 

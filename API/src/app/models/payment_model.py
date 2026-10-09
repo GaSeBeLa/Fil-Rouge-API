@@ -60,7 +60,12 @@ class Payment(SQLModel, table=True):
     # Score de 0 à 100 qui a servi au calcul (Q-REM-03). NULL sur un refus.
     performance_score: Optional[Decimal] = Field(default=None, max_digits=4, decimal_places=1)
     # Les 5 notes et les entrées du calcul (Q-REM-04), en JSONB cote base.
-    calculation_details: Optional[dict[str, Any]] = Field(default=None, sa_type=JSONB)
+    # none_as_null : None s'écrit NULL, pas le JSON `null` — sinon chk_refused
+    # (ADR-033, Décision 3) croirait un détail présent sur un refus, et vide...
+    # jamais hors refus.
+    calculation_details: Optional[dict[str, Any]] = Field(
+        default=None, sa_type=JSONB(none_as_null=True)  # pyright: ignore[reportArgumentType] -- SQLModel type l'argument en classe ; SQLAlchemy accepte une instance
+    )
     id_sale: int = Field(foreign_key="sale.id")
     id_hunter: int = Field(foreign_key="hunter.id_user")
     # NULL sur une ligne de refus : un droit ferme ne designe aucune tranche.

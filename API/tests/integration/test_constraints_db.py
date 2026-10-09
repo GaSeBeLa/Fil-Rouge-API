@@ -479,6 +479,7 @@ REFUSED: dict[str, Any] = {
     "performance_rate": None,
     "final_rate": None,
     "performance_score": None,
+    "calculation_details": None,
     "id_commission_scale": None,
     "id_hunter_rate_parameters": None,
 }
@@ -537,6 +538,7 @@ def payment_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
         "performance_rate": "0.0000",
         "final_rate": "0.3000",
         "performance_score": "50.0",
+        "calculation_details": {"seniority_years": 0, "visits": 0},
         "id_sale": sale.json()["id"],
         "id_hunter": 1,
         "id_commission_scale": scale.json()["id"],
@@ -580,6 +582,24 @@ def test_refused_payment_with_final_rate_returns_409(db_client: TestClient):
 def test_refused_payment_with_performance_score_returns_409(db_client: TestClient):
     # Q-REM-03 : pas de score figé sur un refus.
     payload = payment_payload(db_client, **{**REFUSED, "performance_score": "50.0"})
+    assert db_client.post("/payments", json=payload).status_code == 409
+
+
+def test_payment_without_performance_score_returns_409(db_client: TestClient):
+    # ADR-033, Décision 3 (D2, 2026-10-09) : hors refus, la note est exigée.
+    payload = payment_payload(db_client, performance_score=None)
+    assert db_client.post("/payments", json=payload).status_code == 409
+
+
+def test_payment_without_calculation_details_returns_409(db_client: TestClient):
+    # ADR-033, Décision 3 : hors refus, le détail du calcul est exigé.
+    payload = payment_payload(db_client, calculation_details=None)
+    assert db_client.post("/payments", json=payload).status_code == 409
+
+
+def test_refused_payment_with_calculation_details_returns_409(db_client: TestClient):
+    # ADR-033, Décision 3, dans l'autre sens : un refus ne porte aucun détail.
+    payload = payment_payload(db_client, **{**REFUSED, "calculation_details": {"visits": 0}})
     assert db_client.post("/payments", json=payload).status_code == 409
 
 
