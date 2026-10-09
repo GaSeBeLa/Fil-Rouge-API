@@ -357,9 +357,7 @@ CREATE TABLE criteria (
                            CHECK (floor IN ('0','1','2','3','4','5','6','7','8','9',
                                             '10 and more','last floor')),
     is_new_build           BOOLEAN,
-    needs_renovation       BOOLEAN,
-    renovation_budget_min  INTEGER CHECK (renovation_budget_min >= 0),
-    renovation_budget_max  INTEGER CHECK (renovation_budget_max >= 0),
+    needs_renovation       BOOLEAN NOT NULL DEFAULT FALSE,
     energy_class_max       CHAR(1) CHECK (energy_class_max IN ('A','B','C','D','E','F','G')),
 
     rooms_min              SMALLINT CHECK (rooms_min > 0),
@@ -400,7 +398,6 @@ CREATE TABLE criteria (
                            REFERENCES criteria(id) ON DELETE RESTRICT,
 
     CONSTRAINT chk_budget           CHECK (budget_max >= budget_min),
-    CONSTRAINT chk_renov_budget     CHECK (renovation_budget_max >= renovation_budget_min),
     CONSTRAINT chk_rooms            CHECK (rooms_max >= rooms_min),
     CONSTRAINT chk_bedrooms         CHECK (bedrooms_max >= bedrooms_min),
     CONSTRAINT chk_toilets          CHECK (toilets_max >= toilets_min),
@@ -611,7 +608,7 @@ CREATE TABLE estate (
     has_chimney          BOOLEAN,
     parking_spaces       SMALLINT CHECK (parking_spaces >= 0),
     has_separate_kitchen BOOLEAN,
-    needs_renovation     BOOLEAN,
+    needs_renovation     BOOLEAN NOT NULL DEFAULT FALSE,
     town                 VARCHAR(100) NOT NULL
                          CHECK (town = btrim(town) AND town <> ''),
     street               VARCHAR(100)
@@ -1043,10 +1040,10 @@ COMMENT ON COLUMN criteria.budget_min IS
   'Budget minimum en EUROS, INTEGER. Ex: 250000 = 250 000 EUR.';
 COMMENT ON COLUMN criteria.budget_max IS
   'Budget maximum en EUROS, INTEGER.';
-COMMENT ON COLUMN criteria.renovation_budget_min IS
-  'Budget travaux minimum en EUROS.';
-COMMENT ON COLUMN criteria.renovation_budget_max IS
-  'Budget travaux maximum en EUROS.';
+COMMENT ON COLUMN criteria.needs_renovation IS
+  'FALSE (defaut) : pas de bien a renover. TRUE : le client accepte un bien avec travaux. Deux etats, jamais NULL (ADR-032).';
+COMMENT ON COLUMN estate.needs_renovation IS
+  'TRUE : l''annonce signale des travaux a prevoir. FALSE (defaut) : elle n''en parle pas. Deux etats, jamais NULL (ADR-032).';
 COMMENT ON COLUMN estate.price IS
   'Prix affiche du bien en EUROS. Charger depuis annonces_normalised.csv colonne price_eur (PAS price, qui est en K€).';
 COMMENT ON COLUMN estate_proposed.amount_proposition IS

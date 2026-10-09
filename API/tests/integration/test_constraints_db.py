@@ -885,3 +885,30 @@ def test_reader_role_reads_every_other_user_column(db_session: Session):
     connection.execute(text("SET LOCAL ROLE fil_rouge_reader"))
     quoted = ", ".join(f'"{name}"' for name in columns)
     connection.execute(text(f'SELECT {quoted} FROM "user"')).all()
+
+
+@pytest.mark.parametrize("table", ["criteria", "estate"])
+def test_needs_renovation_has_two_states(db_session: Session, table: str):
+    # S7 (ADR-032) : BOOLEAN NOT NULL DEFAULT FALSE, jamais NULL.
+    row = db_session.connection().execute(
+        text(
+            "SELECT is_nullable, column_default FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = :t "
+            "AND column_name = 'needs_renovation'"
+        ),
+        {"t": table},
+    ).one()
+    assert row.is_nullable == "NO"
+    assert row.column_default == "false"
+
+
+def test_criteria_has_no_renovation_budget(db_session: Session):
+    # S7 (ADR-032) : les deux budgets travaux sont retirés du schéma.
+    names = db_session.connection().execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'criteria' "
+            "AND column_name LIKE 'renovation_budget%'"
+        )
+    ).scalars().all()
+    assert names == []

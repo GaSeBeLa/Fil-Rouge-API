@@ -40,9 +40,8 @@ class Criteria(SQLModel, table=True):
     budget_max: int
     floor: Optional[str] = Field(default=None, max_length=10)
     is_new_build: Optional[bool] = None
-    needs_renovation: Optional[bool] = None
-    renovation_budget_min: Optional[int] = None
-    renovation_budget_max: Optional[int] = None
+    # Deux états, FALSE par défaut (ADR-032) : TRUE = le client accepte un bien avec travaux.
+    needs_renovation: bool = False
     energy_class_max: Optional[str] = Field(default=None, max_length=1)
     rooms_min: Optional[int] = None
     rooms_max: Optional[int] = None

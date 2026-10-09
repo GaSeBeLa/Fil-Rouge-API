@@ -68,7 +68,8 @@ class Estate(SQLModel, table=True):
     has_chimney: Optional[bool] = None
     parking_spaces: Optional[int] = None
     has_separate_kitchen: Optional[bool] = None
-    needs_renovation: Optional[bool] = None
+    # Deux états, FALSE par défaut (ADR-032) : TRUE = l'annonce signale des travaux.
+    needs_renovation: bool = False
     town: str = Field(max_length=100)
     street: Optional[str] = Field(default=None, max_length=100)
     street_number: Optional[str] = Field(default=None, max_length=10)
