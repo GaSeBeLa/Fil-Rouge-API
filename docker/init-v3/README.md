@@ -70,7 +70,7 @@ deux chemins mènent au même schéma. Décisions : registre
 ### Localisation — LOT8, `08_localisation.sql`
 
 - **`estate.country_iso = 'FR'`** sur les 2 556 biens (dans `03`), **puis** `chk_estate_postal_code_format` : le même contrôle par pays que `client` et `criteria`. Un code postal sans pays est refusé (Q-SCH-11).
-- **Eircode sans espace** (`D02X285`) sur `client`, `criteria` et `estate` ; GB et NL gardent leur espace (Q-SCH-12, confirmé par Jeff le 2026-10-07). La migration retire l'espace d'un Eircode existant.
+- **Eircode sans espace** (`D02X285`) sur `client`, `criteria` et `estate` ; GB et NL gardent leur espace (Q-SCH-12, confirmé par le groupe le 2026-10-07). La migration retire l'espace d'un Eircode existant.
 - Les **10 secteurs** d'origine ne sont plus ignorés : chacun des **17 critères** repris reçoit la ville, le code postal et le pays `'FR'` du secteur de son mandat (Q-MIG-08). N2 est fermée : la localisation reste sur `criteria` (Q-SCH-02).
 - **`district`** (quartier), `VARCHAR(100)` facultatif, sur `criteria` et `estate` : vide pour 3 critères (Castelnau-le-Lez, Lattes, sans quartier à la source) et pour les 2 556 biens, le CSV n'en ayant pas (Q-MIG-08).
 - **`criteria.budget_min` à NULL**, « inconnu », sur les 17 critères : la source n'avait qu'un budget, recopié dans le minimum (Q-MIG-09).
