@@ -329,6 +329,21 @@ def test_mandate_accepted_after_exclusive_canceled(db_client: TestClient):
     assert response.status_code == 201, response.text
 
 
+@pytest.mark.parametrize("closed_status", ["completed", "lost"])
+def test_mandate_accepted_after_exclusive_closed(db_client: TestClient, closed_status: str):
+    # ADR-039, Décision 5 (D1a, 2026-10-09) : un exclusif clos, vente faite ou
+    # perdue, libère le client tout de suite, comme une annulation.
+    first_payload = {**MANDATE, "is_exclusive": True}
+    first = db_client.post("/mandates", json=first_payload)
+    assert first.status_code == 201, first.text
+    closed = db_client.put(f"/mandates/{first.json()['id']}", json={**first_payload, "status": closed_status})
+    assert closed.status_code == 200, closed.text
+
+    second = {**MANDATE, "reference": "TEST-M-0002", "is_exclusive": True}
+    response = db_client.post("/mandates", json=second)
+    assert response.status_code == 201, response.text
+
+
 def test_mandate_renewal_of_exclusive_is_accepted(db_client: TestClient):
     # Q-MAN-02 : le renouvellement, signé à l'échéance, touche la fin de son
     # parent ; le parent est exclu du contrôle, et le parent reste modifiable.

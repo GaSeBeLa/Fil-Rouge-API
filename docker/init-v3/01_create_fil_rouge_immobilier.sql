@@ -508,6 +508,10 @@ CREATE TABLE mandate (
 --
 --   D7 tranchée (Q-MAN-02, Jeff : Q-JEF-06) : un mandat 'canceled' libère le
 --   client TOUT DE SUITE — il ne bloque personne, et rien ne le bloque.
+--   Même règle pour un mandat clos, 'completed' ou 'lost' (ADR-039,
+--   Décision 5, confirmée par Sébastien le 2026-10-09) : la vente est faite
+--   ou perdue, le mandat n'a plus rien à protéger. Migration :
+--   docker/migrations/v2-vers-v3/19_mandat-clos-libere-le-client.sql.
 --
 --   Renouvellement (Q-MAN-02) : signé à l'échéance, il touche la date de fin
 --   de son parent ('[]'). Le parent et l'enfant sont donc exclus l'un pour
@@ -523,14 +527,14 @@ CREATE OR REPLACE FUNCTION check_mandate_exclusivity() RETURNS trigger
 LANGUAGE plpgsql AS $fn$
 BEGIN
     IF NEW.signature_date IS NULL OR NEW.ends_at IS NULL
-       OR NEW.status = 'canceled' THEN
-        RETURN NEW;                       -- pas encore signé, ou annulé
+       OR NEW.status IN ('canceled', 'completed', 'lost') THEN
+        RETURN NEW;                       -- pas encore signé, annulé ou clos
     END IF;
     IF EXISTS (
         SELECT 1 FROM mandate m
          WHERE m.id        <> NEW.id
            AND m.id_client  = NEW.id_client
-           AND m.status    <> 'canceled'
+           AND m.status NOT IN ('canceled', 'completed', 'lost')
            AND (m.is_exclusive OR NEW.is_exclusive)
            AND m.id IS DISTINCT FROM NEW.id_mandate_parent   -- son parent
            AND m.id_mandate_parent IS DISTINCT FROM NEW.id   -- ses enfants
