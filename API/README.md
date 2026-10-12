@@ -25,8 +25,11 @@ La base doit tourner (`docker compose up -d` depuis `../docker`). Crée ensuite 
 `.env` dans `API/` (copie de [`.env exemple`](.env%20exemple)) avec l'URL de connexion :
 
 ```
-DATABASE_URL=postgresql://<user>:<password>@localhost:5432/fil_rouge_immobilier
+DATABASE_URL=postgresql+psycopg2://<user>:<password>@localhost:5432/fil_rouge_immobilier
 ```
+
+`+psycopg2` est obligatoire : depuis SQLAlchemy 2.1, `postgresql://` seul cherche
+psycopg 3, qui n'est pas installé.
 
 `<user>` et `<password>` sont ceux définis dans `docker/.env` (`POSTGRES_USER` /
 `POSTGRES_PASSWORD`). Si le mot de passe contient des caractères spéciaux
@@ -36,7 +39,7 @@ DATABASE_URL=postgresql://<user>:<password>@localhost:5432/fil_rouge_immobilier
 python3 -c "import urllib.parse; print(urllib.parse.quote('<mot_de_passe>', safe=''))"
 ```
 
-Sans `.env`, l'API se connecte par défaut à `postgresql://postgres:postgres@localhost:5432/fil_rouge_immobilier`
+Sans `.env`, l'API se connecte par défaut à `postgresql+psycopg2://postgres:postgres@localhost:5432/fil_rouge_immobilier`
 (la valeur par défaut du `docker-compose.yml`).
 
 ⚠️ `.env` n'est jamais commité (voir `.gitignore` à la racine du repo) — seul `.env exemple` l'est.
