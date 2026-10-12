@@ -698,6 +698,10 @@ CREATE TABLE estate (
     id_author            INTEGER
                          REFERENCES "user"(id) ON DELETE RESTRICT,
 
+    -- P17 (audit, 2026-10-12) : une position a deux coordonnées, ou aucune.
+    CONSTRAINT chk_estate_coordinates_pair
+        CHECK ((latitude IS NULL) = (longitude IS NULL)),
+
     -- Format du code postal par pays, même CASE que client et criteria
     -- (Q-SCH-11, LOT8). Un code postal sans pays tombe dans ELSE : refusé.
     CONSTRAINT chk_estate_postal_code_format

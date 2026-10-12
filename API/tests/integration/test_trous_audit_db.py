@@ -242,3 +242,20 @@ def test_p15_other_client_does_not_wait(db_session: Session):
             )
         )
         other.rollback()
+
+
+# --- P17 : un bien a deux coordonnées, ou aucune -----------------------------
+
+NEW_ESTATE = (
+    "INSERT INTO estate (reference, estate_type, surface, town, latitude, longitude) "
+    "VALUES (:ref, 'Maison', 100, 'Montpellier', :lat, :lon)"
+)
+
+
+def test_p17_latitude_without_longitude_is_refused(db_session: Session):
+    refused(db_session, NEW_ESTATE, match="chk_estate_coordinates_pair", ref="P17-A", lat=43.61, lon=None)
+
+
+@pytest.mark.parametrize(("lat", "lon"), [(43.61, 3.88), (None, None)])
+def test_p17_both_or_no_coordinates_are_accepted(db_session: Session, lat: Any, lon: Any):
+    run(db_session, NEW_ESTATE, ref=f"P17-{lat}", lat=lat, lon=lon)
