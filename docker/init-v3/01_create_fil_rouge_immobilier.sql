@@ -437,6 +437,10 @@ CREATE TABLE criteria (
         REFERENCES criteria (id, id_search_request) ON DELETE RESTRICT,
     CONSTRAINT uq_criteria_one_successor UNIQUE (id_previous_version),
     CONSTRAINT chk_criteria_not_own_previous CHECK (id_previous_version <> id),
+    -- P9 (audit) : « date, auteur, motif de chaque changement » (Readme
+    -- l. 234). La version de départ n'a pas de motif à donner.
+    CONSTRAINT chk_criteria_change_reason
+        CHECK (id_previous_version IS NULL OR change_reason IS NOT NULL),
     -- Corrections 1 et 8 : parenthèse en trop retirée ; Eircode sans espace (Q-SCH-12).
     CONSTRAINT chk_postal_code_format
         CHECK (postal_code IS NULL OR CASE

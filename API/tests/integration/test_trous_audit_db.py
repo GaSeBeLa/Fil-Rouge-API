@@ -127,3 +127,15 @@ def test_p8_version_pointing_to_itself_is_refused(db_session: Session):
         match="chk_criteria_not_own_previous",
         id=second,
     )
+
+
+# --- P9 : une nouvelle version de critères donne son motif --------------------
+
+
+def test_p9_next_version_without_reason_is_refused(db_session: Session):
+    refused(
+        db_session,
+        "INSERT INTO criteria (estate_type, budget_max, id_author, id_search_request, id_previous_version) "
+        "VALUES ('Maison', 300000, 7, 1, 1)",
+        match="chk_criteria_change_reason",
+    )
