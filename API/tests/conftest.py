@@ -21,7 +21,9 @@ Le format de l'empreinte (PHC) et la vérification restent ceux d'argon2.
 `client` (et `db_client`, tests/integration/conftest.py) se présentent en
 `Admin` : `get_principal` est remplacé (fiche API2), pour que les tests
 écrits avant les rôles restent verts sans jeton. Un test qui vérifie les
-droits utilise `principal_as(<rôle>)` ou retire ce remplacement.
+droits utilise `principal_as(<rôle>)` ou retire ce remplacement ; un test
+qui doit agir sous un compte réel du seed (l'auteur d'un bien, fiche API6)
+entoure ses requêtes de `with acting_as(<rôle>, <id>):`.
 
 Clé d'API (fiche API3) : `api_test_key`, automatique, remplace les clés
 lues au démarrage par une seule clé de test, `TEST_API_KEY` ; `client` et
@@ -36,6 +38,7 @@ objets factices (unittest.mock).
 """
 
 from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 
 import pytest
 from argon2 import PasswordHasher
@@ -63,10 +66,28 @@ def api_test_key(monkeypatch: pytest.MonkeyPatch) -> str:
     return TEST_API_KEY
 
 
-def principal_as(role: str) -> Callable[[], Principal]:
+def principal_as(role: str, user_id: int = 0) -> Callable[[], Principal]:
     """Remplaçant de get_principal : un compte activé du rôle donné, sans base."""
-    user = User(id=0, email=f"{role.lower()}@test.local", password="-", is_activated=True, id_role=0)
+    user = User(id=user_id, email=f"{role.lower()}@test.local", password="-", is_activated=True, id_role=0)
     return lambda: Principal(user=user, role=role)
+
+
+@contextmanager
+def acting_as(role: str, user_id: int = 0) -> Iterator[None]:
+    """
+    Le temps du bloc, l'app se présente sous ce compte, puis reprend le
+    précédent. `user_id` doit exister en base quand la route l'écrit
+    (estate.id_author) : 1 et 2 sont des chasseurs, 25 un manager (seed 02).
+    """
+    previous = app.dependency_overrides.get(get_principal)
+    app.dependency_overrides[get_principal] = principal_as(role, user_id)
+    try:
+        yield
+    finally:
+        if previous is None:
+            app.dependency_overrides.pop(get_principal, None)
+        else:
+            app.dependency_overrides[get_principal] = previous
 
 
 @pytest.fixture

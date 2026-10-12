@@ -14,8 +14,8 @@ et chaque fichier de router se contente d'appeler build_crud_router avec
 son propre service.
 
 C'est aussi le seul endroit qui traduit les exceptions "métier"
-(NotFoundError, ConflictError — voir exceptions.py) en codes HTTP : les
-services et repositories, eux, ne connaissent pas FastAPI.
+(NotFoundError, ConflictError, ForbiddenError — voir exceptions.py) en
+codes HTTP : les services et repositories, eux, ne connaissent pas FastAPI.
 
 `update_model` (optionnel) : modèle d'entrée du PUT, distinct de celui du
 POST (`response_model`). Par défaut, si non fourni, le PUT utilise
@@ -36,7 +36,13 @@ sans). Les GET sont ouverts à tout compte connecté ; POST, PUT et DELETE
 sont refusés à `Reader` (403), qui lit sans écrire. `write_roles` restreint
 POST et PUT pour une table : `()` les ferme à tous (hunter_performance,
 ADR-035) ; `delete_roles`, de même pour DELETE (users : `Admin` seul). La
-matrice complète des droits (ADR-027) n'est pas codée.
+matrice complète des droits (ADR-027) n'est pas codée. `create_roles`
+restreint le seul POST (estate : Hunter et Manager, ADR-047) ; absent, le
+POST suit `write_roles`.
+
+Le compte connecté (fiche API6) : le POST le passe au service,
+`service.create(..., actor=<compte>)`, qui s'en sert pour remplir l'auteur
+d'une ligne ou juger un droit qui dépend de la ligne (ForbiddenError -> 403).
 
 Clé d'API (ADR-028, points 4 à 6, fiche API3) : posée sur le routeur
 entier, elle est vérifiée avant le jeton ; absente ou inconnue -> 401.
@@ -54,8 +60,8 @@ from sqlmodel import Session, SQLModel
 from ..conf.database import get_session
 from ..models.input_check import INPUT_CONTEXT
 from ..utils.api_keys import require_api_key
-from ..utils.exceptions import ConflictError, NotFoundError
-from ..utils.roles import ALL_ROLES, WRITER_ROLES, require_roles
+from ..utils.exceptions import ConflictError, ForbiddenError, NotFoundError
+from ..utils.roles import ALL_ROLES, WRITER_ROLES, Principal, require_roles
 from ..services.base_service import BaseService
 
 
@@ -87,12 +93,14 @@ def build_crud_router(
     update_model: Optional[Type[SQLModel]] = None,
     write_roles: Sequence[str] = WRITER_ROLES,
     delete_roles: Sequence[str] = WRITER_ROLES,
+    create_roles: Optional[Sequence[str]] = None,
 ) -> APIRouter:
     router = APIRouter(prefix=prefix, tags=[tag], dependencies=[Depends(require_api_key)])
 
     can_read = [Depends(require_roles(*ALL_ROLES))]
     can_write = [Depends(require_roles(*write_roles))]
     can_delete = [Depends(require_roles(*delete_roles))]
+    can_create = require_roles(*(write_roles if create_roles is None else create_roles))
 
     out_model = read_model or response_model
     in_update_model = update_model or response_model
@@ -108,12 +116,18 @@ def build_crud_router(
         except NotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    @router.post("", response_model=out_model, status_code=201, dependencies=can_write)
-    def create_item(item: response_model, session: Session = Depends(get_session)):
+    @router.post("", response_model=out_model, status_code=201)
+    def create_item(
+        item: response_model,
+        session: Session = Depends(get_session),
+        principal: Principal = Depends(can_create),
+    ):
         try:
-            return service.create(session, _validated(response_model, item))
+            return service.create(session, _validated(response_model, item), actor=principal.user)
         except ConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ForbiddenError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     @router.put("/{item_id}", response_model=out_model, dependencies=can_write)
     def update_item(item_id: int, data: in_update_model, session: Session = Depends(get_session)):

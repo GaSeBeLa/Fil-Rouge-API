@@ -127,11 +127,14 @@ Puis **308 passed, 7 skipped** (fiche API5) : 16 tests de versions figées et
 d'ordre du paiement. Puis **332 passed, 7 skipped** : correctifs des deux relectures
 de la série (lecture sans rejuger P16/P29, connexion au chronomètre, `NaN` et grands
 entiers, `/users` et `/roles` à `Admin`, paiement pas à pas, créé `'announced'`, payé
-figé).
+figé). Puis **341 passed, 7 skipped** (fiche API6) : 11 tests d'auteurs, et les 2
+anciens tests de la clé `estate.id_author` retirés (la valeur envoyée est ignorée).
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
-de droits utilise `principal_as(<rôle>)`, ou retire ce remplacement.
+de droits utilise `principal_as(<rôle>)`, ou retire ce remplacement. Depuis API6,
+`with acting_as(<rôle>, <id>):` fait agir sous un compte du seed (le chasseur 1 crée
+les biens : `post_as_hunter` dans `test_constraints_db.py`).
 
 | Fichier | Ce qu'il prouve |
 |---|---|
@@ -147,6 +150,7 @@ de droits utilise `principal_as(<rôle>)`, ou retire ce remplacement.
 | [`test_api_keys.py`](tests/test_api_keys.py) | sans clé ou clé inconnue → `401` ; bonne clé et bon jeton → `200` ; bonne clé sans jeton → `401` ; `/` sans clé ; démarrage refusé sans clé ou clé trop courte |
 | [`test_entrees.py`](tests/test_entrees.py) | `422` avant la base : email mal formé (P2), plus de chambres que de pièces (P16), réglages du taux incohérents — poids ≠ 1, plancher > plafond, paliers mal formés (P29), détail du calcul mal formé (P32) |
 | [`integration/test_versions_paiement.py`](tests/integration/test_versions_paiement.py) | grille d'honoraires, ligne de barème, réglages du taux : citée → `PUT` `409`, non citée → `200` (ADR-030, ADR-034) ; statut du paiement : pas à pas → `200` ; saut, retour en arrière, refus après `'announced'`, paiement `'paid'` modifié ou supprimé, `POST` au-delà de `'announced'` → `409` (ADR-038) ; taux final faux → `409` (P33) |
+| [`integration/test_auteurs.py`](tests/integration/test_auteurs.py) | `POST /estates` en Hunter ou Manager → `id_author` = le compte du jeton, la valeur envoyée ignorée ; Client, Admin, Reader → `403` ; un `PUT` garde l'auteur (ADR-047) ; `POST /review-media` par le chasseur de la note → `201`, un autre chasseur ou un autre rôle → `403` (ADR-051) |
 | [`test_remuneration.py`](tests/test_remuneration.py) | les **55 cas** de [`10_calcul_remuneration_chasseur.feature`](../user-stories/10_calcul_remuneration_chasseur.feature), lignes d'exemples recopiées telles quelles |
 
 **Calcul de la rémunération** : [`services/remuneration.py`](src/app/services/remuneration.py)
@@ -195,7 +199,7 @@ bash docker/create_test_db.sh
 Chaque table suit une architecture en 3 couches (Router → Service → Repository) :
 
 * **`routes/<table>_router.py`** — reçoit la requête HTTP, traduit les erreurs métier
-  (`NotFoundError`, `ConflictError`) en codes HTTP (404, 409)
+  (`NotFoundError`, `ConflictError`, `ForbiddenError`) en codes HTTP (404, 409, 403)
 * **`services/<table>_service.py`** — logique métier (aujourd'hui minimale, sauf
   `user_service.py` qui hache le mot de passe)
 * **`repositories/<table>_repository.py`** — parle à la base via SQLModel/PostgreSQL,
@@ -219,7 +223,7 @@ API/
 │       ├── conf/
 │       │   └── database.py       # engine SQLModel + injection de session (get_session)
 │       ├── utils/
-│       │   └── exceptions.py     # NotFoundError, ConflictError
+│       │   └── exceptions.py     # NotFoundError, ConflictError, ForbiddenError
 │       ├── models/                # une classe SQLModel par table (18 fichiers)
 │       ├── repositories/          # accès base : base_repository.py + 1 fichier par table
 │       ├── services/              # logique métier : base_service.py + 1 fichier par table
@@ -260,6 +264,11 @@ Soit **91 opérations** (compté dans `/openapi.json`).
   `POST`, `PUT` et `DELETE` sur `/users` et `/roles` réservés à **`Admin`** (sinon un compte
   prenait celui d'un Admin, ou renommait son rôle en « Admin »).
   La matrice complète des droits (ADR-027) n'est pas codée.
+* ✍️ **Auteurs** (fiche API6) : `POST /estates` réservé à **Hunter** et **Manager**
+  (ADR-047) ; `id_author` est rempli avec le compte du jeton, la valeur envoyée est
+  ignorée, et un `PUT` ne la change pas ; vide = bien importé. `POST /review-media`
+  réservé au **chasseur qui a écrit la note** (`estate_searchrequest.id_hunter`,
+  ADR-051) : un autre compte → `403`.
 * 🔑 **Toutes les routes exigent aussi l'en-tête `X-API-Key`** (fiche API3),
   `/auth/login` compris : clé absente ou inconnue → `401`. La clé dit quel programme
   appelle, le jeton quelle personne agit : il faut les deux.

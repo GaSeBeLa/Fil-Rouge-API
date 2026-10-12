@@ -25,9 +25,11 @@ manquant, ou une version des réglages inconnue, est laissé à la base
 ============================================================================
 """
 
+from typing import Optional
+
 from sqlmodel import Session
 
-from ..models import Payment
+from ..models import Payment, User
 from ..repositories.hunter_rate_parameters_repository import HunterRateParametersRepository
 from ..repositories.payment_repository import PaymentRepository
 from ..utils.exceptions import ConflictError
@@ -54,14 +56,14 @@ class PaymentService(BaseService[Payment]):
         super().__init__(repository, not_found_detail="Versement introuvable")
         self.rate_parameters = rate_parameters
 
-    def create(self, session: Session, item: Payment) -> Payment:
+    def create(self, session: Session, item: Payment, actor: Optional[User] = None) -> Payment:
         if item.status not in CREATE_STATUSES:
             raise ConflictError(
                 f"Un paiement se crée 'announced' ou 'refused', pas '{item.status}' : "
                 "les étapes suivantes passent par PUT (ADR-038)."
             )
         self._check_final_rate(session, item)
-        return super().create(session, item)
+        return super().create(session, item, actor)
 
     def replace(self, session: Session, item_id: int, data: Payment) -> Payment:
         existing = self.get_by_id(session, item_id)

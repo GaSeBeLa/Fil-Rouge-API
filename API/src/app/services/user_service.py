@@ -42,7 +42,7 @@ class UserService(BaseService[User]):
             user = self.repository.save(session, user)
         return user
 
-    def create(self, session: Session, item: UserCreate) -> User:
+    def create(self, session: Session, item: UserCreate, actor: Optional[User] = None) -> User:
         user = User(
             email=item.email,
             password=hash_password(item.password),

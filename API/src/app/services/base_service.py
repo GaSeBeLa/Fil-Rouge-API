@@ -15,13 +15,19 @@ que les routers ni les repositories n'aient à changer.
 get_by_id lève NotFoundError si la ligne n'existe pas (au lieu de renvoyer
 None) : ça évite à chaque appelant de revérifier, et centralise le message
 d'erreur associé à cette table.
+
+`actor` (fiche API6) : le compte connecté, que le routeur passe à create().
+Ignoré ici ; un service s'en sert quand la ligne nomme son auteur (estate,
+ADR-047) ou quand le droit dépend de la ligne (review_media, ADR-051).
+Appelé sans compte (script, test), create() reçoit None.
 ============================================================================
 """
 
-from typing import Generic, List, TypeVar
+from typing import Generic, List, Optional, TypeVar
 
 from sqlmodel import Session, SQLModel
 
+from ..models import User
 from ..utils.exceptions import NotFoundError
 from ..repositories.base_repository import BaseRepository
 
@@ -42,7 +48,7 @@ class BaseService(Generic[ModelType]):
             raise NotFoundError(self.not_found_detail)
         return item
 
-    def create(self, session: Session, item: ModelType) -> ModelType:
+    def create(self, session: Session, item: ModelType, actor: Optional[User] = None) -> ModelType:
         return self.repository.create(session, item)
 
     def replace(self, session: Session, item_id: int, data: ModelType) -> ModelType:

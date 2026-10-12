@@ -48,6 +48,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import Response
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session  # mère de sqlmodel.Session, la fixture db_session
@@ -57,6 +58,9 @@ from src.app.models import HunterPerformance
 from src.app.repositories.hunter_performance_repository import HunterPerformanceRepository
 from src.app.services.hunter_performance_service import HunterPerformanceService
 from src.app.utils.exceptions import ConflictError
+from src.app.utils.roles import HUNTER
+
+from ..conftest import acting_as
 
 ESTATE: dict[str, Any] = {
     "reference": "TEST-0001",
@@ -91,11 +95,22 @@ def client_payload(user_id: int, **overrides: Any) -> dict[str, Any]:
     return person_fields(user_id, **{**CLIENT_ADDRESS, **overrides})
 
 
+# Chasseur posé par 02 : il crée les biens (ADR-047 : Hunter ou Manager) et
+# écrit les notes dont il ajoute les médias (ADR-051).
+HUNTER_ID = 1
+
+
+def post_as_hunter(db_client: TestClient, endpoint: str, payload: dict[str, Any]) -> Response:
+    """POST sous le compte du chasseur 1 ; les autres requêtes restent en Admin."""
+    with acting_as(HUNTER, HUNTER_ID):
+        return db_client.post(endpoint, json=payload)
+
+
 # --- estate ------------------------------------------------------------------
 
 
 def test_estate_price_is_whole_euros(db_client: TestClient):
-    created = db_client.post("/estates", json=ESTATE)
+    created = post_as_hunter(db_client, "/estates", ESTATE)
     assert created.status_code == 201, created.text
 
     read = db_client.get(f"/estates/{created.json()['id']}")
@@ -107,14 +122,14 @@ def test_estate_price_is_whole_euros(db_client: TestClient):
 # faisait planter l'insertion. Un prix est en euros entiers (Q-REM-01).
 @pytest.mark.parametrize("price", [199999.5, "199999.50"])
 def test_estate_price_with_cents_returns_422(db_client: TestClient, price: Any):
-    response = db_client.post("/estates", json={**ESTATE, "price": price})
+    response = post_as_hunter(db_client, "/estates", {**ESTATE, "price": price})
     assert response.status_code == 422
     assert db_client.get("/estates").json() == []  # rien n'a été écrit
 
 
 def test_estate_missing_required_field_returns_422(db_client: TestClient):
     # surface : NOT NULL en base, obligatoire dans le modèle.
-    response = db_client.post("/estates", json={**ESTATE, "surface": None})
+    response = post_as_hunter(db_client, "/estates", {**ESTATE, "surface": None})
     assert response.status_code == 422
 
 
@@ -127,24 +142,17 @@ def test_estate_missing_required_field_returns_422(db_client: TestClient):
     ],
 )
 def test_estate_constraint_violation_returns_409(db_client: TestClient, field: str, value: Any):
-    response = db_client.post("/estates", json={**ESTATE, field: value})
+    response = post_as_hunter(db_client, "/estates", {**ESTATE, field: value})
     assert response.status_code == 409
 
 
 def test_estate_duplicate_reference_returns_409(db_client: TestClient):
-    assert db_client.post("/estates", json=ESTATE).status_code == 201
-    assert db_client.post("/estates", json=ESTATE).status_code == 409
+    assert post_as_hunter(db_client, "/estates", ESTATE).status_code == 201
+    assert post_as_hunter(db_client, "/estates", ESTATE).status_code == 409
 
 
-def test_estate_unknown_author_returns_409(db_client: TestClient):
-    # Auteur d'un bien saisi à la main : clé vers "user" (Q-ACC-09, Q-JEF-24).
-    response = db_client.post("/estates", json={**ESTATE, "id_author": 999999})
-    assert response.status_code == 409
-
-
-def test_estate_known_author_is_accepted(db_client: TestClient):
-    response = db_client.post("/estates", json={**ESTATE, "id_author": 1})  # chasseur posé par 02
-    assert response.status_code == 201, response.text
+# id_author : rempli par l'API avec le compte connecté, la valeur envoyée est
+# ignorée (ADR-047) — tests/integration/test_auteurs.py.
 
 
 # --- client ------------------------------------------------------------------
@@ -237,12 +245,12 @@ def test_person_international_phone_is_accepted(
 
 def test_estate_french_postal_code_with_four_digits_returns_409(db_client: TestClient):
     payload = {**ESTATE, "country_iso": "FR", "postal_code": "3100"}
-    assert db_client.post("/estates", json=payload).status_code == 409
+    assert post_as_hunter(db_client, "/estates", payload).status_code == 409
 
 
 def test_estate_french_postal_code_with_five_digits_is_accepted(db_client: TestClient):
     payload = {**ESTATE, "country_iso": "FR", "postal_code": "31000"}
-    response = db_client.post("/estates", json=payload)
+    response = post_as_hunter(db_client, "/estates", payload)
     assert response.status_code == 201, response.text
 
 
@@ -267,12 +275,13 @@ def eircode_payload(create_user: Callable[[str], int], endpoint: str, postal_cod
     return {**NEXT_CRITERIA_VERSION, "estate_type": "Appartement", "budget_max": 300000, **location}
 
 
+# En chasseur : /estates l'exige (ADR-047), /clients et /criteria l'acceptent.
 @pytest.mark.parametrize("endpoint", EIRCODE_ENDPOINTS)
 def test_eircode_with_space_returns_409(
     db_client: TestClient, create_user: Callable[[str], int], endpoint: str
 ):
     payload = eircode_payload(create_user, endpoint, "D02 X285")
-    assert db_client.post(endpoint, json=payload).status_code == 409
+    assert post_as_hunter(db_client, endpoint, payload).status_code == 409
 
 
 @pytest.mark.parametrize("endpoint", EIRCODE_ENDPOINTS)
@@ -280,7 +289,7 @@ def test_eircode_without_space_is_accepted(
     db_client: TestClient, create_user: Callable[[str], int], endpoint: str
 ):
     payload = eircode_payload(create_user, endpoint, "D02X285")
-    response = db_client.post(endpoint, json=payload)
+    response = post_as_hunter(db_client, endpoint, payload)
     assert response.status_code == 201, response.text
 
 
@@ -433,13 +442,13 @@ def test_mandate_second_successor_returns_409(db_client: TestClient):
 
 def review_payload(db_client: TestClient) -> dict[str, Any]:
     """Une note d'avis sur un bien neuf, pour la demande 1 posée par 02."""
-    estate = db_client.post("/estates", json=ESTATE)
+    estate = post_as_hunter(db_client, "/estates", ESTATE)
     assert estate.status_code == 201, estate.text
     return {
         "review_hunter": "Bien conforme à la demande.",
         "id_estate": estate.json()["id"],
         "id_search_request": 1,
-        "id_hunter": 1,
+        "id_hunter": HUNTER_ID,
     }
 
 
@@ -453,7 +462,7 @@ def test_review_accepts_several_media(db_client: TestClient):
                             ("video", "https://exemple.test/v.mp4"),
                             ("audio", "https://exemple.test/b.mp3")):
         media = {"media_url": url, "media_type": media_type, "id_estate_searchrequest": review_id}
-        response = db_client.post("/review-media", json=media)
+        response = post_as_hunter(db_client, "/review-media", media)
         assert response.status_code == 201, response.text
 
 
@@ -461,13 +470,13 @@ def test_review_media_unknown_type_returns_409(db_client: TestClient):
     review = db_client.post("/estate-search-requests", json=review_payload(db_client))
     media = {"media_url": "https://exemple.test/x.gif", "media_type": "image",
              "id_estate_searchrequest": review.json()["id"]}
-    assert db_client.post("/review-media", json=media).status_code == 409
+    assert post_as_hunter(db_client, "/review-media", media).status_code == 409
 
 
 def test_review_media_without_review_returns_409(db_client: TestClient):
     media = {"media_url": "https://exemple.test/a.mp3", "media_type": "audio",
              "id_estate_searchrequest": 999999}
-    assert db_client.post("/review-media", json=media).status_code == 409
+    assert post_as_hunter(db_client, "/review-media", media).status_code == 409
 
 
 # --- estate_proposed ---------------------------------------------------------
@@ -475,7 +484,7 @@ def test_review_media_without_review_returns_409(db_client: TestClient):
 
 def proposition_payload(db_client: TestClient, status: str) -> dict[str, Any]:
     """Une offre sur un bien neuf, pour le mandat 1 posé par 02."""
-    estate = db_client.post("/estates", json=ESTATE)
+    estate = post_as_hunter(db_client, "/estates", ESTATE)
     assert estate.status_code == 201, estate.text
     return {
         "proposition_status": status,
@@ -560,7 +569,7 @@ def rate_parameters(db_client: TestClient) -> int:
 
 def sale_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
     """Une vente sur un bien neuf, pour le mandat 1 posé par 02."""
-    estate = db_client.post("/estates", json=ESTATE)
+    estate = post_as_hunter(db_client, "/estates", ESTATE)
     assert estate.status_code == 201, estate.text
     payload: dict[str, Any] = {
         "signature_date": "2026-03-01",

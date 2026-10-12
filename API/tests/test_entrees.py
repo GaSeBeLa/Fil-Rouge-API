@@ -32,7 +32,7 @@ from .conftest import TEST_HEADERS, principal_as
 def api() -> TestClient:
     def echo_service() -> MagicMock:
         service = MagicMock(spec=BaseService)
-        service.create.side_effect = lambda session, item: item
+        service.create.side_effect = lambda session, item, actor=None: item
         service.replace.side_effect = lambda session, item_id, data: data
         service.get_by_id.side_effect = lambda session, item_id: stored.get(item_id)
         return service
