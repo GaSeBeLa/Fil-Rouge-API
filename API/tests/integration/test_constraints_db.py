@@ -454,7 +454,7 @@ def review_payload(db_client: TestClient) -> dict[str, Any]:
 
 def test_review_accepts_several_media(db_client: TestClient):
     # Scénario 06 : « des commentaires audio et des vidéos » — plusieurs médias.
-    review = db_client.post("/estate-search-requests", json=review_payload(db_client))
+    review = post_as_hunter(db_client, "/estate-search-requests", review_payload(db_client))
     assert review.status_code == 201, review.text
     review_id = review.json()["id"]
 
@@ -467,7 +467,7 @@ def test_review_accepts_several_media(db_client: TestClient):
 
 
 def test_review_media_unknown_type_returns_409(db_client: TestClient):
-    review = db_client.post("/estate-search-requests", json=review_payload(db_client))
+    review = post_as_hunter(db_client, "/estate-search-requests", review_payload(db_client))
     media = {"media_url": "https://exemple.test/x.gif", "media_type": "image",
              "id_estate_searchrequest": review.json()["id"]}
     assert post_as_hunter(db_client, "/review-media", media).status_code == 409
@@ -494,7 +494,7 @@ def selected_estate(db_client: TestClient, search_request: int = ACTIVE_REQUEST,
     assert estate.status_code == 201, estate.text
     estate_id = estate.json()["id"]
     selection = {"id_estate": estate_id, "id_search_request": search_request, "id_hunter": HUNTER_ID}
-    response = db_client.post("/estate-search-requests", json=selection)
+    response = post_as_hunter(db_client, "/estate-search-requests", selection)
     assert response.status_code == 201, response.text
     return estate_id
 

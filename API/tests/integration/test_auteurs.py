@@ -65,7 +65,7 @@ MEDIA = {"media_url": "https://exemple.test/a.mp3", "media_type": "audio"}
 
 def media_on_new_review(db_client: TestClient) -> dict[str, Any]:
     """Un média pour une note neuve, écrite par le chasseur 1."""
-    review = db_client.post("/estate-search-requests", json=review_payload(db_client))
+    review = post_as_hunter(db_client, "/estate-search-requests", review_payload(db_client))
     assert review.status_code == 201, review.text
     return {**MEDIA, "id_estate_searchrequest": review.json()["id"]}
 
@@ -83,6 +83,38 @@ def test_other_hunter_cannot_add_a_media(db_client: TestClient):
         response = db_client.post("/review-media", json=media)
     assert response.status_code == 403
     assert "ADR-051" in response.text
+
+
+def test_review_author_is_the_token_account(db_client: TestClient):
+    # ADR-051 : l'id_hunter envoyé est ignoré, la note est au chasseur connecté.
+    payload = {**review_payload(db_client), "id_hunter": OTHER_HUNTER_ID}
+
+    review = post_as_hunter(db_client, "/estate-search-requests", payload)
+
+    assert review.status_code == 201, review.text
+    assert review.json()["id_hunter"] == HUNTER_ID
+
+
+def test_put_cannot_take_over_a_review(db_client: TestClient):
+    # Relecture de la série : un autre chasseur changeait id_hunter par un PUT,
+    # puis ajoutait ses médias à la note du chasseur 1.
+    media = media_on_new_review(db_client)
+    review_id = media["id_estate_searchrequest"]
+    review = db_client.get(f"/estate-search-requests/{review_id}").json()
+    with acting_as(HUNTER, OTHER_HUNTER_ID):
+        taken = db_client.put(f"/estate-search-requests/{review_id}", json={**review, "id_hunter": OTHER_HUNTER_ID})
+        added = db_client.post("/review-media", json=media)
+
+    assert taken.status_code == 200, taken.text
+    assert taken.json()["id_hunter"] == HUNTER_ID
+    assert added.status_code == 403
+
+
+@pytest.mark.parametrize("role", [ADMIN, MANAGER, CLIENT])
+def test_only_hunters_write_reviews(db_client: TestClient, role: str):
+    with acting_as(role, HUNTER_ID):
+        response = db_client.post("/estate-search-requests", json=review_payload(db_client))
+    assert response.status_code == 403
 
 
 @pytest.mark.parametrize("role", [ADMIN, MANAGER, CLIENT])
