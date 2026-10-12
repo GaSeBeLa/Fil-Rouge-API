@@ -242,6 +242,12 @@ def test_estate_french_postal_code_with_five_digits_is_accepted(db_client: TestC
 
 EIRCODE_ENDPOINTS = ["/estates", "/clients", "/criteria"]
 
+# Demande 1 : une seule version de départ, les suivantes s'enchaînent avec un
+# motif (audit P8, P9).
+NEXT_CRITERIA_VERSION: dict[str, Any] = {
+    "id_author": 1, "id_search_request": 1, "id_previous_version": 1, "change_reason": "test",
+}
+
 
 def eircode_payload(create_user: Callable[[str], int], endpoint: str, postal_code: str) -> dict[str, Any]:
     location = {"country_iso": "IE", "postal_code": postal_code}
@@ -250,8 +256,9 @@ def eircode_payload(create_user: Callable[[str], int], endpoint: str, postal_cod
     if endpoint == "/clients":
         user_id = create_user("eircode@exemple.fr")
         return client_payload(user_id, address="1 Main Street", town="Dublin", **location)
-    # criteria : l'auteur 1 et la demande 1 sont posés par 02.
-    return {"id_author": 1, "id_search_request": 1, "estate_type": "Appartement", "budget_max": 300000, **location}
+    # criteria : l'auteur 1, la demande 1 et sa version de départ 1 sont posés
+    # par 02 ; une nouvelle version pointe vers celle d'avant (P8, P9).
+    return {**NEXT_CRITERIA_VERSION, "estate_type": "Appartement", "budget_max": 300000, **location}
 
 
 @pytest.mark.parametrize("endpoint", EIRCODE_ENDPOINTS)
@@ -272,9 +279,9 @@ def test_eircode_without_space_is_accepted(
 
 
 # chk_criteria_district_needs_town (8024210, migration 13) : un quartier exige
-# une ville. L'auteur 1 et la demande 1 sont posés par 02.
+# une ville. L'auteur 1, la demande 1 et sa version de départ sont posés par 02.
 CRITERIA: dict[str, Any] = {
-    "id_author": 1, "id_search_request": 1, "estate_type": "Appartement",
+    **NEXT_CRITERIA_VERSION, "estate_type": "Appartement",
     "budget_max": 300000, "country_iso": "FR", "district": "Écusson",
 }
 

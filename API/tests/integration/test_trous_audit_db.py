@@ -89,3 +89,41 @@ def test_p6_answered_request_without_hunter_is_refused(db_session: Session, stat
 def test_p6_confirmed_request_without_hunter_is_accepted(db_session: Session):
     run(db_session, NEW_REQUEST.format(hunter="NULL", status="confirmed"))
     run(db_session, NEW_REQUEST.format(hunter=1, status="accepted"))
+
+
+# --- P8 : une version de critères pointe vers celle d'avant, sur sa demande ---
+
+# Les critères 1 et 2 sont les versions de départ des demandes 1 et 2 (02).
+NEW_CRITERIA = (
+    "INSERT INTO criteria (estate_type, budget_max, id_author, id_search_request, "
+    "id_previous_version, change_reason) "
+    "VALUES ('Maison', 300000, 7, :request, :previous, 'budget revu') RETURNING id"
+)
+
+
+def test_p8_next_version_on_same_request_is_accepted(db_session: Session):
+    second = run(db_session, NEW_CRITERIA, request=1, previous=1).scalar_one()
+    run(db_session, NEW_CRITERIA, request=1, previous=second)
+
+
+def test_p8_version_of_another_request_is_refused(db_session: Session):
+    refused(db_session, NEW_CRITERIA, match="fk_criteria_previous_same_request", request=2, previous=1)
+
+
+def test_p8_branch_is_refused(db_session: Session):
+    run(db_session, NEW_CRITERIA, request=1, previous=1)
+    refused(db_session, NEW_CRITERIA, match="uq_criteria_one_successor", request=1, previous=1)
+
+
+def test_p8_second_first_version_is_refused(db_session: Session):
+    refused(db_session, NEW_CRITERIA, match="uq_criteria_one_first_version", request=1, previous=None)
+
+
+def test_p8_version_pointing_to_itself_is_refused(db_session: Session):
+    second = run(db_session, NEW_CRITERIA, request=1, previous=1).scalar_one()
+    refused(
+        db_session,
+        "UPDATE criteria SET id_previous_version = id WHERE id = :id",
+        match="chk_criteria_not_own_previous",
+        id=second,
+    )

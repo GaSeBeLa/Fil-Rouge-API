@@ -426,6 +426,17 @@ CREATE TABLE criteria (
         CHECK (district IS NULL OR town IS NOT NULL),
     CONSTRAINT chk_postal_code_needs_country
         CHECK (postal_code IS NULL OR country_iso IS NOT NULL),
+    -- P8 (audit, 2026-10-12) : une version pointe vers celle d'avant, sur la
+    -- MÊME demande, et rien d'autre (Readme l. 234, historiser) : pas de
+    -- bifurcation, une seule version de départ (index plus bas), pas de lien
+    -- vers soi. Un cycle par UPDATE reste possible : l'API ne modifie pas une
+    -- version (P8, rapport de vérification § 3).
+    CONSTRAINT uq_criteria_id_request UNIQUE (id, id_search_request),
+    CONSTRAINT fk_criteria_previous_same_request
+        FOREIGN KEY (id_previous_version, id_search_request)
+        REFERENCES criteria (id, id_search_request) ON DELETE RESTRICT,
+    CONSTRAINT uq_criteria_one_successor UNIQUE (id_previous_version),
+    CONSTRAINT chk_criteria_not_own_previous CHECK (id_previous_version <> id),
     -- Corrections 1 et 8 : parenthèse en trop retirée ; Eircode sans espace (Q-SCH-12).
     CONSTRAINT chk_postal_code_format
         CHECK (postal_code IS NULL OR CASE
@@ -437,6 +448,10 @@ CREATE TABLE criteria (
             WHEN country_iso = 'IE'                   THEN postal_code ~ '^([AC-FHKNPRTV-Y][0-9]{2}|D6W)[0-9AC-FHKNPRTV-Y]{4}$'
             ELSE FALSE END)
 );
+
+-- P8 : une seule version de départ par demande.
+CREATE UNIQUE INDEX uq_criteria_one_first_version
+    ON criteria (id_search_request) WHERE id_previous_version IS NULL;
 
 
 -- ============================================================================
