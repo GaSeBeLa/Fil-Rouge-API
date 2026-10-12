@@ -23,6 +23,10 @@ Le format de l'empreinte (PHC) et la vérification restent ceux d'argon2.
 écrits avant les rôles restent verts sans jeton. Un test qui vérifie les
 droits utilise `principal_as(<rôle>)` ou retire ce remplacement.
 
+Clé d'API (fiche API3) : `api_test_key`, automatique, remplace les clés
+lues au démarrage par une seule clé de test, `TEST_API_KEY` ; `client` et
+`db_client` l'envoient d'office (`TEST_HEADERS`).
+
 Pas encore de fixture de base de données de test (session PostgreSQL
 isolée, rollback automatique après chaque test) : à ajouter quand les
 premiers tests touchant réellement la base seront écrits. Les tests
@@ -39,13 +43,24 @@ from fastapi.testclient import TestClient
 
 from src.app.main import app
 from src.app.models import User
-from src.app.utils import security
+from src.app.utils import api_keys, security
 from src.app.utils.roles import ADMIN, Principal, get_principal
 
 
 def pytest_configure(config: pytest.Config) -> None:
     # Déclaré ici faute de pytest.ini ; posé par tests/integration/conftest.py.
     config.addinivalue_line("markers", "integration: test qui parle à la base de test PostgreSQL")
+
+
+TEST_API_KEY = "cle-de-test-" + "0" * 32
+TEST_HEADERS = {api_keys.API_KEY_HEADER: TEST_API_KEY}
+
+
+@pytest.fixture(autouse=True)
+def api_test_key(monkeypatch: pytest.MonkeyPatch) -> str:
+    """Une seule clé connue pendant le test : celle-ci (programme TEST)."""
+    monkeypatch.setattr(api_keys, "_API_KEYS", {"TEST": TEST_API_KEY})
+    return TEST_API_KEY
 
 
 def principal_as(role: str) -> Callable[[], Principal]:
@@ -58,7 +73,7 @@ def principal_as(role: str) -> Callable[[], Principal]:
 def client() -> Iterator[TestClient]:
     app.dependency_overrides[get_principal] = principal_as(ADMIN)
     try:
-        yield TestClient(app)
+        yield TestClient(app, headers=TEST_HEADERS)
     finally:
         app.dependency_overrides.pop(get_principal, None)
 

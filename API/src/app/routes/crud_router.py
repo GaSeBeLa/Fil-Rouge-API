@@ -36,6 +36,9 @@ sans). Les GET sont ouverts à tout compte connecté ; POST, PUT et DELETE
 sont refusés à `Reader` (403), qui lit sans écrire. `write_roles` restreint
 POST et PUT pour une table : `()` les ferme à tous (hunter_performance,
 ADR-035). La matrice complète des droits (ADR-027) n'est pas codée.
+
+Clé d'API (ADR-028, points 4 à 6, fiche API3) : posée sur le routeur
+entier, elle est vérifiée avant le jeton ; absente ou inconnue -> 401.
 ============================================================================
 """
 
@@ -48,6 +51,7 @@ from pydantic import ValidationError
 from sqlmodel import Session, SQLModel
 
 from ..conf.database import get_session
+from ..utils.api_keys import require_api_key
 from ..utils.exceptions import ConflictError, NotFoundError
 from ..utils.roles import ALL_ROLES, WRITER_ROLES, require_roles
 from ..services.base_service import BaseService
@@ -78,7 +82,7 @@ def build_crud_router(
     update_model: Optional[Type[SQLModel]] = None,
     write_roles: Sequence[str] = WRITER_ROLES,
 ) -> APIRouter:
-    router = APIRouter(prefix=prefix, tags=[tag])
+    router = APIRouter(prefix=prefix, tags=[tag], dependencies=[Depends(require_api_key)])
 
     can_read = [Depends(require_roles(*ALL_ROLES))]
     can_write = [Depends(require_roles(*write_roles))]

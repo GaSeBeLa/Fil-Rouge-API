@@ -49,6 +49,13 @@ Sans `.env`, l'API se connecte par défaut à `postgresql+psycopg2://postgres:po
 l'API **refuse de démarrer**. Avec Docker, elle vient de `docker/.env` (modèle :
 `docker/.env.exemple`) ; en local, ajoute-la au `.env` de `API/`.
 
+🔑 **`API_KEY_<NOM>`** (ADR-028, points 4 à 6) : **une clé par programme** qui appelle
+l'API — aujourd'hui `API_KEY_INTERNAL` (l'API interne) et `API_KEY_APP_BACKEND` (le
+back de l'app). L'API lit toutes les variables `API_KEY_*` ; **aucune** clé, ou une
+clé de moins de 32 caractères : elle **refuse de démarrer**. Une clé de plus = une
+ligne dans `docker/.env` **et** une dans `docker-compose.yml`. La valeur se remet au
+responsable du programme hors du dépôt et hors de Discord.
+
 ## Lancer l'API
 
 ### Avec Docker — recommandé, rien à installer
@@ -112,7 +119,9 @@ un prix à virgule et un champ obligatoire manquant rendent `422`.
 
 **Au 2026-10-12** : **258 passed, 7 skipped** (fiche API1) — 7 tests de connexion
 ajoutés ; les 7 sautés sont ceux du seed, qui se lancent depuis `API/`, hors conteneur.
-Puis **265 passed, 7 skipped** (fiche API2) : 7 tests de rôles.
+Puis **265 passed, 7 skipped** (fiche API2) : 7 tests de rôles ; puis **274 passed,
+7 skipped** (fiche API3) : 9 tests de clés d'API. La fixture automatique
+`api_test_key` pose une clé de test ; `client` et `db_client` l'envoient d'office.
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -129,6 +138,7 @@ de droits utilise `principal_as(<rôle>)`, ou retire ce remplacement.
 | [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 pour les 18 ressources |
 | [`integration/test_auth.py`](tests/integration/test_auth.py) | connexion : jeton rendu ; mauvais mot de passe, compte inactif, jeton expiré ou forgé → `401` ; compte désactivé **après** l'émission du jeton → `401` (relu en base) |
 | [`test_roles.py`](tests/test_roles.py), [`integration/test_roles_db.py`](tests/integration/test_roles_db.py) | sans jeton → `401` ; `Reader` lit (`200`) mais n'écrit pas (`403`) ; `Admin` crée (`201`) ; `/hunter-performances` fermé en écriture ; `/` et `/auth/login` ouverts |
+| [`test_api_keys.py`](tests/test_api_keys.py) | sans clé ou clé inconnue → `401` ; bonne clé et bon jeton → `200` ; bonne clé sans jeton → `401` ; `/` sans clé ; démarrage refusé sans clé ou clé trop courte |
 | [`test_remuneration.py`](tests/test_remuneration.py) | les **55 cas** de [`10_calcul_remuneration_chasseur.feature`](../user-stories/10_calcul_remuneration_chasseur.feature), lignes d'exemples recopiées telles quelles |
 
 **Calcul de la rémunération** : [`services/remuneration.py`](src/app/services/remuneration.py)
@@ -240,8 +250,12 @@ Soit **91 opérations** (compté dans `/openapi.json`).
   `401` ; `GET` ouvert à tout compte connecté ; `POST`, `PUT`, `DELETE` refusés à
   `Reader` (`403`) ; `POST` et `PUT /hunter-performances` refusés **à tous** (ADR-035).
   La matrice complète des droits (ADR-027) n'est pas codée.
-* Ouverts sans jeton : `GET /` et `POST /auth/login`.
-* Swagger : bouton **Authorize**, coller le jeton seul (sans `Bearer`).
+* 🔑 **Toutes les routes exigent aussi l'en-tête `X-API-Key`** (fiche API3),
+  `/auth/login` compris : clé absente ou inconnue → `401`. La clé dit quel programme
+  appelle, le jeton quelle personne agit : il faut les deux.
+* Ouverts sans clé ni jeton : `GET /` seul. `POST /auth/login` : la clé, pas de jeton.
+* Swagger : bouton **Authorize**, deux champs — `APIKeyHeader` (la clé) et
+  `HTTPBearer` (le jeton seul, sans `Bearer`).
 
 ### Ce qu'un test doit attendre
 

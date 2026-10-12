@@ -12,6 +12,8 @@ COMMENT LIRE CE FICHIER
   base : son rôle et son activation du moment font foi, pas ce que disait
   le jeton à son émission (ADR-052, décision 3). Un compte désactivé perd
   donc ses droits au prochain appel (ADR-049).
+- Toutes ces routes exigent aussi la clé d'API du programme appelant
+  (`X-API-Key`, ADR-028 points 4 à 6, utils/api_keys.py), login compris.
 - GET /auth/me : le compte du jeton présenté. Seule route protégée pour
   l'instant ; le branchement sur les routes CRUD est la fiche API2.
 ============================================================================
@@ -27,6 +29,7 @@ from ..conf.database import get_session
 from ..models import User, UserPublic
 from ..repositories.user_repository import UserRepository
 from ..services.user_service import UserService
+from ..utils.api_keys import require_api_key
 from ..utils.security import (
     ACCESS_TOKEN_TTL,
     InvalidTokenError,
@@ -34,7 +37,7 @@ from ..utils.security import (
     decode_access_token,
 )
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(require_api_key)])
 
 _service = UserService(UserRepository())
 

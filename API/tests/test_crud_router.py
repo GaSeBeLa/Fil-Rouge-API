@@ -33,7 +33,7 @@ from src.app.services.base_service import BaseService
 from src.app.utils.exceptions import ConflictError, NotFoundError
 from src.app.utils.roles import ADMIN, get_principal
 
-from .conftest import principal_as
+from .conftest import TEST_HEADERS, principal_as
 
 NOT_FOUND = "Chose introuvable"
 CONFLICT = "Contrainte violée"
@@ -57,7 +57,7 @@ def api(service: MagicMock) -> TestClient:
     app.include_router(build_crud_router(service=service, prefix="/things", tag="things", response_model=Thing))
     app.dependency_overrides[get_session] = lambda: None
     app.dependency_overrides[get_principal] = principal_as(ADMIN)  # fiche API2
-    return TestClient(app)
+    return TestClient(app, headers=TEST_HEADERS)  # fiche API3
 
 
 def test_list_returns_200(api: TestClient, service: MagicMock):

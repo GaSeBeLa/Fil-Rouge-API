@@ -42,7 +42,7 @@ from src.app.conf.database import DATABASE_URL, get_session
 from src.app.main import app
 from src.app.utils.roles import ADMIN, get_principal
 
-from ..conftest import principal_as
+from ..conftest import TEST_HEADERS, principal_as
 
 TEST_DB = os.getenv("TEST_POSTGRES_DB", "fil_rouge_test")
 
@@ -101,7 +101,7 @@ def db_client(db_session: Session, fast_hasher: PasswordHasher) -> Iterator[Test
     app.dependency_overrides[get_session] = override_get_session
     app.dependency_overrides[get_principal] = principal_as(ADMIN)
     try:
-        yield TestClient(app)
+        yield TestClient(app, headers=TEST_HEADERS)
     finally:
         app.dependency_overrides.pop(get_session, None)
         app.dependency_overrides.pop(get_principal, None)

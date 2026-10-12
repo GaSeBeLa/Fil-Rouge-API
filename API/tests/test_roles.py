@@ -22,7 +22,7 @@ from src.app.routes.crud_router import build_crud_router
 from src.app.services.base_service import BaseService
 from src.app.utils.roles import ADMIN, READER, get_principal
 
-from .conftest import principal_as
+from .conftest import TEST_HEADERS, principal_as
 
 
 class Thing(SQLModel):
@@ -54,11 +54,11 @@ def test_app(service: MagicMock) -> FastAPI:
 
 def client_as(app: FastAPI, role: str) -> TestClient:
     app.dependency_overrides[get_principal] = principal_as(role)
-    return TestClient(app)
+    return TestClient(app, headers=TEST_HEADERS)
 
 
 def test_no_token_returns_401(test_app: FastAPI, service: MagicMock):
-    client = TestClient(test_app)  # get_principal non remplacé : vraie chaîne
+    client = TestClient(test_app, headers=TEST_HEADERS)  # get_principal non remplacé : vraie chaîne
 
     assert client.get("/things").status_code == 401
     assert client.post("/things", json={"name": "b"}).status_code == 401
@@ -104,5 +104,6 @@ def test_health_and_login_stay_open():
 
     client = TestClient(app)
     assert client.get("/").status_code == 200
-    # Corps invalide : 422, pas 401 — la route ne demande aucun jeton.
-    assert client.post("/auth/login", json={}).status_code == 422
+    # Corps invalide : 422, pas 401 — la route ne demande aucun jeton
+    # (mais la clé d'API, oui : fiche API3).
+    assert client.post("/auth/login", json={}, headers=TEST_HEADERS).status_code == 422
