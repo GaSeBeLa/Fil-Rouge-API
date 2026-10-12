@@ -854,6 +854,9 @@ CREATE TABLE sale (
                     CHECK (sale_origin IN ('hunter', 'client_alone')),
     id_mandate      INTEGER NOT NULL UNIQUE REFERENCES mandate(id) ON DELETE RESTRICT,
     id_estate       INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT,
+    -- P37 (ADR-053, 2026-10-12) : un bien n'est vendu qu'une fois. Une
+    --   revente plus tard serait une nouvelle annonce, donc un autre estate.
+    CONSTRAINT uq_sale_estate UNIQUE (id_estate),
     -- Q-REM-13 (2026-10-05) : la grille d'honoraires qui a donné fees_amount.
     --   Le montant reste figé ici ; la clé dit d'où il vient.
     --   TODO — que ce soit bien la grille en vigueur à la date de l'acte

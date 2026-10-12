@@ -775,6 +775,15 @@ def test_sale_unknown_fees_grid_returns_409(db_client: TestClient):
     assert db_client.post("/sales", json=payload).status_code == 409
 
 
+def test_sale_second_sale_of_same_estate_returns_409(db_client: TestClient):
+    # P37 (ADR-053) : un bien n'est vendu qu'une fois, même sur un autre mandat.
+    payload = sale_payload(db_client)
+    first = db_client.post("/sales", json=payload)
+    assert first.status_code == 201, first.text
+    # Même bien, même grille ; seul le mandat change (sale_payload créerait un autre bien).
+    assert db_client.post("/sales", json={**payload, "id_mandate": 2}).status_code == 409
+
+
 # --- hunter_performance ------------------------------------------------------
 
 
