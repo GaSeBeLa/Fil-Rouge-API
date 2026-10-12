@@ -124,7 +124,9 @@ Puis **292 passed, 7 skipped** (fiche API4) : 18 tests de contrôles d'entrée. 
 7 skipped** (fiche API3) : 9 tests de clés d'API. La fixture automatique
 `api_test_key` pose une clé de test ; `client` et `db_client` l'envoient d'office.
 Puis **308 passed, 7 skipped** (fiche API5) : 16 tests de versions figées et
-d'ordre du paiement.
+d'ordre du paiement. Puis **321 passed, 7 skipped** : correctifs de la relecture de
+la série (lecture sans rejuger P16/P29, connexion au chronomètre, `NaN`, `/users`,
+paiement pas à pas).
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -259,7 +261,9 @@ Soit **91 opérations** (compté dans `/openapi.json`).
 * 🔑 **Toutes les routes exigent aussi l'en-tête `X-API-Key`** (fiche API3),
   `/auth/login` compris : clé absente ou inconnue → `401`. La clé dit quel programme
   appelle, le jeton quelle personne agit : il faut les deux.
-* Ouverts sans clé ni jeton : `GET /` seul. `POST /auth/login` : la clé, pas de jeton.
+* Ouverts sans clé ni jeton : `GET /`, et la doc Swagger (`/docs`, `/redoc`, `/openapi.json`),
+  laissée ouverte exprès pour que l'équipe teste dans le navigateur ; elle ne montre
+  aucune donnée. `POST /auth/login` : la clé, pas de jeton.
 * Swagger : bouton **Authorize**, deux champs — `APIKeyHeader` (la clé) et
   `HTTPBearer` (le jeton seul, sans `Bearer`).
 
@@ -305,8 +309,13 @@ encore référencé échoue toujours en `409`.
 
 ## Limites connues
 
-* Droits : seul le mécanisme est codé (`Reader` lit sans écrire, ADR-028) ; tout autre
-  compte connecté peut tout faire tant que la matrice d'ADR-027 n'est pas tranchée.
+* Droits : seul le mécanisme est codé (`Reader` lit sans écrire, ADR-028 ; `/users` en
+  écriture à `Admin` seul) ; tout autre compte connecté peut tout faire tant que la
+  matrice d'ADR-027 n'est pas tranchée.
+* TODO — pas de verrou entre un contrôle et l'écriture qui le suit (versions figées,
+  ordre du paiement) : deux `PUT` simultanés sur le même paiement lisent tous deux
+  `'announced'`, et le dernier écrit gagne. Correctif : `SELECT … FOR UPDATE` dans le
+  repository avant le contrôle (relecture de la série API).
 * Les contraintes `CHECK` du schéma SQL (ex. `typology`, `estate_type`, `floor`, `gender`,
   `country_iso`) ne sont pas répliquées côté Pydantic : une valeur hors liste est acceptée
   par FastAPI puis rejetée par PostgreSQL avec une erreur `409` peu explicite.

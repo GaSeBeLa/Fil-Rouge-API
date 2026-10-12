@@ -81,7 +81,7 @@ def health_check():
     return {"status": "ok", "message": "L'API Fil Rouge Immobilier tourne."}
 
 
-# ADR-052 : connexion par jeton JWT ; les routes CRUD ne l'exigent pas encore (API2).
+# ADR-052 : connexion par jeton JWT, exigé par toutes les routes CRUD (fiche API2).
 app.include_router(auth_router.router)
 app.include_router(user_router.router)
 app.include_router(role_router.router)
