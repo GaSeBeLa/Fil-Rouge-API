@@ -1,8 +1,80 @@
+"""
+payment_service.py — Les règles d'écriture d'un paiement.
+
+============================================================================
+COMMENT LIRE CE FICHIER
+============================================================================
+Deux contrôles qu'aucun CHECK de la base ne peut tenir, car ils comparent
+la ligne à autre chose qu'elle-même :
+
+- ADR-038 — l'ordre du statut. Un paiement n'avance que dans un sens :
+  'announced' -> 'scheduled' -> 'paid'. 'refused' (droit fermé, ADR-024)
+  n'est possible que depuis 'announced', et ne se rouvre pas. Le PUT est
+  comparé au statut EN BASE : un retour en arrière -> 409.
+- P33 — le taux final. Il est recalculé depuis les taux stockés (base,
+  ancienneté, performance) et les bornes de la version des réglages citée
+  (`taux_final` de remuneration.py) ; s'il diffère -> 409. Complète
+  ADR-033, Décision 6.
+
+Un refus ne porte aucun taux (chk_refused) : rien à recalculer. Un terme
+manquant, ou une version des réglages inconnue, est laissé à la base
+(chk_refused, clé étrangère), qui répond déjà 409.
+============================================================================
+"""
+
+from sqlmodel import Session
+
 from ..models import Payment
+from ..repositories.hunter_rate_parameters_repository import HunterRateParametersRepository
 from ..repositories.payment_repository import PaymentRepository
+from ..utils.exceptions import ConflictError
 from .base_service import BaseService
+from .parametrage_service import modulation
+from .remuneration import taux_final
+
+REFUSED = "refused"
+# ADR-038 : les statuts qu'un paiement peut prendre depuis chacun.
+NEXT_STATUSES: dict[str, frozenset[str]] = {
+    "announced": frozenset({"announced", "scheduled", "paid", REFUSED}),
+    "scheduled": frozenset({"scheduled", "paid"}),
+    "paid": frozenset({"paid"}),
+    REFUSED: frozenset({REFUSED}),
+}
 
 
 class PaymentService(BaseService[Payment]):
-    def __init__(self, repository: PaymentRepository):
+    def __init__(self, repository: PaymentRepository, rate_parameters: HunterRateParametersRepository):
         super().__init__(repository, not_found_detail="Versement introuvable")
+        self.rate_parameters = rate_parameters
+
+    def create(self, session: Session, item: Payment) -> Payment:
+        self._check_final_rate(session, item)
+        return super().create(session, item)
+
+    def replace(self, session: Session, item_id: int, data: Payment) -> Payment:
+        existing = self.get_by_id(session, item_id)
+        if data.status not in NEXT_STATUSES.get(existing.status, frozenset()):
+            raise ConflictError(
+                f"Statut '{existing.status}' -> '{data.status}' refusé : un paiement va de "
+                "'announced' à 'scheduled' puis 'paid', ou de 'announced' à 'refused' (ADR-038)."
+            )
+        self._check_final_rate(session, data)
+        return self.repository.replace(session, existing, data)
+
+    def _check_final_rate(self, session: Session, payment: Payment) -> None:
+        """P33 : le taux final stocké doit être celui que les taux stockés donnent."""
+        if payment.status == REFUSED or payment.id_hunter_rate_parameters is None:
+            return
+        base, seniority, final = payment.base_rate, payment.seniority_rate, payment.final_rate
+        performance = payment.performance_rate
+        if base is None or seniority is None or performance is None or final is None:
+            return
+        settings = self.rate_parameters.get_by_id(session, payment.id_hunter_rate_parameters)
+        if settings is None:
+            return
+        expected = taux_final(base, seniority, performance, modulation(settings))
+        if final != expected:
+            raise ConflictError(
+                f"Taux final {final} incohérent : les taux stockés et les réglages "
+                f"{payment.id_hunter_rate_parameters} donnent {expected} (P33)."
+            )

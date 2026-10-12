@@ -606,8 +606,9 @@ def payment_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
 
 @pytest.mark.parametrize("rate", ["0.20", "0.60"])
 def test_payment_final_rate_at_bounds_is_accepted(db_client: TestClient, rate: str):
-    # Q-REM-19 (R21) : 20 % et 60 % sont permis, bornes comprises.
-    response = db_client.post("/payments", json=payment_payload(db_client, final_rate=rate))
+    # Q-REM-19 (R21) : 20 % et 60 % sont permis, bornes comprises. Le taux de
+    # base suit, sinon P33 (taux recalculé, fiche API5) refuserait l'écart.
+    response = db_client.post("/payments", json=payment_payload(db_client, base_rate=rate, final_rate=rate))
     assert response.status_code == 201, response.text
 
 
@@ -717,11 +718,15 @@ def test_payment_paid_in_the_future_returns_409(db_client: TestClient):
     assert db_client.post("/payments", json=payload).status_code == 409
 
 
-@pytest.mark.parametrize(("field", "value"), [("seniority_rate", "0.1200"), ("performance_rate", "-0.2500")])
-def test_payment_rate_beyond_v2_bounds_is_accepted(db_client: TestClient, field: str, value: str):
+@pytest.mark.parametrize(
+    ("field", "value", "final"),
+    [("seniority_rate", "0.1200", "0.3360"), ("performance_rate", "-0.2500", "0.2250")],
+)
+def test_payment_rate_beyond_v2_bounds_is_accepted(db_client: TestClient, field: str, value: str, final: str):
     # Q-REM-05 : +10 % et ±20 % sont des paramètres (REGLES-CALCUL l. 59),
-    # plus des CHECK. 0,12 et -0,25 étaient refusés en v2.
-    response = db_client.post("/payments", json=payment_payload(db_client, **{field: value}))
+    # plus des CHECK. 0,12 et -0,25 étaient refusés en v2. Le taux final est
+    # celui que P33 recalcule : 0,30 × (1 + 0,12) et 0,30 × (1 - 0,25).
+    response = db_client.post("/payments", json=payment_payload(db_client, **{field: value, "final_rate": final}))
     assert response.status_code == 201, response.text
 
 

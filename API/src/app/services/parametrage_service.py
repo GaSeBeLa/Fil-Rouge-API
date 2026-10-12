@@ -110,7 +110,7 @@ def _performance(r: HunterRateParameters) -> ParametresPerformance:
     )
 
 
-def _modulation(r: HunterRateParameters) -> ParametresModulation:
+def modulation(r: HunterRateParameters) -> ParametresModulation:
     return ParametresModulation(
         taux_par_annee=r.seniority_rate_per_year,
         plafond_anciennete=r.seniority_cap,
@@ -151,5 +151,5 @@ class ParametrageService:
             honoraires=_honoraires(self.fees_repository.list_all(session)),
             bareme=_bareme(self.scale_repository.list_all(session)),
             performance=_performance(reglages),
-            modulation=_modulation(reglages),
+            modulation=modulation(reglages),
         )

@@ -123,6 +123,8 @@ Puis **292 passed, 7 skipped** (fiche API4) : 18 tests de contrôles d'entrée. 
 **265 passed, 7 skipped** (fiche API2) : 7 tests de rôles ; puis **274 passed,
 7 skipped** (fiche API3) : 9 tests de clés d'API. La fixture automatique
 `api_test_key` pose une clé de test ; `client` et `db_client` l'envoient d'office.
+Puis **308 passed, 7 skipped** (fiche API5) : 16 tests de versions figées et
+d'ordre du paiement.
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -141,6 +143,7 @@ de droits utilise `principal_as(<rôle>)`, ou retire ce remplacement.
 | [`test_roles.py`](tests/test_roles.py), [`integration/test_roles_db.py`](tests/integration/test_roles_db.py) | sans jeton → `401` ; `Reader` lit (`200`) mais n'écrit pas (`403`) ; `Admin` crée (`201`) ; `/hunter-performances` fermé en écriture ; `/` et `/auth/login` ouverts |
 | [`test_api_keys.py`](tests/test_api_keys.py) | sans clé ou clé inconnue → `401` ; bonne clé et bon jeton → `200` ; bonne clé sans jeton → `401` ; `/` sans clé ; démarrage refusé sans clé ou clé trop courte |
 | [`test_entrees.py`](tests/test_entrees.py) | `422` avant la base : email mal formé (P2), plus de chambres que de pièces (P16), réglages du taux incohérents — poids ≠ 1, plancher > plafond, paliers mal formés (P29), détail du calcul mal formé (P32) |
+| [`integration/test_versions_paiement.py`](tests/integration/test_versions_paiement.py) | grille d'honoraires, ligne de barème, réglages du taux : citée → `PUT` `409`, non citée → `200` (ADR-030, ADR-034) ; statut du paiement : en avant → `200`, retour en arrière ou refus après `'announced'` → `409` (ADR-038) ; taux final faux → `409` (P33) |
 | [`test_remuneration.py`](tests/test_remuneration.py) | les **55 cas** de [`10_calcul_remuneration_chasseur.feature`](../user-stories/10_calcul_remuneration_chasseur.feature), lignes d'exemples recopiées telles quelles |
 
 **Calcul de la rémunération** : [`services/remuneration.py`](src/app/services/remuneration.py)
@@ -271,6 +274,7 @@ Mesuré le 2026-10-02 contre l'API qui tourne (✅), ou lu dans le code (📖) :
 | id non entier (`/hunters/abc`) | `422` | erreur Pydantic `int_parsing` ✅ |
 | corps invalide au `POST` / `PUT` (type faux, champ obligatoire manquant, prix à virgule) | `422` | erreur Pydantic, ex. `int_from_float`, `missing` ✅ |
 | règle d'une seule ligne violée (fiche API4) : email (P2), chambres > pièces (P16), réglages du taux (P29), détail du calcul (P32) | `422` | `value_error`, message qui cite le `P<n>` ✅ |
+| version citée modifiée (ADR-030, ADR-034), statut du paiement en arrière (ADR-038), taux final faux (P33) — fiche API5 | `409` | message qui cite l'ADR ou le `P33` ✅ |
 | contrainte violée au `POST` / `PUT` | `409` | `"Contrainte violée (valeur en double ou référence inexistante)."` ✅ |
 | `DELETE` d'une ligne encore référencée | `409` | `"Suppression impossible : cette ligne est encore référencée ailleurs."` 📖 |
 
