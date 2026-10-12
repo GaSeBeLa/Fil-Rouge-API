@@ -171,8 +171,16 @@ CREATE TABLE "user" (
     email        VARCHAR(150) NOT NULL UNIQUE,
     password     VARCHAR(255) NOT NULL,
     is_activated BOOLEAN NOT NULL DEFAULT FALSE,
-    id_role      INTEGER NOT NULL REFERENCES role(id) ON DELETE RESTRICT
+    id_role      INTEGER NOT NULL REFERENCES role(id) ON DELETE RESTRICT,
+
+    -- P2 (ADR-053) : une forme d'email, sans viser la RFC entière ; l'API
+    -- validera le détail (EmailStr).
+    CONSTRAINT ck_user_email_format
+        CHECK (email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$')
 );
+
+-- P2 (ADR-053) : un email ne se répète pas, à la majuscule près.
+CREATE UNIQUE INDEX uq_user_email_lower ON "user" (lower(email));
 
 
 -- ============================================================================
