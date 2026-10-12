@@ -157,3 +157,56 @@ def test_p12_mandate_on_another_clients_request_is_refused(db_session: Session):
 
 def test_p12_mandate_on_own_request_is_accepted(db_session: Session):
     run(db_session, UNSIGNED_MANDATE, ref="P12-B", client=7)
+
+
+# --- P13 : le renouvellement ne contourne plus l'exclusivité -----------------
+
+# Client 7, demande 1, chasseur 1 ; son mandat repris (1) est clos et ne
+# bloque rien. Le parent est exclusif, du 2031-01-01 au 2031-07-01.
+SIGNED_MANDATE = (
+    "INSERT INTO mandate (reference, status, signature_date, ends_at, is_exclusive, "
+    "id_hunter, id_client, id_search_request, id_mandate_parent) "
+    "VALUES (:ref, 'active', :signed, (CAST(:signed AS date) + INTERVAL '6 months')::date, "
+    ":exclusive, :hunter, :client, :request, :parent) RETURNING id"
+)
+
+
+def exclusive_parent(db_session: Session) -> int:
+    return run(
+        db_session, SIGNED_MANDATE,
+        ref="P13-PARENT", signed="2031-01-01", exclusive=True, hunter=1, client=7, request=1, parent=None,
+    ).scalar_one()
+
+
+def test_p13_renewal_in_the_middle_of_an_exclusive_is_refused(db_session: Session):
+    parent = exclusive_parent(db_session)
+    refused(
+        db_session, SIGNED_MANDATE, match="U02",
+        ref="P13-MILIEU", signed="2031-03-01", exclusive=True, hunter=2, client=7, request=1, parent=parent,
+    )
+
+
+def test_p13_renewal_at_term_is_accepted(db_session: Session):
+    parent = exclusive_parent(db_session)
+    run(
+        db_session, SIGNED_MANDATE,
+        ref="P13-ECHEANCE", signed="2031-07-01", exclusive=True, hunter=1, client=7, request=1, parent=parent,
+    )
+
+
+def test_p13_mandate_as_its_own_parent_is_refused(db_session: Session):
+    parent = exclusive_parent(db_session)
+    refused(
+        db_session,
+        "UPDATE mandate SET id_mandate_parent = id WHERE id = :id",
+        match="chk_mandate_not_own_parent",
+        id=parent,
+    )
+
+
+def test_p13_parent_of_another_client_is_refused(db_session: Session):
+    parent = exclusive_parent(db_session)
+    refused(
+        db_session, SIGNED_MANDATE, match="fk_mandate_parent_same_client",
+        ref="P13-AUTRE", signed="2031-07-01", exclusive=False, hunter=3, client=8, request=2, parent=parent,
+    )

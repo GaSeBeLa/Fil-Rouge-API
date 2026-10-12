@@ -507,6 +507,14 @@ CREATE TABLE mandate (
         FOREIGN KEY (id_search_request, id_client)
         REFERENCES search_request (id, id_client) ON DELETE RESTRICT,
 
+    -- P13 (ADR-053) : un mandat n'est pas son propre parent, et son parent
+    -- est un mandat du même client.
+    CONSTRAINT chk_mandate_not_own_parent CHECK (id_mandate_parent <> id),
+    CONSTRAINT uq_mandate_id_client UNIQUE (id, id_client),
+    CONSTRAINT fk_mandate_parent_same_client
+        FOREIGN KEY (id_mandate_parent, id_client)
+        REFERENCES mandate (id, id_client) ON DELETE RESTRICT,
+
     -- 'canceled' accepte un mandat jamais signé : un client peut renoncer
     -- avant de signer (Q-MAN-07). Les autres statuts restent stricts.
     CONSTRAINT chk_status_signature
@@ -554,8 +562,12 @@ CREATE TABLE mandate (
 --   Renouvellement (Q-MAN-02) : signé à l'échéance, il touche la date de fin
 --   de son parent ('[]'). Le parent et l'enfant sont donc exclus l'un pour
 --   l'autre, dans les deux sens : à la création de l'enfant, et à la mise à
---   jour du parent. IS DISTINCT FROM, jamais <> : sans parent, <> vaut NULL
---   et le trigger ne bloquerait plus rien.
+--   jour du parent. Mais SEULEMENT si l'enfant est signé à l'échéance du
+--   parent (ADR-053, P13, 2026-10-12) : sinon, un mandat d'un autre chasseur
+--   déclaré « renouvellement » passait en plein milieu d'un exclusif. Un
+--   renouvellement signé avant l'échéance est refusé, comme le veut
+--   00_…feature:40 (« à l'échéance »). COALESCE(…, FALSE) : sans parent, la
+--   comparaison vaut NULL, et NOT NULL laisserait passer la ligne.
 --
 --   L'ERRCODE 23514 est volontaire : il range le refus dans la classe 23
 --   (violation d'intégrité), que le harnais de tests adverses reconnaît.
@@ -574,8 +586,12 @@ BEGIN
            AND m.id_client  = NEW.id_client
            AND m.status NOT IN ('canceled', 'completed', 'lost')
            AND (m.is_exclusive OR NEW.is_exclusive)
-           AND m.id IS DISTINCT FROM NEW.id_mandate_parent   -- son parent
-           AND m.id_mandate_parent IS DISTINCT FROM NEW.id   -- ses enfants
+           -- son parent, seulement si NEW est signé à son échéance (P13)
+           AND NOT COALESCE(m.id = NEW.id_mandate_parent
+                            AND NEW.signature_date >= m.ends_at, FALSE)
+           -- son enfant, seulement s'il est signé à l'échéance de NEW (P13)
+           AND NOT COALESCE(m.id_mandate_parent = NEW.id
+                            AND m.signature_date >= NEW.ends_at, FALSE)
            AND m.signature_date IS NOT NULL AND m.ends_at IS NOT NULL
            AND daterange(m.signature_date, m.ends_at, '[]')
             && daterange(NEW.signature_date, NEW.ends_at, '[]')
