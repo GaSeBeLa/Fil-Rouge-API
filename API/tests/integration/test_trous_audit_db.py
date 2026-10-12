@@ -139,3 +139,21 @@ def test_p9_next_version_without_reason_is_refused(db_session: Session):
         "VALUES ('Maison', 300000, 7, 1, 1)",
         match="chk_criteria_change_reason",
     )
+
+
+# --- P12 : un mandat appartient au client de sa demande -----------------------
+
+# Pas encore signé : ni durée ni exclusivité à vérifier ici.
+UNSIGNED_MANDATE = (
+    "INSERT INTO mandate (reference, status, is_exclusive, id_hunter, id_client, id_search_request) "
+    "VALUES (:ref, 'pending_signature', FALSE, 1, :client, 1)"
+)
+
+
+def test_p12_mandate_on_another_clients_request_is_refused(db_session: Session):
+    # La demande 1 est celle du client 7.
+    refused(db_session, UNSIGNED_MANDATE, match="fk_mandate_request_same_client", ref="P12-A", client=8)
+
+
+def test_p12_mandate_on_own_request_is_accepted(db_session: Session):
+    run(db_session, UNSIGNED_MANDATE, ref="P12-B", client=7)

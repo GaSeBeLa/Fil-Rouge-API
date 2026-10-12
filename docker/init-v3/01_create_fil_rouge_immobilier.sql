@@ -330,7 +330,10 @@ CREATE TABLE search_request (
     -- réponse d'un chasseur ; seule 'confirmed' (demande reçue) peut ne pas
     -- en avoir encore (ADR-041, Décision 1).
     CONSTRAINT chk_search_request_hunter_after_confirmed
-        CHECK (status = 'confirmed' OR id_hunter IS NOT NULL)
+        CHECK (status = 'confirmed' OR id_hunter IS NOT NULL),
+    -- P12 (ADR-053) : cible de la clé composite de mandate, qui impose au
+    -- mandat le client de sa demande.
+    CONSTRAINT uq_search_request_id_client UNIQUE (id, id_client)
 );
 
 -- Versionnée : chaque révision pointe vers la précédente (id_previous_version).
@@ -496,6 +499,13 @@ CREATE TABLE mandate (
     -- mandat. Cela remplace D8, ADR-010 et ADR-013 (ADR à écrire) ; chk_renewed
     -- est retiré : l'ancien mandat n'a pas de parent à exiger.
     id_mandate_parent INTEGER UNIQUE REFERENCES mandate(id) ON DELETE RESTRICT,
+
+    -- P12 (ADR-053) : le mandat est celui du client de sa demande. Le
+    -- chasseur, lui, n'est pas comparé : la réaffectation est reportée
+    -- (Q-MAN-08).
+    CONSTRAINT fk_mandate_request_same_client
+        FOREIGN KEY (id_search_request, id_client)
+        REFERENCES search_request (id, id_client) ON DELETE RESTRICT,
 
     -- 'canceled' accepte un mandat jamais signé : un client peut renoncer
     -- avant de signer (Q-MAN-07). Les autres statuts restent stricts.
