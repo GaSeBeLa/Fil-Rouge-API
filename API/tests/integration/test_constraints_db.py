@@ -582,17 +582,40 @@ def rate_parameters(db_client: TestClient) -> int:
     return version.json()["id"]
 
 
+# Vente (fiche API8) : un mandat neuf du chasseur 1 pour la demande 1, actif
+# et signé le 2026-02-01 ; l'acte du 2026-03-01 tombe dans ses dates.
+SALE_MANDATE: dict[str, Any] = {
+    **MANDATE, "reference": "TEST-M-VENTE", "signature_date": "2026-02-01", "ends_at": "2026-08-01",
+}
+
+
+def offered_estate(db_client: TestClient, mandate_id: int, status: str = "accepted", reference: str = "TEST-0001") -> int:
+    """Un bien de la sélection de la demande 1, avec une offre sur ce mandat (P19, P27)."""
+    estate_id = selected_estate(db_client, MANDATE["id_search_request"], reference)
+    offer = {
+        "proposition_status": status,
+        "amount_proposition": None if status == "proposed" else 350000,
+        "id_hunter": HUNTER_ID,
+        "id_estate": estate_id,
+        "id_mandate": mandate_id,
+    }
+    response = db_client.post("/estate-proposed", json=offer)
+    assert response.status_code == 201, response.text
+    return estate_id
+
+
 def sale_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
-    """Une vente sur un bien neuf, pour le mandat 1 posé par 02."""
-    estate = post_as_hunter(db_client, "/estates", ESTATE)
-    assert estate.status_code == 201, estate.text
+    """Une vente 'hunter' sur un mandat neuf (SALE_MANDATE), après une offre acceptée (P27)."""
+    mandate = db_client.post("/mandates", json=SALE_MANDATE)
+    assert mandate.status_code == 201, mandate.text
+    mandate_id = mandate.json()["id"]
     payload: dict[str, Any] = {
         "signature_date": "2026-03-01",
         "purchase_amount": 354712,
         "fees_amount": "11867.80",  # 3 000 € + 2,5 % du prix
         "sale_origin": "hunter",
-        "id_mandate": 1,
-        "id_estate": estate.json()["id"],
+        "id_mandate": mandate_id,
+        "id_estate": offered_estate(db_client, mandate_id),
     }
     payload.update(overrides)
     if "id_parameters_fees" not in payload:
@@ -601,7 +624,7 @@ def sale_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
 
 
 def payment_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
-    """Un paiement annoncé, sur une vente neuve du mandat 1 posé par 02."""
+    """Un paiement annoncé, sur une vente neuve (sale_payload)."""
     sale = db_client.post("/sales", json=sale_payload(db_client))
     assert sale.status_code == 201, sale.text
     scale = db_client.post(
@@ -828,7 +851,9 @@ def test_sale_second_sale_of_same_estate_returns_409(db_client: TestClient):
     first = db_client.post("/sales", json=payload)
     assert first.status_code == 201, first.text
     # Même bien, même grille ; seul le mandat change (sale_payload créerait un autre bien).
-    assert db_client.post("/sales", json={**payload, "id_mandate": 2}).status_code == 409
+    # 'client_alone' : sans offre sur le mandat 2, P27 refuserait avant la base.
+    second = {**payload, "id_mandate": 2, "sale_origin": "client_alone"}
+    assert db_client.post("/sales", json=second).status_code == 409
 
 
 # --- hunter_performance ------------------------------------------------------

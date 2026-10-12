@@ -68,6 +68,14 @@ class BaseRepository(Generic[ModelType]):
         session.refresh(existing)
         return existing
 
+    def stage(self, session: Session, item: ModelType) -> None:
+        """
+        Prépare l'écriture de `item` sans valider : le commit suivant, celui
+        d'une autre ligne, l'écrit avec elle, et un refus de la base annule
+        les deux — une seule transaction (ADR-044, P28).
+        """
+        session.add(item)
+
     def save(self, session: Session, existing: ModelType) -> ModelType:
         """
         Persiste un objet déjà modifié en mémoire (mise à jour partielle),
