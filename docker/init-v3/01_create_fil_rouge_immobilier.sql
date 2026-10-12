@@ -801,7 +801,14 @@ CREATE TABLE visit (
     visit_date   DATE NOT NULL,
     visitor_type VARCHAR(10) NOT NULL CHECK (visitor_type IN ('hunter', 'client')),
     id_estate    INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT,
-    id_mandate   INTEGER NOT NULL REFERENCES mandate(id) ON DELETE RESTRICT
+    id_mandate   INTEGER NOT NULL REFERENCES mandate(id) ON DELETE RESTRICT,
+
+    -- P24 (ADR-053) : on n'enregistre que les visites FAITES, jamais une date
+    -- à venir. clock_timestamp(), pas now() : now() est l'heure du début de
+    -- la transaction. Un jour de marge : la date est celle de UTC, et une
+    -- visite faite le matin à Paris (UTC+1, UTC+2) porte déjà la date du jour.
+    CONSTRAINT chk_visit_not_in_future
+        CHECK (visit_date <= (clock_timestamp() AT TIME ZONE 'utc')::date + 1)
 
     -- TODO (déroulé 01 -> 02) — une visite ne peut pas précéder la signature
     --   du mandat. Testé : une visite datée 2025 sur un mandat signé en 2026

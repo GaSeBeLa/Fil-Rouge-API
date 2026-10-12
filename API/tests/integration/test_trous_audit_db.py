@@ -282,3 +282,22 @@ def test_p22_proposal_by_another_hunter_is_refused(db_session: Session):
 def test_p22_proposal_by_the_mandate_hunter_is_accepted(db_session: Session):
     estate = new_estate(db_session, "P22-B")
     run(db_session, NEW_PROPOSAL, hunter=2, estate=estate)
+
+
+# --- P24 : une visite enregistrée est une visite faite ------------------------
+
+NEW_VISIT = (
+    "INSERT INTO visit (visit_date, visitor_type, id_estate, id_mandate) "
+    "VALUES (CURRENT_DATE + :days, 'client', :estate, 13)"
+)
+
+
+def test_p24_visit_in_the_future_is_refused(db_session: Session):
+    estate = new_estate(db_session, "P24-A")
+    refused(db_session, NEW_VISIT, match="chk_visit_not_in_future", days=30, estate=estate)
+
+
+@pytest.mark.parametrize("days", [-3, 0])
+def test_p24_visit_done_is_accepted(db_session: Session, days: int):
+    estate = new_estate(db_session, f"P24-{days}")
+    run(db_session, NEW_VISIT, days=days, estate=estate)
