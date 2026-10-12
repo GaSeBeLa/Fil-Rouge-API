@@ -253,7 +253,8 @@ Soit **91 opérations** (compté dans `/openapi.json`).
   **relit le compte en base à chaque appel** : rôle et activation du moment font foi.
 * 🔒 **Toutes les routes CRUD exigent le jeton** (fiche API2, ADR-028) : sans jeton
   `401` ; `GET` ouvert à tout compte connecté ; `POST`, `PUT`, `DELETE` refusés à
-  `Reader` (`403`) ; `POST` et `PUT /hunter-performances` refusés **à tous** (ADR-035).
+  `Reader` (`403`) ; `POST` et `PUT /hunter-performances` refusés **à tous** (ADR-035) ;
+  `POST`, `PUT` et `DELETE /users` réservés à **`Admin`** (sinon un compte prenait celui d'un Admin).
   La matrice complète des droits (ADR-027) n'est pas codée.
 * 🔑 **Toutes les routes exigent aussi l'en-tête `X-API-Key`** (fiche API3),
   `/auth/login` compris : clé absente ou inconnue → `401`. La clé dit quel programme

@@ -17,10 +17,10 @@ from fastapi.testclient import TestClient
 from sqlmodel import SQLModel
 
 from src.app.conf.database import get_session
-from src.app.routes import hunter_performance_router
+from src.app.routes import hunter_performance_router, user_router
 from src.app.routes.crud_router import build_crud_router
 from src.app.services.base_service import BaseService
-from src.app.utils.roles import ADMIN, READER, get_principal
+from src.app.utils.roles import ADMIN, CLIENT, HUNTER, MANAGER, READER, get_principal
 
 from .conftest import TEST_HEADERS, principal_as
 
@@ -48,6 +48,7 @@ def test_app(service: MagicMock) -> FastAPI:
     app = FastAPI()
     app.include_router(build_crud_router(service=service, prefix="/things", tag="things", response_model=Thing))
     app.include_router(hunter_performance_router.router)
+    app.include_router(user_router.router)
     app.dependency_overrides[get_session] = lambda: None
     return app
 
@@ -97,6 +98,18 @@ def test_hunter_performance_closed_to_writes_even_for_admin(test_app: FastAPI):
 
     assert client.post("/hunter-performances", json=SCORE).status_code == 403
     assert client.put("/hunter-performances/1", json=SCORE).status_code == 403
+
+
+@pytest.mark.parametrize("role", [CLIENT, HUNTER, MANAGER, READER])
+def test_only_admin_writes_users(test_app: FastAPI, role: str):
+    # Sinon un Client changeait le mot de passe d'un Admin, puis se
+    # connectait à sa place (relecture de la série API).
+    client = client_as(test_app, role)
+    body = {"email": "x@exemple.fr", "password": "un-mot-de-passe-assez-long", "id_role": 1}
+
+    assert client.post("/users", json=body).status_code == 403
+    assert client.put("/users/1", json={"password": "un-autre-mot-de-passe"}).status_code == 403
+    assert client.delete("/users/1").status_code == 403
 
 
 def test_health_and_login_stay_open():

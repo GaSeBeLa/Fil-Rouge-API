@@ -35,7 +35,8 @@ Droits (ADR-028, fiche API2) : toutes les routes exigent un jeton (401
 sans). Les GET sont ouverts à tout compte connecté ; POST, PUT et DELETE
 sont refusés à `Reader` (403), qui lit sans écrire. `write_roles` restreint
 POST et PUT pour une table : `()` les ferme à tous (hunter_performance,
-ADR-035). La matrice complète des droits (ADR-027) n'est pas codée.
+ADR-035) ; `delete_roles`, de même pour DELETE (users : `Admin` seul). La
+matrice complète des droits (ADR-027) n'est pas codée.
 
 Clé d'API (ADR-028, points 4 à 6, fiche API3) : posée sur le routeur
 entier, elle est vérifiée avant le jeton ; absente ou inconnue -> 401.
@@ -85,12 +86,13 @@ def build_crud_router(
     read_model: Optional[Type[SQLModel]] = None,
     update_model: Optional[Type[SQLModel]] = None,
     write_roles: Sequence[str] = WRITER_ROLES,
+    delete_roles: Sequence[str] = WRITER_ROLES,
 ) -> APIRouter:
     router = APIRouter(prefix=prefix, tags=[tag], dependencies=[Depends(require_api_key)])
 
     can_read = [Depends(require_roles(*ALL_ROLES))]
     can_write = [Depends(require_roles(*write_roles))]
-    can_delete = [Depends(require_roles(*WRITER_ROLES))]
+    can_delete = [Depends(require_roles(*delete_roles))]
 
     out_model = read_model or response_model
     in_update_model = update_model or response_model
