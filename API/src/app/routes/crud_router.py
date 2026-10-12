@@ -67,9 +67,11 @@ def _validated(model: Type[SQLModel], item: SQLModel) -> SQLModel:
         return model.model_validate(item.model_dump(exclude_unset=True, warnings=False), context=INPUT_CONTEXT)
     except ValidationError as exc:
         # loc préfixé par "body", comme les 422 que FastAPI produit lui-même.
+        # include_input=False : le corps reçu n'est pas recopié dans la
+        # réponse ; un NaN qu'il contiendrait ne s'écrit pas en JSON (500).
         errors = [
             {**e, "loc": ("body", *e["loc"])}
-            for e in exc.errors(include_url=False, include_context=False)
+            for e in exc.errors(include_url=False, include_context=False, include_input=False)
         ]
         raise RequestValidationError(errors) from exc
 

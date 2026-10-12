@@ -9,6 +9,7 @@ avec un service factice qui rend ce qu'on lui donne. La route revalide le
 corps (`_validated`) exactement comme en production.
 """
 
+import json
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
@@ -175,6 +176,17 @@ def test_p29_floor_above_ceiling_returns_422(api: TestClient):
 )
 def test_p29_malformed_tiers_return_422(api: TestClient, tiers: list[dict[str, Any]]):
     assert api.post("/rates", json=rates(delay_tiers=tiers)).status_code == 422
+
+
+@pytest.mark.parametrize(
+    "tier",
+    [{"maximum": float("nan"), "note": 100}, {"maximum": 12, "note": float("nan")}, {"maximum": 12, "note": float("inf")}],
+)
+def test_p29_non_finite_number_returns_422(api: TestClient, tier: dict[str, Any]):
+    # Le JSON reçu accepte NaN et Infinity ; json.dumps les écrit tels quels.
+    body = json.dumps(rates(delay_tiers=[tier, {"maximum": None, "note": 0}]))
+    response = api.post("/rates", content=body, headers={"Content-Type": "application/json"})
+    assert response.status_code == 422
 
 
 # --- P32 : forme du détail du calcul --------------------------------------------

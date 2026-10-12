@@ -28,6 +28,7 @@ La grille de notes du taux de transformation (Q-JEF-05) n'est pas ici :
 elle relève du chantier API.
 """
 
+import math
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any, Optional
@@ -132,5 +133,8 @@ def _check_tiers(name: str, tiers: list[dict[str, Any]]) -> None:
 
 
 def _is_number(value: Any) -> bool:
-    # bool est un int en Python : on l'écarte exprès.
-    return isinstance(value, (int, float, Decimal)) and not isinstance(value, bool)
+    # bool est un int en Python : on l'écarte exprès. NaN et l'infini aussi :
+    # le JSON reçu les accepte, et NaN ne se compare pas (500 au lieu de 422).
+    if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)):
+        return False
+    return math.isfinite(value)
