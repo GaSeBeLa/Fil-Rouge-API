@@ -38,6 +38,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Signature des jetons de connexion (ADR-052) ; valeur dans docker/.env.
+      JWT_SECRET: ${JWT_SECRET}
     ports:
       - "8000:8000"   # Swagger : http://localhost:8000/docs
     volumes:

@@ -44,6 +44,11 @@ Sans `.env`, l'API se connecte par défaut à `postgresql+psycopg2://postgres:po
 
 ⚠️ `.env` n'est jamais commité (voir `.gitignore` à la racine du repo) — seul `.env exemple` l'est.
 
+🔑 **`JWT_SECRET`** (ADR-052) : le secret qui signe les jetons de connexion,
+**32 caractères au moins** (`openssl rand -hex 32`). Absente ou trop courte,
+l'API **refuse de démarrer**. Avec Docker, elle vient de `docker/.env` (modèle :
+`docker/.env.exemple`) ; en local, ajoute-la au `.env` de `API/`.
+
 ## Lancer l'API
 
 ### Avec Docker — recommandé, rien à installer
@@ -105,6 +110,9 @@ un prix à virgule et un champ obligatoire manquant rendent `422`.
 (chantier LOT, puis migrations 13 à 15 : `is_activated` et quartier → ville,
 `hunter_rate_parameters`, clé du paiement vers ses réglages).
 
+**Au 2026-10-12** : **258 passed, 7 skipped** (fiche API1) — 7 tests de connexion
+ajoutés ; les 7 sautés sont ceux du seed, qui se lancent depuis `API/`, hors conteneur.
+
 | Fichier | Ce qu'il prouve |
 |---|---|
 | [`test_health.py`](tests/test_health.py) | `/` répond |
@@ -114,6 +122,7 @@ un prix à virgule et un champ obligatoire manquant rendent `422`.
 | [`test_base_repository.py`](tests/test_base_repository.py) | `id` ignoré au `POST` ; `IntegrityError` → rollback + `ConflictError` |
 | [`test_user_models.py`](tests/test_user_models.py) | mot de passe ≥ 12 caractères ; `UserPublic` sans `password` |
 | [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 pour les 18 ressources |
+| [`integration/test_auth.py`](tests/integration/test_auth.py) | connexion : jeton rendu ; mauvais mot de passe, compte inactif, jeton expiré ou forgé → `401` ; compte désactivé **après** l'émission du jeton → `401` (relu en base) |
 | [`test_remuneration.py`](tests/test_remuneration.py) | les **55 cas** de [`10_calcul_remuneration_chasseur.feature`](../user-stories/10_calcul_remuneration_chasseur.feature), lignes d'exemples recopiées telles quelles |
 
 **Calcul de la rémunération** : [`services/remuneration.py`](src/app/services/remuneration.py)
@@ -211,6 +220,19 @@ Soit **91 opérations** (compté dans `/openapi.json`).
 | `/estate-search-requests` `/pictures` `/visits` `/sales` `/payments` |
 | `/commission-scales` `/parameters-fees` `/hunter-performances` |
 
+### Connexion — `/auth` (ADR-052)
+
+| Route | Ce qu'elle fait |
+|---|---|
+| `POST /auth/login` | `{"email", "password"}` → `{"access_token", "token_type": "bearer", "expires_in": 3600}` ; mauvais identifiants **ou** compte non activé : `401`, même message |
+| `GET /auth/me` | le compte du jeton (`Authorization: Bearer <jeton>`), sans `password` ; jeton absent, faux, expiré, ou compte désactivé depuis : `401` |
+
+* Jeton JWT `HS256`, valable **60 minutes**, sans jeton de rafraîchissement.
+* La dépendance `get_current_user` ([`auth_router.py`](src/app/routes/auth_router.py))
+  **relit le compte en base à chaque appel** : rôle et activation du moment font foi.
+* ⚠️ Les routes CRUD ne l'exigent **pas encore** (fiche API2).
+* Swagger : bouton **Authorize**, coller le jeton seul (sans `Bearer`).
+
 ### Ce qu'un test doit attendre
 
 Mesuré le 2026-10-02 contre l'API qui tourne (✅), ou lu dans le code (📖) :
@@ -251,7 +273,8 @@ encore référencé échoue toujours en `409`.
 
 ## Limites connues
 
-* Pas d'authentification : le client l'a mise hors périmètre (ADR-026).
+* Connexion en place (`/auth`, ADR-052), mais **aucune route CRUD ne l'exige encore** :
+  tout reste ouvert sans jeton jusqu'à la fiche API2.
 * Les contraintes `CHECK` du schéma SQL (ex. `typology`, `estate_type`, `floor`, `gender`,
   `country_iso`) ne sont pas répliquées côté Pydantic : une valeur hors liste est acceptée
   par FastAPI puis rejetée par PostgreSQL avec une erreur `409` peu explicite.

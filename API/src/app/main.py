@@ -41,6 +41,7 @@ une interface interactive (Swagger UI) pour tester chaque route sans rien
 from fastapi import FastAPI
 
 from .routes import (
+    auth_router,
     client_router,
     criteria_router,
     estate_proposed_router,
@@ -80,6 +81,8 @@ def health_check():
     return {"status": "ok", "message": "L'API Fil Rouge Immobilier tourne."}
 
 
+# ADR-052 : connexion par jeton JWT ; les routes CRUD ne l'exigent pas encore (API2).
+app.include_router(auth_router.router)
 app.include_router(user_router.router)
 app.include_router(role_router.router)
 app.include_router(hunter_router.router)
