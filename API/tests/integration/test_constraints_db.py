@@ -10,8 +10,8 @@ dans 02) et vérifie le code HTTP qui en sort :
 - estate : prix en euros entiers (INTEGER, Q-REM-01 du 2026-10-05),
   CHECK price >= 0, liste fermée de estate_type, NOT NULL, UNIQUE ;
   auteur connu de "user" (Q-ACC-09) ;
-- client : ck_client_address_all_or_nothing, tout-ou-rien (Q-SCH-01 :
-  ville seule refusée, adresse sans ville refusée), et
+- client : adresse, code postal, ville et pays obligatoires (ADR-053, P3),
+  adresse neutre d'un client rendu anonyme acceptée (ADR-049), et
   ck_client_marital_status_exclusive (marié ET pacsé refusé) ;
 - client, hunter, real_estate_manager : téléphone au format international
   d'ADR-007 (Q-PRO-08), numéro factice +33000000000 accepté (Q-MIG-07) ;
@@ -49,7 +49,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session  # mère de sqlmodel.Session, la fixture db_session
 
 ESTATE: dict[str, Any] = {
@@ -61,7 +61,16 @@ ESTATE: dict[str, Any] = {
 }
 
 
-def client_payload(user_id: int, **overrides: Any) -> dict[str, Any]:
+# Obligatoire sur client (ADR-053, P3).
+CLIENT_ADDRESS: dict[str, Any] = {
+    "address": "1 rue de la Paix",
+    "postal_code": "31000",
+    "town": "Toulouse",
+    "country_iso": "FR",
+}
+
+
+def person_fields(user_id: int, **overrides: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "id_user": user_id,
         "first_name": "Ada",
@@ -70,6 +79,10 @@ def client_payload(user_id: int, **overrides: Any) -> dict[str, Any]:
     }
     payload.update(overrides)
     return payload
+
+
+def client_payload(user_id: int, **overrides: Any) -> dict[str, Any]:
+    return person_fields(user_id, **{**CLIENT_ADDRESS, **overrides})
 
 
 # --- estate ------------------------------------------------------------------
@@ -131,16 +144,35 @@ def test_estate_known_author_is_accepted(db_client: TestClient):
 # --- client ------------------------------------------------------------------
 
 
-def test_client_town_without_address_returns_409(db_client: TestClient, create_user: Callable[[str], int]):
-    # Tout-ou-rien gardé (Q-SCH-01) : une adresse inconnue s'écrit
-    # 'non renseigné', comme pour les 18 clients repris (Q-SCH-18).
-    payload = client_payload(create_user("ville@exemple.fr"), town="Toulouse")
-    assert db_client.post("/clients", json=payload).status_code == 409
+# Adresse obligatoire (ADR-053, P3) : un champ manquant donne 422, avant la
+# base. Une adresse inconnue s'écrit 'non renseigné', comme pour les 18
+# clients repris (Q-SCH-18).
+@pytest.mark.parametrize("field", list(CLIENT_ADDRESS))
+def test_client_without_address_field_returns_422(
+    db_client: TestClient, create_user: Callable[[str], int], field: str
+):
+    payload = client_payload(create_user("sans-adresse@exemple.fr"))
+    del payload[field]
+    assert db_client.post("/clients", json=payload).status_code == 422
 
 
-def test_client_address_without_town_returns_409(db_client: TestClient, create_user: Callable[[str], int]):
-    payload = client_payload(create_user("adresse@exemple.fr"), address="1 rue de la Paix")
-    assert db_client.post("/clients", json=payload).status_code == 409
+def test_client_without_address_is_refused_by_the_database(db_session: Session):
+    # Le NOT NULL tient aussi sans l'API : un script SQL ne passe pas.
+    with pytest.raises(IntegrityError, match="violates not-null constraint"):
+        db_session.execute(
+            text(
+                "INSERT INTO client (id_user, first_name, last_name, phone_number) "
+                "VALUES (1, 'Ada', 'Lovelace', '+33600000000')"
+            )
+        )
+
+
+def test_client_anonymized_address_is_accepted(db_client: TestClient, create_user: Callable[[str], int]):
+    # Adresse neutre d'un client rendu anonyme (ADR-049, ADR-053) : elle doit
+    # passer tous les CHECK de la base.
+    neutral = {"address": "anonyme", "postal_code": "00000", "town": "anonyme", "country_iso": "FR"}
+    response = db_client.post("/clients", json=client_payload(create_user("anonyme@exemple.fr"), **neutral))
+    assert response.status_code == 201, response.text
 
 
 def test_client_married_and_pacs_returns_409(db_client: TestClient, create_user: Callable[[str], int]):
@@ -169,7 +201,8 @@ PERSON_FIELDS: dict[str, dict[str, Any]] = {
 
 
 def person_payload(endpoint: str, user_id: int, phone_number: str) -> dict[str, Any]:
-    return {**client_payload(user_id, phone_number=phone_number), **PERSON_FIELDS[endpoint]}
+    payload = client_payload if endpoint == "/clients" else person_fields
+    return {**payload(user_id, phone_number=phone_number), **PERSON_FIELDS[endpoint]}
 
 
 @pytest.mark.parametrize("endpoint", list(PERSON_FIELDS))

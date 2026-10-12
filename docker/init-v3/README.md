@@ -60,6 +60,7 @@ deux chemins mènent au même schéma. Décisions : registre
 ### Personnes — LOT7, `07_personnes.sql`
 
 - `ck_client_address_all_or_nothing` reste **tout-ou-rien** : l'`ALTER` qui l'assouplissait sort de `02` (Q-SCH-01). Les **18 clients** repris reçoivent `address = 'non renseigné'` et `postal_code = '00000'` ; leur ville est gardée (Q-SCH-18). Valeurs **factices**, à remplacer quand Jeff fournit les vraies (Q-JEF-26).
+  - Depuis le 2026-10-12 (ADR-053, P3, migration `23_client-adresse-obligatoire.sql`) : adresse, code postal, ville et pays sont **obligatoires** (`NOT NULL`) ; le tout-ou-rien et `ck_client_postal_code_needs_country` sont retirés.
 - **Téléphone** au format d'ADR-007 sur `client`, `hunter`, `real_estate_manager` : `ck_<table>_phone_number_format`, un `+`, puis 2 à 15 chiffres, le premier de 1 à 9, au plus un espace ou un tiret entre deux chiffres (« regex E.164 souple » d'ADR-007). `0612345678` est refusé (Q-PRO-08).
 - Les **4 téléphones `0000000000`** (3 clients et le manager placeholder, §3.6) deviennent **`+33000000000`** : valeur **factice**, au format (Q-MIG-07).
 - `estate_proposed.client_priority`, **`SMALLINT` de 1 à 5**, vide tant que le client n'a pas donné son avis : ferme D6 (Q-SCH-05, Jeff : Q-JEF-18).

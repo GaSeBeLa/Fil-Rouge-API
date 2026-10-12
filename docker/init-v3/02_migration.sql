@@ -43,9 +43,9 @@
 --   8. LOT7 (2026-10-07) — valeurs factices documentées, la colonne restant
 --      obligatoire (Q-JEF-26 : aucune donnée ancienne supprimée) :
 --      - 18 clients sans adresse ni code postal : address = 'non renseigné',
---        postal_code = '00000'. ck_client_address_all_or_nothing reste
---        tout-ou-rien (Q-SCH-01, Q-SCH-18) : l'ALTER qui l'assouplissait ici
---        est retiré. La ville, fournie par la source, est gardée.
+--        postal_code = '00000'. L'adresse est obligatoire dans 01 (ADR-053,
+--        P3) ; l'ALTER qui assouplissait l'ancien tout-ou-rien est retiré
+--        (Q-SCH-01, Q-SCH-18). La ville, fournie par la source, est gardée.
 --      - 4 téléphones manquants (3 clients + le manager placeholder) :
 --        '+33000000000', au format d'ADR-007 (Q-PRO-08, Q-MIG-07).
 --      - la colonne de la carte T s'écrit is_carte_t (Q-SCH-10).

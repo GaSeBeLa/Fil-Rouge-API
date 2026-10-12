@@ -27,15 +27,16 @@ class Client(SQLModel, table=True):
     # (ck_client_phone_number_format, Q-PRO-08).
     phone_number: str = Field(max_length=20)
     gender: Optional[str] = Field(default=None, max_length=10)
-    country_iso: Optional[str] = Field(default=None, max_length=2)
-    # Adresse, code postal et ville : tous ou aucun (Q-SCH-01). Les clients
-    # repris ont 'non renseigne' et '00000' (Q-SCH-18).
-    address: Optional[str] = Field(default=None, max_length=150)
+    # Adresse, code postal, ville et pays : obligatoires (ADR-053, P3). Les
+    # clients repris ont 'non renseigne' et '00000' (Q-SCH-18) ; un client
+    # rendu anonyme, 'anonyme', '00000', 'anonyme', 'FR' (ADR-049).
+    country_iso: str = Field(max_length=2)
+    address: str = Field(max_length=150)
     address_complement: Optional[str] = Field(default=None, max_length=150)
     # CHECK cote base : format par pays ; l'Eircode s'ecrit sans espace,
     # ex. D02X285 (ck_client_postal_code_format, Q-SCH-12).
-    postal_code: Optional[str] = Field(default=None, max_length=10)
-    town: Optional[str] = Field(default=None, max_length=100)
+    postal_code: str = Field(max_length=10)
+    town: str = Field(max_length=100)
     is_married: Optional[bool] = None
     is_civil_solidarity_pact: Optional[bool] = None
     nb_children: Optional[int] = None

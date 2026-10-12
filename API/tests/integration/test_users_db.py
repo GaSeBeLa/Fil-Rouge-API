@@ -96,7 +96,16 @@ def test_delete_user_referenced_by_client_returns_409(db_client: TestClient, cre
     user_id = create_user(EMAIL)
     client = db_client.post(
         "/clients",
-        json={"id_user": user_id, "first_name": "Ada", "last_name": "Lovelace", "phone_number": "+33600000000"},
+        json={
+            "id_user": user_id,
+            "first_name": "Ada",
+            "last_name": "Lovelace",
+            "phone_number": "+33600000000",
+            "address": "1 rue de la Paix",  # adresse obligatoire (ADR-053, P3)
+            "postal_code": "31000",
+            "town": "Toulouse",
+            "country_iso": "FR",
+        },
     )
     assert client.status_code == 201, client.text
 

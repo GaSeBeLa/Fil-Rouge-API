@@ -198,20 +198,20 @@ CREATE TABLE client (
                              CHECK (first_name = btrim(first_name) AND first_name <> ''),
     last_name                VARCHAR(80) NOT NULL
                              CHECK (last_name = btrim(last_name) AND last_name <> ''),
-    country_iso              CHAR(2)
+    country_iso              CHAR(2) NOT NULL                    -- ADR-053, P3
                              CHECK (country_iso IN ('FR','ES','DE','GB','IE','BE','NL','LU','IT','CH')),
     gender                   VARCHAR(10)
                              CHECK (gender IN ('male', 'female', 'other')),
     phone_number             VARCHAR(20) NOT NULL
                              CHECK (phone_number = btrim(phone_number) AND phone_number <> ''),
-    address                  VARCHAR(150)
+    address                  VARCHAR(150) NOT NULL               -- ADR-053, P3
                              CHECK (address = btrim(address) AND address <> ''),
     address_complement       VARCHAR(150)
                              CHECK (address_complement = btrim(address_complement)
                                     AND address_complement <> ''),
-    postal_code              VARCHAR(10)
+    postal_code              VARCHAR(10) NOT NULL                -- ADR-053, P3
                              CHECK (postal_code = btrim(postal_code) AND postal_code <> ''),
-    town                     VARCHAR(100)
+    town                     VARCHAR(100) NOT NULL               -- ADR-053, P3
                              CHECK (town = btrim(town) AND town <> ''),
     is_married               BOOLEAN,
     is_civil_solidarity_pact BOOLEAN,
@@ -222,13 +222,11 @@ CREATE TABLE client (
         CHECK (phone_number ~ '^\+[1-9]([ -]?[0-9]){1,14}$'),
     CONSTRAINT ck_client_marital_status_exclusive
         CHECK (NOT (is_married AND is_civil_solidarity_pact)),
-    -- Tout-ou-rien gardé (Q-SCH-01) : les 18 clients repris sans adresse
-    -- reçoivent « non renseigné » et le code postal 00000 (Q-SCH-18, 02).
-    CONSTRAINT ck_client_address_all_or_nothing
-        CHECK ((address IS NULL     AND postal_code IS NULL     AND town IS NULL)
-            OR (address IS NOT NULL AND postal_code IS NOT NULL AND town IS NOT NULL)),
-    CONSTRAINT ck_client_postal_code_needs_country
-        CHECK (postal_code IS NULL OR country_iso IS NOT NULL),
+    -- Adresse obligatoire (ADR-053, P3, 2026-10-12) : adresse, code postal,
+    -- ville et pays en NOT NULL, qui remplacent le tout-ou-rien (Q-SCH-01) et
+    -- « un code postal exige un pays ». Les 18 clients repris sans adresse
+    -- gardent « non renseigné » et 00000 (Q-SCH-18, 02). Un client rendu
+    -- anonyme reçoit 'anonyme', 00000, 'anonyme', 'FR' (ADR-049, ADR-053).
     -- Correction 8 : Eircode sans espace, comme criteria et estate (Q-SCH-12).
     CONSTRAINT ck_client_postal_code_format
         CHECK (postal_code IS NULL OR CASE
