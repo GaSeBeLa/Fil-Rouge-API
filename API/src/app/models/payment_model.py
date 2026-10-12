@@ -29,10 +29,11 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Any, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 from pydantic import Field as PydanticField
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import SQLModel, Field
+from .input_check import is_input
 
 
 # --- Le détail du calcul (P32, ADR-033 Décision 2) ---------------------------
@@ -127,13 +128,13 @@ class Payment(SQLModel, table=True):
 
     @field_validator("calculation_details")
     @classmethod
-    def _details_shape(cls, value: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    def _details_shape(cls, value: Optional[dict[str, Any]], info: ValidationInfo) -> Optional[dict[str, Any]]:
         """
         P32 : un détail présent a la forme de CalculationDetails (422 sinon) ;
         `{}` ne passe plus. Présent ou absent selon le statut : c'est
         `chk_refused`, côté base (ADR-033, Décision 3), qui le juge.
         """
-        if value is None:
-            return None
+        if value is None or not is_input(info):
+            return value
         # mode="json" : dates en texte ISO, pour la colonne JSONB.
         return CalculationDetails.model_validate(value).model_dump(mode="json", exclude_none=True)

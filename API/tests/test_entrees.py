@@ -10,6 +10,7 @@ corps (`_validated`) exactement comme en production.
 """
 
 from collections.abc import Callable
+from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -32,7 +33,14 @@ def api() -> TestClient:
         service = MagicMock(spec=BaseService)
         service.create.side_effect = lambda session, item: item
         service.replace.side_effect = lambda session, item_id, data: data
+        service.get_by_id.side_effect = lambda session, item_id: stored.get(item_id)
         return service
+
+    # Lignes « déjà en base » : la réponse d'un GET ne rejuge pas les règles.
+    stored: dict[int, Any] = {
+        1: Estate(id=1, reference="REPRIS-1", estate_type="Maison", surface=Decimal("80.00"), town="Moulins", nb_rooms=1, nb_bedrooms=4),
+        2: incoherent_version(),
+    }
 
     app = FastAPI()
     app.include_router(
@@ -53,6 +61,13 @@ def api() -> TestClient:
     app.dependency_overrides[get_session] = lambda: None
     app.dependency_overrides[get_principal] = principal_as(ADMIN)
     return TestClient(app, headers=TEST_HEADERS)
+
+
+def incoherent_version() -> HunterRateParameters:
+    """Une version valide, puis faussée après coup (poids : somme 1,05), comme posée en SQL."""
+    version = HunterRateParameters.model_validate({**rates(), "id": 2})
+    version.weight_visits = Decimal("0.30")
+    return version
 
 
 def with_(base: dict[str, Any]) -> Callable[..., dict[str, Any]]:
@@ -83,6 +98,14 @@ def test_p16_more_bedrooms_than_rooms_returns_422(api: TestClient):
     response = api.post("/estates", json=estate(nb_rooms=1, nb_bedrooms=5))
     assert response.status_code == 422
     assert "P16" in response.text
+
+
+def test_p16_stored_estate_is_read_without_being_judged(api: TestClient):
+    # 251 biens repris ont plus de chambres que de pièces (ADR-053) : ils
+    # restent lisibles. Avant le correctif, GET /estates rendait 500.
+    response = api.get("/estates/1")
+    assert response.status_code == 200, response.text
+    assert response.json()["nb_bedrooms"] == 4
 
 
 def test_p16_bedrooms_within_rooms_is_accepted(api: TestClient):
@@ -129,6 +152,11 @@ def test_p29_weights_not_summing_to_one_returns_422(api: TestClient):
     response = api.post("/rates", json=rates(weight_visits="0.30"))  # somme 1,05
     assert response.status_code == 422
     assert "poids" in response.text
+
+
+def test_p29_stored_version_is_read_without_being_judged(api: TestClient):
+    # Une version posée en SQL n'a aucun CHECK (ADR-034, D3) : elle se relit.
+    assert api.get("/rates/2").status_code == 200
 
 
 def test_p29_floor_above_ceiling_returns_422(api: TestClient):

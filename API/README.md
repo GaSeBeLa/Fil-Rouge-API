@@ -273,7 +273,7 @@ Mesuré le 2026-10-02 contre l'API qui tourne (✅), ou lu dans le code (📖) :
 | id inexistant (`GET`, `PUT`, `DELETE`) | `404` | `"<Entité> introuvable"`, ex. `"Chasseur introuvable"` ✅ |
 | id non entier (`/hunters/abc`) | `422` | erreur Pydantic `int_parsing` ✅ |
 | corps invalide au `POST` / `PUT` (type faux, champ obligatoire manquant, prix à virgule) | `422` | erreur Pydantic, ex. `int_from_float`, `missing` ✅ |
-| règle d'une seule ligne violée (fiche API4) : email (P2), chambres > pièces (P16), réglages du taux (P29), détail du calcul (P32) | `422` | `value_error`, message qui cite le `P<n>` ✅ |
+| règle d'une seule ligne violée (fiche API4) : email (P2), chambres > pièces (P16), réglages du taux (P29), détail du calcul (P32) — **à la saisie seulement** : une ligne déjà en base qui ne la respecte pas se relit en `200` ([`input_check.py`](src/app/models/input_check.py)) | `422` | `value_error`, message qui cite le `P<n>` ✅ |
 | version citée modifiée (ADR-030, ADR-034), statut du paiement en arrière (ADR-038), taux final faux (P33) — fiche API5 | `409` | message qui cite l'ADR ou le `P33` ✅ |
 | contrainte violée au `POST` / `PUT` | `409` | `"Contrainte violée (valeur en double ou référence inexistante)."` ✅ |
 | `DELETE` d'une ligne encore référencée | `409` | `"Suppression impossible : cette ligne est encore référencée ailleurs."` 📖 |

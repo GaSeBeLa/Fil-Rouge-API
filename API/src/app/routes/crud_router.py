@@ -51,6 +51,7 @@ from pydantic import ValidationError
 from sqlmodel import Session, SQLModel
 
 from ..conf.database import get_session
+from ..models.input_check import INPUT_CONTEXT
 from ..utils.api_keys import require_api_key
 from ..utils.exceptions import ConflictError, NotFoundError
 from ..utils.roles import ALL_ROLES, WRITER_ROLES, require_roles
@@ -62,7 +63,8 @@ def _validated(model: Type[SQLModel], item: SQLModel) -> SQLModel:
     try:
         # exclude_unset : un champ absent reste absent (PUT partiel, défauts).
         # warnings=False : l'objet brut porte des valeurs non converties.
-        return model.model_validate(item.model_dump(exclude_unset=True, warnings=False))
+        # context : les règles d'entrée (P16, P29, P32) ne jugent que ce passage.
+        return model.model_validate(item.model_dump(exclude_unset=True, warnings=False), context=INPUT_CONTEXT)
     except ValidationError as exc:
         # loc préfixé par "body", comme les 422 que FastAPI produit lui-même.
         errors = [

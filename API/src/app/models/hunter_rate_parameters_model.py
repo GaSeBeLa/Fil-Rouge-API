@@ -33,8 +33,9 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from sqlalchemy.dialects.postgresql import JSONB
-from pydantic import model_validator
+from pydantic import ValidationInfo, model_validator
 from sqlmodel import SQLModel, Field
+from .input_check import is_input
 
 
 class HunterRateParameters(SQLModel, table=True):
@@ -73,8 +74,10 @@ class HunterRateParameters(SQLModel, table=True):
     rate_ceiling: Decimal = Field(max_digits=5, decimal_places=4)
 
     @model_validator(mode="after")
-    def _coherent_version(self) -> "HunterRateParameters":
-        """P29 : une version qui ne casse pas le calcul ; refus = 422."""
+    def _coherent_version(self, info: ValidationInfo) -> "HunterRateParameters":
+        """P29 : une version qui ne casse pas le calcul ; refus = 422, à la saisie seulement."""
+        if not is_input(info):
+            return self
         weights = (
             self.weight_delay,
             self.weight_exclusivity,
