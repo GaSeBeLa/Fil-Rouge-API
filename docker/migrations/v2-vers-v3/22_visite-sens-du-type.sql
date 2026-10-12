@@ -1,16 +1,18 @@
 -- 22 : visit.visitor_type reçoit un commentaire qui dit le sens de ses deux valeurs (P23).
 --
--- Pourquoi : précision du groupe (Discord, 12/10/2026). Le chasseur visite d'abord seul pour
--- se renseigner, avant de proposer ; la visite 'client' se fait ensemble, sur un bien proposé,
--- et seule elle compte pour la performance (ADR-048). Aucune contrainte : métadonnée seule.
+-- Pourquoi : le flux des sources (ADR-053, retenu le 12/10/2026). Le chasseur visite les biens
+-- que le client a choisis parmi les propositions, puis rédige sa note d'avis ; le client visite
+-- ensuite le bien qui lui convient. Seule la visite 'client' compte pour la performance
+-- (ADR-048). Aucune contrainte : métadonnée seule. Texte corrigé le même jour : rejouer 22.
 --
 -- Rejouable.
 
 BEGIN;
 
 COMMENT ON COLUMN visit.visitor_type IS
-  'hunter : visite de renseignement, seul, avant la proposition (libre). '
-  'client : visite commune client et chasseur, sur un bien propose ; '
-  'seules celles-ci comptent pour la performance (ADR-048).';
+  'hunter : visite du chasseur sur un bien que le client a choisi parmi les '
+  'propositions, avant sa note d avis. client : visite du client sur un bien '
+  'propose qui lui convient ; seules celles-ci comptent pour la performance '
+  '(ADR-048, ADR-053).';
 
 COMMIT;

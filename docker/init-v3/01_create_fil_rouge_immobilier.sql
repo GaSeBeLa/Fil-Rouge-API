@@ -1063,11 +1063,12 @@ COMMENT ON COLUMN payment.amount IS
 COMMENT ON COLUMN payment.refusal_reason IS
   'Motif du droit refuse (ADR-024) ; NULL si le droit est ouvert.';
 
--- Sens des valeurs (précision du groupe, Discord, 2026-10-12 ; P23).
+-- Sens des valeurs : le flux des sources (ADR-053, P23).
 COMMENT ON COLUMN visit.visitor_type IS
-  'hunter : visite de renseignement, seul, avant la proposition (libre). '
-  'client : visite commune client et chasseur, sur un bien propose ; '
-  'seules celles-ci comptent pour la performance (ADR-048).';
+  'hunter : visite du chasseur sur un bien que le client a choisi parmi les '
+  'propositions, avant sa note d avis. client : visite du client sur un bien '
+  'propose qui lui convient ; seules celles-ci comptent pour la performance '
+  '(ADR-048, ADR-053).';
 
 -- Clés étrangères : ce que la colonne contient réellement.
 COMMENT ON COLUMN mandate.id_client IS
