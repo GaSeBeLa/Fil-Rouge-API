@@ -5,6 +5,7 @@ psycopg2-binary
 python-dotenv
 argon2-cffi
 pyjwt
+email-validator
 
 # tests
 pytest

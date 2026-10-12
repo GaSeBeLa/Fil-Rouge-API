@@ -513,6 +513,16 @@ def test_estate_proposed_priority_out_of_range_returns_409(db_client: TestClient
 
 # --- payment -----------------------------------------------------------------
 
+# Un détail de calcul bien formé (P32, ADR-033 ; modèle CalculationDetails).
+DETAILS: dict[str, Any] = {
+    "notes": {"delay": 80, "exclusivity": 100, "sales": 50, "mandates": 40, "visits": 30},
+    "visit_count": 12,
+    "seniority_years": 2,
+    "sales_12_months": 3,
+    "mandates_12_months": 5,
+}
+
+
 # Un refus (ADR-024) : un motif, un montant nul, et ni taux, ni score, ni
 # barème, ni date d'étape.
 REFUSED: dict[str, Any] = {
@@ -584,7 +594,7 @@ def payment_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
         "performance_rate": "0.0000",
         "final_rate": "0.3000",
         "performance_score": "50.0",
-        "calculation_details": {"seniority_years": 0, "visits": 0},
+        "calculation_details": DETAILS,
         "id_sale": sale.json()["id"],
         "id_hunter": 1,
         "id_commission_scale": scale.json()["id"],
@@ -645,7 +655,7 @@ def test_payment_without_calculation_details_returns_409(db_client: TestClient):
 
 def test_refused_payment_with_calculation_details_returns_409(db_client: TestClient):
     # ADR-033, Décision 3, dans l'autre sens : un refus ne porte aucun détail.
-    payload = payment_payload(db_client, **{**REFUSED, "calculation_details": {"visits": 0}})
+    payload = payment_payload(db_client, **{**REFUSED, "calculation_details": DETAILS})
     assert db_client.post("/payments", json=payload).status_code == 409
 
 
@@ -683,14 +693,8 @@ def test_payment_scheduled_without_date_returns_409(db_client: TestClient):
 
 def test_payment_paid_keeps_its_dates_and_details(db_client: TestClient):
     # Q-REM-17 : un paiement fait garde ses trois dates. Q-REM-04 : les
-    # termes du calcul se relisent tels quels (noms de rem.py, en exemple).
-    details = {
-        "notes": {"delai": 80, "exclusivite": 100, "ventes": 50, "mandats": 40, "visites": 30},
-        "nb_visites": 12,
-        "annees_anciennete": 2,
-        "ventes_12_mois": 3,
-        "mandats_12_mois": 5,
-    }
+    # termes du calcul se relisent tels quels (clés de CalculationDetails).
+    details = {**DETAILS, "mandate_signature_date": "2026-01-05", "is_exclusive": True}
     payload = payment_payload(
         db_client,
         status="paid",

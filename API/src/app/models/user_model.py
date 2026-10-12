@@ -13,6 +13,7 @@ qui n'existait pas du tout dans le schéma précédent.
 from datetime import datetime, timezone
 from typing import Optional
 
+from pydantic import EmailStr
 from sqlmodel import SQLModel, Field
 
 
@@ -55,9 +56,13 @@ class UserCreate(SQLModel):
     et n'atteint jamais la base tel quel.
 
     Ni `id` ni `created_at` : le serveur les décide seul.
+
+    `email` en EmailStr (P2, ADR-053) : un format faux rend 422 avant la
+    base. Le domaine est mis en minuscules au passage, pas la partie avant
+    `@` ; les doublons par la casse sont refusés par la base (migration 24).
     """
 
-    email: str = Field(max_length=150)
+    email: EmailStr = Field(max_length=150)
     # min_length=12 : proposition du tuto, pas une décision actée par le
     # groupe (contrairement à ADR-016 lui-même). À confirmer en réunion.
     password: str = Field(min_length=12)
@@ -72,7 +77,7 @@ class UserUpdate(SQLModel):
     fourni. Un `password` présent est haché comme à la création.
     """
 
-    email: Optional[str] = Field(default=None, max_length=150)
+    email: Optional[EmailStr] = Field(default=None, max_length=150)  # P2
     password: Optional[str] = Field(default=None, min_length=12)
     is_activated: Optional[bool] = None
     id_role: Optional[int] = None

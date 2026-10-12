@@ -27,10 +27,57 @@ soit un refus a moitie.
 
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
+from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import Field as PydanticField
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import SQLModel, Field
+
+
+# --- Le détail du calcul (P32, ADR-033 Décision 2) ---------------------------
+#
+# Les noms de clés sont fixés ici et recopiés dans ADR-033 (Conséquences) :
+# anglais, comme un schéma de données (ADR-002) ; les 5 notes portent les
+# noms des colonnes de poids de hunter_rate_parameters. Le service de
+# rémunération (API12) traduira les noms de remuneration.py vers ceux-ci.
+
+_Note = Annotated[float, PydanticField(ge=0, le=100)]
+_Count = Annotated[int, PydanticField(ge=0)]
+
+
+class CalculationNotes(BaseModel):
+    """Les 5 notes du score, de 0 à 100 (RCR, ADR-033)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    delay: _Note
+    exclusivity: _Note
+    sales: _Note
+    mandates: _Note
+    visits: _Note
+
+
+class CalculationDetails(BaseModel):
+    """
+    Ce que `payment.calculation_details` garde d'un calcul (ADR-033) : les 5
+    notes et les 4 entrées que rien d'autre ne fige (Décision 2). Les trois
+    termes lus sur le mandat (Conséquences) sont facultatifs : le mandat
+    reste modifiable, le service les ajoutera au branchement (API12).
+    Toute autre clé est refusée : une faute de frappe ne passe pas.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    notes: CalculationNotes
+    visit_count: _Count
+    seniority_years: _Count
+    sales_12_months: _Count
+    mandates_12_months: _Count
+    mandate_signature_date: Optional[date] = None
+    mandate_ends_at: Optional[date] = None
+    is_exclusive: Optional[bool] = None
+
 
 
 class Payment(SQLModel, table=True):
@@ -77,3 +124,16 @@ class Payment(SQLModel, table=True):
     id_hunter_rate_parameters: Optional[int] = Field(
         default=None, foreign_key="hunter_rate_parameters.id"
     )
+
+    @field_validator("calculation_details")
+    @classmethod
+    def _details_shape(cls, value: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        """
+        P32 : un détail présent a la forme de CalculationDetails (422 sinon) ;
+        `{}` ne passe plus. Présent ou absent selon le statut : c'est
+        `chk_refused`, côté base (ADR-033, Décision 3), qui le juge.
+        """
+        if value is None:
+            return None
+        # mode="json" : dates en texte ISO, pour la colonne JSONB.
+        return CalculationDetails.model_validate(value).model_dump(mode="json", exclude_none=True)

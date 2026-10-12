@@ -26,6 +26,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
+from pydantic import model_validator
 from sqlmodel import SQLModel, Field
 
 
@@ -81,3 +82,19 @@ class Estate(SQLModel, table=True):
     information: Optional[str] = None
     # Clé vers "user" ; le rôle (chasseur ou manager) se vérifie dans l'API.
     id_author: Optional[int] = Field(default=None, foreign_key="user.id")
+
+    @model_validator(mode="after")
+    def _bedrooms_within_rooms(self) -> "Estate":
+        """
+        P16 (ADR-053) : une chambre est une pièce, donc chambres <= pièces.
+        Contrôlé à la saisie (POST, PUT) seulement : les 251 biens repris
+        qui ne le respectent pas restent tels quels, la base ne les rejuge pas.
+        """
+        # Construit deux fois (voir crud_router.py, `_validated`) : seul le
+        # passage converti, où les nombres sont des int, fait foi.
+        rooms, bedrooms = self.nb_rooms, self.nb_bedrooms
+        if isinstance(rooms, int) and isinstance(bedrooms, int) and bedrooms > rooms:
+            raise ValueError(
+                f"{self.nb_bedrooms} chambres pour {self.nb_rooms} pièces : une chambre est une pièce (P16)."
+            )
+        return self
