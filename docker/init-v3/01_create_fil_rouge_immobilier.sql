@@ -1063,6 +1063,12 @@ COMMENT ON COLUMN payment.amount IS
 COMMENT ON COLUMN payment.refusal_reason IS
   'Motif du droit refuse (ADR-024) ; NULL si le droit est ouvert.';
 
+-- Sens des valeurs (précision du groupe, Discord, 2026-10-12 ; P23).
+COMMENT ON COLUMN visit.visitor_type IS
+  'hunter : visite de renseignement, seul, avant la proposition (libre). '
+  'client : visite commune client et chasseur, sur un bien propose ; '
+  'seules celles-ci comptent pour la performance (ADR-048).';
+
 -- Clés étrangères : ce que la colonne contient réellement.
 COMMENT ON COLUMN mandate.id_client IS
   'Reference client(id_user) — donc un id de "user", PAS client.id.';
