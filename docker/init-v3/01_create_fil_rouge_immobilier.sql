@@ -569,6 +569,14 @@ CREATE TABLE mandate (
 --   00_…feature:40 (« à l'échéance »). COALESCE(…, FALSE) : sans parent, la
 --   comparaison vaut NULL, et NOT NULL laisserait passer la ligne.
 --
+--   Concurrence (audit P15, 2026-10-12) : deux transactions simultanées ne
+--   voient pas la ligne non validée de l'autre ; deux exclusifs passaient.
+--   Le trigger prend d'abord un verrou consultatif par client
+--   (pg_advisory_xact_lock) : la seconde attend la fin de la première, puis
+--   la voit et la refuse. Testé en READ COMMITTED, le niveau de l'API
+--   (database.py) ; en REPEATABLE READ, la seconde ne verrait toujours pas
+--   la ligne.
+--
 --   L'ERRCODE 23514 est volontaire : il range le refus dans la classe 23
 --   (violation d'intégrité), que le harnais de tests adverses reconnaît.
 -- ----------------------------------------------------------------------------
@@ -576,6 +584,10 @@ CREATE TABLE mandate (
 CREATE OR REPLACE FUNCTION check_mandate_exclusivity() RETURNS trigger
 LANGUAGE plpgsql AS $fn$
 BEGIN
+    -- P15 : un client à la fois. Sans ce verrou, deux transactions
+    -- simultanées ne voient pas la ligne de l'autre, et deux exclusifs
+    -- passent. Libéré à la fin de la transaction.
+    PERFORM pg_advisory_xact_lock(NEW.id_client);
     IF NEW.signature_date IS NULL OR NEW.ends_at IS NULL
        OR NEW.status IN ('canceled', 'completed', 'lost') THEN
         RETURN NEW;                       -- pas encore signé, annulé ou clos

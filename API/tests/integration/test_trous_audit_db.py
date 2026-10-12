@@ -25,7 +25,7 @@ from typing import Any
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session  # mère de sqlmodel.Session, la fixture db_session
 
 
@@ -210,3 +210,35 @@ def test_p13_parent_of_another_client_is_refused(db_session: Session):
         db_session, SIGNED_MANDATE, match="fk_mandate_parent_same_client",
         ref="P13-AUTRE", signed="2031-07-01", exclusive=False, hunter=3, client=8, request=2, parent=parent,
     )
+
+
+# --- P15 : deux mandats simultanés ne contournent plus l'exclusivité ---------
+
+
+def test_p15_second_transaction_waits_for_the_first(db_session: Session):
+    # La transaction du test écrit un exclusif du client 7, sans valider. Une
+    # seconde connexion qui écrit pour le même client doit attendre son
+    # verrou : avec 200 ms de patience, elle abandonne. Rien n'est validé.
+    exclusive_parent(db_session)
+    engine = db_session.connection().engine
+    with engine.connect() as other:
+        other.execute(text("SET lock_timeout = '200ms'"))
+        with pytest.raises(OperationalError, match="lock timeout"):
+            other.execute(
+                text(UNSIGNED_MANDATE.replace(":ref", "'P15-B'").replace(":client", "7"))
+            )
+        other.rollback()
+
+
+def test_p15_other_client_does_not_wait(db_session: Session):
+    exclusive_parent(db_session)
+    engine = db_session.connection().engine
+    with engine.connect() as other:
+        other.execute(text("SET lock_timeout = '200ms'"))
+        other.execute(
+            text(
+                "INSERT INTO mandate (reference, status, is_exclusive, id_hunter, id_client, id_search_request) "
+                "VALUES ('P15-C', 'pending_signature', FALSE, 3, 8, 2)"
+            )
+        )
+        other.rollback()
