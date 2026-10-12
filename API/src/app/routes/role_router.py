@@ -13,5 +13,4 @@ router = build_crud_router(
     # base, donc renommer un rôle en « Admin » donnait les droits d'Admin à
     # tous ses comptes (relecture de la série API).
     write_roles=(ADMIN,),
-    delete_roles=(ADMIN,),
 )

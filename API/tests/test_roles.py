@@ -80,10 +80,8 @@ def test_reader_cannot_write(test_app: FastAPI, service: MagicMock):
 
     assert client.post("/things", json={"name": "b"}).status_code == 403
     assert client.put("/things/1", json={"name": "b"}).status_code == 403
-    assert client.delete("/things/1").status_code == 403
     service.create.assert_not_called()
     service.replace.assert_not_called()
-    service.delete.assert_not_called()
 
 
 def test_admin_can_create(test_app: FastAPI):
@@ -110,7 +108,6 @@ def test_only_admin_writes_users(test_app: FastAPI, role: str):
 
     assert client.post("/users", json=body).status_code == 403
     assert client.put("/users/1", json={"password": "un-autre-mot-de-passe"}).status_code == 403
-    assert client.delete("/users/1").status_code == 403
 
 
 @pytest.mark.parametrize("role", [CLIENT, HUNTER, MANAGER, READER])
@@ -121,7 +118,6 @@ def test_only_admin_writes_roles(test_app: FastAPI, role: str):
 
     assert client.post("/roles", json={"wording": "Admin"}).status_code == 403
     assert client.put("/roles/1", json={"wording": "Admin"}).status_code == 403
-    assert client.delete("/roles/4").status_code == 403
 
 
 def test_health_and_login_stay_open():

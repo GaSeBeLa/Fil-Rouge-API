@@ -18,7 +18,7 @@ classe.
 ============================================================================
 """
 
-from typing import Generic, List, Optional, Type, TypeVar
+from typing import Generic, List, Optional, Sequence, Type, TypeVar
 
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, select
@@ -50,6 +50,11 @@ class BaseRepository(Generic[ModelType]):
         """Vrai si au moins une ligne a toutes ces valeurs (ex. un bien proposé sur un mandat)."""
         conditions = [getattr(self.model, field) == value for field, value in values.items()]
         return session.exec(select(self.model).where(*conditions).limit(1)).first() is not None
+
+    def list_where(self, session: Session, **values: object) -> Sequence[ModelType]:
+        """Les lignes qui ont toutes ces valeurs (ex. les mandats d'un client)."""
+        conditions = [getattr(self.model, field) == value for field, value in values.items()]
+        return session.exec(select(self.model).where(*conditions)).all()
 
     def create(self, session: Session, item: ModelType) -> ModelType:
         # id toujours réinitialisé : en base, "id" est GENERATED ALWAYS AS

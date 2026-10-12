@@ -133,6 +133,8 @@ Puis **358 passed, 7 skipped** (fiche API7) : 17 tests de propositions et de vis
 Puis **370 passed, 7 skipped** (fiche API8) : 12 tests de signature et de vente ;
 `sale_payload` part d'un mandat neuf, signé, avec une offre `'accepted'`.
 Puis **379 passed, 7 skipped** (fiche API9) : 9 tests de demande déposée avant le compte.
+Puis **391 passed, 7 skipped** (fiche API10) : 15 tests d'anonymisation ; les 3 tests de
+`DELETE` (routeur, `/users`, `/payments`) attendent désormais `405`.
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -148,16 +150,17 @@ les biens : `post_as_hunter` dans `test_constraints_db.py`).
 | [`test_base_service.py`](tests/test_base_service.py) | id inexistant → `NotFoundError` **avant** toute écriture |
 | [`test_base_repository.py`](tests/test_base_repository.py) | `id` ignoré au `POST` ; `IntegrityError` → rollback + `ConflictError` |
 | [`test_user_models.py`](tests/test_user_models.py) | mot de passe ≥ 12 caractères ; `UserPublic` sans `password` |
-| [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 pour les 18 ressources |
+| [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 pour les 18 ressources ; `DELETE` → `405` (ADR-049) |
 | [`integration/test_auth.py`](tests/integration/test_auth.py) | connexion : jeton rendu ; mauvais mot de passe, compte inactif, jeton expiré ou forgé → `401` ; compte désactivé **après** l'émission du jeton → `401` (relu en base) |
 | [`test_roles.py`](tests/test_roles.py), [`integration/test_roles_db.py`](tests/integration/test_roles_db.py) | sans jeton → `401` ; `Reader` lit (`200`) mais n'écrit pas (`403`) ; `Admin` crée (`201`) ; `/hunter-performances` fermé en écriture ; `/` et `/auth/login` ouverts |
 | [`test_api_keys.py`](tests/test_api_keys.py) | sans clé ou clé inconnue → `401` ; bonne clé et bon jeton → `200` ; bonne clé sans jeton → `401` ; `/` sans clé ; démarrage refusé sans clé ou clé trop courte |
 | [`test_entrees.py`](tests/test_entrees.py) | `422` avant la base : email mal formé (P2), plus de chambres que de pièces (P16), réglages du taux incohérents — poids ≠ 1, plancher > plafond, paliers mal formés (P29), détail du calcul mal formé (P32) |
-| [`integration/test_versions_paiement.py`](tests/integration/test_versions_paiement.py) | grille d'honoraires, ligne de barème, réglages du taux : citée → `PUT` `409`, non citée → `200` (ADR-030, ADR-034) ; statut du paiement : pas à pas → `200` ; saut, retour en arrière, refus après `'announced'`, paiement `'paid'` modifié ou supprimé, `POST` au-delà de `'announced'` → `409` (ADR-038) ; taux final faux → `409` (P33) |
+| [`integration/test_versions_paiement.py`](tests/integration/test_versions_paiement.py) | grille d'honoraires, ligne de barème, réglages du taux : citée → `PUT` `409`, non citée → `200` (ADR-030, ADR-034) ; statut du paiement : pas à pas → `200` ; saut, retour en arrière, refus après `'announced'`, paiement `'paid'` modifié ou supprimé, `POST` au-delà de `'announced'` → `409` (ADR-038) ; taux final faux → `409` (P33) ; `DELETE` → `405` (ADR-049) |
 | [`integration/test_auteurs.py`](tests/integration/test_auteurs.py) | `POST /estates` en Hunter ou Manager → `id_author` = le compte du jeton, la valeur envoyée ignorée ; Client, Admin, Reader → `403` ; un `PUT` garde l'auteur (ADR-047) ; `POST /review-media` par le chasseur de la note → `201`, un autre chasseur ou un autre rôle → `403` (ADR-051) |
 | [`integration/test_propositions_visites.py`](tests/integration/test_propositions_visites.py) | proposition : bien hors de la sélection de la demande du mandat → `409` (P19), mandat non `'active'` → `409` (P20), un `PUT` qui change de bien repasse P19 ; visite `'client'` sur un bien jamais proposé → `409`, visite `'hunter'` libre (P23) ; visite après la fin du mandat → `409`, mandat annulé dans ses dates → `201` (P25) ; avant la signature, ou mandat non signé → `409` (ADR-044) |
 | [`integration/test_signature_vente.py`](tests/integration/test_signature_vente.py) | mandat signé (créé signé ou par `PUT`) → demande `'launched'`, mandat refusé → demande inchangée (ADR-044) ; vente sur mandat non signé → `409` (Q-MAN-06) ; vente `'hunter'` sans offre `'accepted'` → `409`, `'client_alone'` libre (P27) ; vente → mandat `'completed'`, vente refusée → mandat inchangé (P28) ; grille qui n'est pas celle en vigueur à la date de l'acte → `409` (ADR-030) |
 | [`integration/test_demande_avant_compte.py`](tests/integration/test_demande_avant_compte.py) | formulaire neuf → user **inactif** (mot de passe factice), fiche client et demande `'confirmed'` ; connexion refusée ; même email en majuscules → même compte (P2) ; email d'un client connu → sa fiche **n'est pas réécrite** ; email d'un chasseur → `409` ; adresse manquante → `422` ; refus de la base au milieu → `409` et **0 ligne** écrite ; `PUT /users/{id}` active le compte ; clé d'API exigée, pas de jeton (P5) |
+| [`integration/test_anonymisation.py`](tests/integration/test_anonymisation.py) | `POST /users/{id}/anonymize` : client sans mandat → **tout** anonyme, compte désactivé, connexion refusée ; nom gardé **10 ans** après la fin du dernier mandat de la chaîne (renouvellement compris) ou le paiement (versé, ou pas encore : à partir d'aujourd'hui), reste anonyme tout de suite ; commentaire du client et motif des critères vidés ; rappelée après le délai → nom « Anonyme » ; non-`Admin` → `403` ; `DELETE /clients/1` → `405` (ADR-049) |
 | [`test_remuneration.py`](tests/test_remuneration.py) | les **55 cas** de [`10_calcul_remuneration_chasseur.feature`](../user-stories/10_calcul_remuneration_chasseur.feature), lignes d'exemples recopiées telles quelles |
 
 **Calcul de la rémunération** : [`services/remuneration.py`](src/app/services/remuneration.py)
@@ -243,10 +246,11 @@ API/
 
 ## Endpoints
 
-Les 18 tables ont les **mêmes 5 routes**, construites par
+Les 18 tables ont les **mêmes 4 routes**, construites par
 [`routes/crud_router.py`](src/app/routes/crud_router.py) : `GET` (liste),
-`GET /{id}`, `POST`, `PUT /{id}`, `DELETE /{id}`. Plus `GET /` (health-check).
-Soit **91 opérations** (compté dans `/openapi.json`).
+`GET /{id}`, `POST`, `PUT /{id}`. **Plus de `DELETE`** (ADR-049, fiche API10) : un
+`DELETE` rend `405`. Plus `GET /` (health-check), `/auth`, la demande avant le compte
+et l'anonymisation. Soit **85 opérations** (compté dans `/openapi.json` le 12/10/2026).
 
 | Ressources |
 |---|
@@ -266,9 +270,9 @@ Soit **91 opérations** (compté dans `/openapi.json`).
 * La dépendance `get_current_user` ([`current_user.py`](src/app/utils/current_user.py))
   **relit le compte en base à chaque appel** : rôle et activation du moment font foi.
 * 🔒 **Toutes les routes CRUD exigent le jeton** (fiche API2, ADR-028) : sans jeton
-  `401` ; `GET` ouvert à tout compte connecté ; `POST`, `PUT`, `DELETE` refusés à
+  `401` ; `GET` ouvert à tout compte connecté ; `POST`, `PUT` refusés à
   `Reader` (`403`) ; `POST` et `PUT /hunter-performances` refusés **à tous** (ADR-035) ;
-  `POST`, `PUT` et `DELETE` sur `/users` et `/roles` réservés à **`Admin`** (sinon un compte
+  `POST` et `PUT` sur `/users` et `/roles` réservés à **`Admin`** (sinon un compte
   prenait celui d'un Admin, ou renommait son rôle en « Admin »).
   La matrice complète des droits (ADR-027) n'est pas codée.
 * ✍️ **Auteurs** (fiche API6) : `POST /estates` réservé à **Hunter** et **Manager**
@@ -296,6 +300,14 @@ Soit **91 opérations** (compté dans `/openapi.json`).
   chemin → `409`, rien d'écrit. Activation : `PUT /users/{id}` (mot de passe et
   `is_activated`). La route exige la clé d'API, **pas de jeton** ; les critères de la
   demande ne sont pas pris par le formulaire.
+* 🧹 **Effacer un compte** (fiche API10, ADR-049) : `POST /users/{id}/anonymize`,
+  **Admin** seul. Le compte est désactivé ; email (`anonyme-<id>@exemple.invalid`), mot de
+  passe (pas une empreinte : aucune connexion), téléphone (`+33000000000`), adresse
+  (`'anonyme'`, `'00000'`, `'anonyme'`, `'FR'`), naissance et situation, commentaires du
+  client et motifs des critères qu'il a écrits deviennent anonymes **tout de suite**.
+  Prénom et nom attendent **10 ans** après la fin du dernier mandat de la chaîne, ou après
+  le paiement ; la réponse dit jusqu'à quand (`names_kept_until`). Rappelée après ce jour,
+  la route finit le travail : pas de tâche planifiée (V2).
 * 🔑 **Toutes les routes exigent aussi l'en-tête `X-API-Key`** (fiche API3),
   `/auth/login` compris : clé absente ou inconnue → `401`. La clé dit quel programme
   appelle, le jeton quelle personne agit : il faut les deux.
@@ -313,13 +325,13 @@ Mesuré le 2026-10-02 contre l'API qui tourne (✅), ou lu dans le code (📖) :
 |---|---|---|
 | liste, lecture | `200` | — |
 | création réussie | **`201`** | — |
-| id inexistant (`GET`, `PUT`, `DELETE`) | `404` | `"<Entité> introuvable"`, ex. `"Chasseur introuvable"` ✅ |
+| id inexistant (`GET`, `PUT`) | `404` | `"<Entité> introuvable"`, ex. `"Chasseur introuvable"` ✅ |
 | id non entier (`/hunters/abc`) | `422` | erreur Pydantic `int_parsing` ✅ |
 | corps invalide au `POST` / `PUT` (type faux, champ obligatoire manquant, prix à virgule) | `422` | erreur Pydantic, ex. `int_from_float`, `missing` ✅ |
 | règle d'une seule ligne violée (fiche API4) : email (P2), chambres > pièces (P16), réglages du taux (P29), détail du calcul (P32) — **à la saisie seulement** : une ligne déjà en base qui ne la respecte pas se relit en `200` ([`input_check.py`](src/app/models/input_check.py)) | `422` | `value_error`, message qui cite le `P<n>` ✅ |
 | version citée modifiée (ADR-030, ADR-034), statut du paiement en arrière (ADR-038), taux final faux (P33) — fiche API5 | `409` | message qui cite l'ADR ou le `P33` ✅ |
 | contrainte violée au `POST` / `PUT` | `409` | `"Contrainte violée (valeur en double ou référence inexistante)."` ✅ |
-| `DELETE` d'une ligne encore référencée | `409` | `"Suppression impossible : cette ligne est encore référencée ailleurs."` 📖 |
+| `DELETE`, sur n'importe quelle route (fiche API10, ADR-049) | `405` | `"Method Not Allowed"` ✅ |
 
 ✅ **Un champ obligatoire manquant donne `422`** (depuis le 2026-10-05) :
 `POST /roles` avec `{}` renvoie `422`, `missing` sur `wording` (mesuré). Un
@@ -331,7 +343,7 @@ silence à `200000` par PostgreSQL. `_validated`
 seul (`409`).
 
 ⚠️ **Les 34 clés étrangères sont en `ON DELETE RESTRICT`** : supprimer un parent
-encore référencé échoue toujours en `409`.
+encore référencé échoue toujours, même en SQL direct (l'API, elle, ne supprime plus rien).
 
 ### Deux comportements à ne pas oublier
 

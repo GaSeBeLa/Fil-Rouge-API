@@ -6,7 +6,7 @@ COMMENT LIRE CE FICHIER
 ============================================================================
 Ce fichier ne fait plus que créer l'application FastAPI et y brancher un
 router par table (voir routes/). Le détail de chaque route (GET liste,
-GET/{id}, POST, PUT/{id}, DELETE/{id}) vit désormais dans trois couches
+GET/{id}, POST, PUT/{id} ; plus de DELETE, ADR-049) vit désormais dans trois couches
 séparées, dans l'ordre où une requête les traverse :
 
     routes/<table>_router.py        → HTTP : reçoit la requête, traduit les

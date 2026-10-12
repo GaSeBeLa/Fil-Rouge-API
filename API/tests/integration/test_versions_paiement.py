@@ -126,18 +126,12 @@ def test_paid_payment_is_frozen(db_client: TestClient):
     assert "ADR-038" in response.text
 
 
-def test_paid_payment_cannot_be_deleted(db_client: TestClient):
+def test_payment_cannot_be_deleted(db_client: TestClient):
+    # ADR-049, Décision 10 : plus aucune route DELETE, payé ou non.
     payment_id, _ = create_payment(db_client, SCHEDULED, PAID)
 
-    response = db_client.delete(f"/payments/{payment_id}")
-    assert response.status_code == 409
-    assert "ADR-038" in response.text
-
-
-def test_announced_payment_can_be_deleted(db_client: TestClient):
-    payment_id, _ = create_payment(db_client)
-
-    assert db_client.delete(f"/payments/{payment_id}").status_code == 200
+    assert db_client.delete(f"/payments/{payment_id}").status_code == 405
+    assert db_client.get(f"/payments/{payment_id}").status_code == 200
 
 
 @pytest.mark.parametrize("step", [SCHEDULED, PAID])

@@ -105,12 +105,8 @@ def test_put_translates_errors(api: TestClient, service: MagicMock, error: Excep
     assert response.json() == {"detail": str(error)}
 
 
-@pytest.mark.parametrize(
-    ("error", "expected_status"),
-    [(NotFoundError(NOT_FOUND), 404), (ConflictError(CONFLICT), 409)],
-)
-def test_delete_translates_errors(api: TestClient, service: MagicMock, error: Exception, expected_status: int):
-    service.delete.side_effect = error
+def test_delete_route_is_gone(api: TestClient, service: MagicMock):
+    # ADR-049, Décision 10 : aucune ligne ne se supprime par l'API.
     response = api.delete("/things/1")
-    assert response.status_code == expected_status
-    assert response.json() == {"detail": str(error)}
+    assert response.status_code == 405
+    service.delete.assert_not_called()

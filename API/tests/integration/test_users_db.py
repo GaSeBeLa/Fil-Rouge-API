@@ -25,7 +25,6 @@ from .conftest import USER_PASSWORD
 
 EMAIL = "compte@exemple.fr"
 WRITE_CONFLICT = "Contrainte violée (valeur en double ou référence inexistante)."
-DELETE_CONFLICT = "Suppression impossible : cette ligne est encore référencée ailleurs."
 
 
 def test_post_returns_201_without_password(db_client: TestClient):
@@ -86,29 +85,8 @@ def test_get_unknown_id_returns_404(db_client: TestClient):
     assert response.json()["detail"] == "Utilisateur introuvable"
 
 
-def test_delete_free_user_then_404(db_client: TestClient, create_user: Callable[[str], int]):
+def test_delete_user_is_gone_405(db_client: TestClient, create_user: Callable[[str], int]):
+    # ADR-049, Décision 10 : un compte s'efface par POST /users/{id}/anonymize.
     user_id = create_user(EMAIL)
-    assert db_client.delete(f"/users/{user_id}").status_code == 200
-    assert db_client.get(f"/users/{user_id}").status_code == 404
-
-
-def test_delete_user_referenced_by_client_returns_409(db_client: TestClient, create_user: Callable[[str], int]):
-    user_id = create_user(EMAIL)
-    client = db_client.post(
-        "/clients",
-        json={
-            "id_user": user_id,
-            "first_name": "Ada",
-            "last_name": "Lovelace",
-            "phone_number": "+33600000000",
-            "address": "1 rue de la Paix",  # adresse obligatoire (ADR-053, P3)
-            "postal_code": "31000",
-            "town": "Toulouse",
-            "country_iso": "FR",
-        },
-    )
-    assert client.status_code == 201, client.text
-
-    response = db_client.delete(f"/users/{user_id}")
-    assert response.status_code == 409
-    assert response.json()["detail"] == DELETE_CONFLICT
+    assert db_client.delete(f"/users/{user_id}").status_code == 405
+    assert db_client.get(f"/users/{user_id}").status_code == 200
