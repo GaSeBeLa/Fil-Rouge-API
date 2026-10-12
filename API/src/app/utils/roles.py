@@ -5,7 +5,7 @@ roles.py — Le mécanisme des rôles (ADR-028), pas la matrice (ADR-027).
 COMMENT LIRE CE FICHIER
 ============================================================================
 - get_principal : le compte connecté ET le libellé de son rôle, relus en
-  base à chaque appel (ADR-052, décision 3). C'est la dépendance que les
+  base à chaque appel (ADR-052, décision 3), par les services. C'est la dépendance que les
   fixtures de test remplacent pour se connecter en `Admin` d'office.
 - require_roles(*roles) : une dépendance qui rend 403 si le rôle du compte
   connecté n'est pas dans la liste. Sans jeton, get_current_user a déjà
@@ -24,8 +24,11 @@ from fastapi import Depends, HTTPException, status
 from sqlmodel import Session
 
 from ..conf.database import get_session
-from ..models import Role, User
-from ..routes.auth_router import get_current_user
+from ..models import User
+from ..repositories.role_repository import RoleRepository
+from ..services.role_service import RoleService
+from .current_user import get_current_user
+from .exceptions import NotFoundError
 
 # Les 5 libellés de la table role (CHECK en base, ADR-028 point 7).
 ADMIN = "Admin"
@@ -39,6 +42,9 @@ ALL_ROLES: tuple[str, ...] = (ADMIN, CLIENT, HUNTER, MANAGER, READER)
 WRITER_ROLES: tuple[str, ...] = (ADMIN, CLIENT, HUNTER, MANAGER)
 
 
+_roles = RoleService(RoleRepository())
+
+
 class Principal(NamedTuple):
     """Le compte connecté et le libellé de son rôle du moment."""
 
@@ -50,10 +56,11 @@ def get_principal(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> Principal:
-    role = session.get(Role, user.id_role)
     # id_role est une clé étrangère NOT NULL : un rôle introuvable serait une
     # base incohérente ; on refuse plutôt que d'accorder un droit au hasard.
-    if role is None:
+    try:
+        role = _roles.get_by_id(session, user.id_role)
+    except NotFoundError:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Rôle du compte introuvable.")
     return Principal(user=user, role=role.wording)
 

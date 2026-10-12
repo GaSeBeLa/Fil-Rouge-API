@@ -18,7 +18,7 @@ gère needs_rehash().
 Le jeton de connexion (ADR-052) : un JWT signé HS256 par `pyjwt`, valable
 60 minutes, sans jeton de rafraîchissement. Il ne porte que l'identifiant
 de l'utilisateur (`sub`) : le rôle et l'activation se relisent en base à
-chaque appel (routes/auth_router.py, get_current_user).
+chaque appel (utils/current_user.py, get_current_user).
 
 Le secret de signature se lit dans la variable JWT_SECRET. Absente ou trop
 courte, l'import de ce module échoue : l'API refuse de démarrer, plutôt que

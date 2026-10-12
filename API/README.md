@@ -249,7 +249,7 @@ Soit **91 opérations** (compté dans `/openapi.json`).
 | `GET /auth/me` | le compte du jeton (`Authorization: Bearer <jeton>`), sans `password` ; jeton absent, faux, expiré, ou compte désactivé depuis : `401` |
 
 * Jeton JWT `HS256`, valable **60 minutes**, sans jeton de rafraîchissement.
-* La dépendance `get_current_user` ([`auth_router.py`](src/app/routes/auth_router.py))
+* La dépendance `get_current_user` ([`current_user.py`](src/app/utils/current_user.py))
   **relit le compte en base à chaque appel** : rôle et activation du moment font foi.
 * 🔒 **Toutes les routes CRUD exigent le jeton** (fiche API2, ADR-028) : sans jeton
   `401` ; `GET` ouvert à tout compte connecté ; `POST`, `PUT`, `DELETE` refusés à
