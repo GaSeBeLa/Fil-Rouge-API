@@ -112,6 +112,21 @@ def test_paid_payment_cannot_go_back_to_announced(db_client: TestClient):
     assert "ADR-038" in response.text
 
 
+def test_announced_payment_cannot_skip_scheduled(db_client: TestClient):
+    # PAID porte scheduled_for : chk_scheduled accepterait, seule ADR-038 refuse.
+    payment_id, payload = create_payment(db_client)
+
+    assert db_client.put(f"/payments/{payment_id}", json={**payload, **PAID}).status_code == 409
+
+
+def test_paid_payment_is_frozen(db_client: TestClient):
+    payment_id, payload = create_payment(db_client, **PAID)
+
+    response = db_client.put(f"/payments/{payment_id}", json={**payload, "amount": "3600.00"})
+    assert response.status_code == 409
+    assert "ADR-038" in response.text
+
+
 def test_scheduled_payment_cannot_go_back_to_announced(db_client: TestClient):
     payment_id, payload = create_payment(db_client, **SCHEDULED)
 

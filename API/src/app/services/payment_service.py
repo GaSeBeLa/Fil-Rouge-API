@@ -7,10 +7,11 @@ COMMENT LIRE CE FICHIER
 Deux contrôles qu'aucun CHECK de la base ne peut tenir, car ils comparent
 la ligne à autre chose qu'elle-même :
 
-- ADR-038 — l'ordre du statut. Un paiement n'avance que dans un sens :
+- ADR-038 — l'ordre du statut. Un paiement avance pas à pas, sans saut :
   'announced' -> 'scheduled' -> 'paid'. 'refused' (droit fermé, ADR-024)
-  n'est possible que depuis 'announced', et ne se rouvre pas. Le PUT est
-  comparé au statut EN BASE : un retour en arrière -> 409.
+  n'est possible que depuis 'announced', et ne se rouvre pas. Un paiement
+  'paid' est figé : plus aucun PUT. Le PUT est comparé au statut EN BASE :
+  un retour en arrière, un saut ou un paiement payé modifié -> 409.
 - P33 — le taux final. Il est recalculé depuis les taux stockés (base,
   ancienneté, performance) et les bornes de la version des réglages citée
   (`taux_final` de remuneration.py) ; s'il diffère -> 409. Complète
@@ -33,11 +34,12 @@ from .parametrage_service import modulation
 from .remuneration import taux_final
 
 REFUSED = "refused"
-# ADR-038 : les statuts qu'un paiement peut prendre depuis chacun.
+# ADR-038 : les statuts qu'un PUT peut donner, selon le statut en base.
+# 'paid' n'en a aucun : un paiement payé ne se modifie plus.
 NEXT_STATUSES: dict[str, frozenset[str]] = {
-    "announced": frozenset({"announced", "scheduled", "paid", REFUSED}),
+    "announced": frozenset({"announced", "scheduled", REFUSED}),
     "scheduled": frozenset({"scheduled", "paid"}),
-    "paid": frozenset({"paid"}),
+    "paid": frozenset(),
     REFUSED: frozenset({REFUSED}),
 }
 
@@ -55,8 +57,9 @@ class PaymentService(BaseService[Payment]):
         existing = self.get_by_id(session, item_id)
         if data.status not in NEXT_STATUSES.get(existing.status, frozenset()):
             raise ConflictError(
-                f"Statut '{existing.status}' -> '{data.status}' refusé : un paiement va de "
-                "'announced' à 'scheduled' puis 'paid', ou de 'announced' à 'refused' (ADR-038)."
+                f"Statut '{existing.status}' -> '{data.status}' refusé : un paiement va pas à pas de "
+                "'announced' à 'scheduled' puis 'paid', ou de 'announced' à 'refused' ; "
+                "payé, il ne se modifie plus (ADR-038)."
             )
         self._check_final_rate(session, data)
         return self.repository.replace(session, existing, data)
