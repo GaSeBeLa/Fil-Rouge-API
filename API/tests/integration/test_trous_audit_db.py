@@ -259,3 +259,26 @@ def test_p17_latitude_without_longitude_is_refused(db_session: Session):
 @pytest.mark.parametrize(("lat", "lon"), [(43.61, 3.88), (None, None)])
 def test_p17_both_or_no_coordinates_are_accepted(db_session: Session, lat: Any, lon: Any):
     run(db_session, NEW_ESTATE, ref=f"P17-{lat}", lat=lat, lon=lon)
+
+
+# --- P22 : une offre vient du chasseur de son mandat --------------------------
+
+# Le mandat 13 est celui du chasseur 2 (02).
+NEW_PROPOSAL = (
+    "INSERT INTO estate_proposed (proposition_status, id_hunter, id_estate, id_mandate) "
+    "VALUES ('proposed', :hunter, :estate, 13)"
+)
+
+
+def new_estate(db_session: Session, ref: str) -> int:
+    return run(db_session, NEW_ESTATE + " RETURNING id", ref=ref, lat=None, lon=None).scalar_one()
+
+
+def test_p22_proposal_by_another_hunter_is_refused(db_session: Session):
+    estate = new_estate(db_session, "P22-A")
+    refused(db_session, NEW_PROPOSAL, match="fk_proposed_hunter_of_mandate", hunter=3, estate=estate)
+
+
+def test_p22_proposal_by_the_mandate_hunter_is_accepted(db_session: Session):
+    estate = new_estate(db_session, "P22-B")
+    run(db_session, NEW_PROPOSAL, hunter=2, estate=estate)

@@ -511,6 +511,9 @@ CREATE TABLE mandate (
     -- est un mandat du même client.
     CONSTRAINT chk_mandate_not_own_parent CHECK (id_mandate_parent <> id),
     CONSTRAINT uq_mandate_id_client UNIQUE (id, id_client),
+    -- P22 et P35 (audit) : cible des clés composites qui imposent le chasseur
+    -- du mandat à ses offres et à ses notes.
+    CONSTRAINT uq_mandate_id_hunter UNIQUE (id, id_hunter),
     CONSTRAINT fk_mandate_parent_same_client
         FOREIGN KEY (id_mandate_parent, id_client)
         REFERENCES mandate (id, id_client) ON DELETE RESTRICT,
@@ -769,6 +772,14 @@ CREATE TABLE estate_proposed (
     id_hunter          INTEGER NOT NULL REFERENCES hunter(id_user) ON DELETE RESTRICT,
     id_estate          INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT,
     id_mandate         INTEGER NOT NULL REFERENCES mandate(id) ON DELETE RESTRICT,
+
+    -- P22 (audit, 2026-10-12) : un chasseur propose avec SON mandat, même en
+    -- non exclusif (00_…feature:30-34) ; la rémunération va au chasseur à
+    -- l'origine de la vente (l. 34). Effet de bord : le chasseur d'un mandat
+    -- qui a des offres ne peut plus changer (réaffectation reportée, Q-MAN-08).
+    CONSTRAINT fk_proposed_hunter_of_mandate
+        FOREIGN KEY (id_mandate, id_hunter)
+        REFERENCES mandate (id, id_hunter) ON DELETE RESTRICT,
 
     -- Correction 2 : cette contrainte figurait EN DOUBLE dans le diagramme.
     -- Un bien seulement « proposé » n'a pas de montant ; dès qu'il quitte cet
