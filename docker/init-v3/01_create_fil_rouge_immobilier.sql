@@ -1082,7 +1082,11 @@ CREATE TABLE payment (
                 AND performance_score   IS NOT NULL
                 AND calculation_details IS NOT NULL
                 AND id_commission_scale IS NOT NULL
-                AND id_hunter_rate_parameters IS NOT NULL))
+                AND id_hunter_rate_parameters IS NOT NULL)),
+
+    -- P35 (audit) : cible de la clé composite de hunter_performance, qui
+    -- donne la note du paiement à son chasseur.
+    CONSTRAINT uq_payment_id_hunter UNIQUE (id, id_hunter)
 
     -- TODO (U01/U04, R01-R04, T17) — le droit à être payé n'est pas vérifié :
     --   testé, on peut aujourd'hui payer un chasseur qui n'est PAS celui du
@@ -1117,6 +1121,15 @@ CREATE TABLE hunter_performance (
     -- payment.paid_at.
     CONSTRAINT chk_perf_not_in_future
         CHECK (scored_at <= (clock_timestamp() AT TIME ZONE 'utc') + INTERVAL '5 minutes'),
+    -- P35 (audit, 2026-10-12) : un paiement ou un mandat échu note SON
+    -- chasseur (ADR-042). Qu'un mandat noté 'mandate_expired' soit vraiment
+    -- échu change dans le temps : contrôlé par l'API.
+    CONSTRAINT fk_perf_payment_same_hunter
+        FOREIGN KEY (id_payment, id_hunter)
+        REFERENCES payment (id, id_hunter) ON DELETE RESTRICT,
+    CONSTRAINT fk_perf_mandate_same_hunter
+        FOREIGN KEY (id_mandate, id_hunter)
+        REFERENCES mandate (id, id_hunter) ON DELETE RESTRICT,
     CONSTRAINT chk_perf_source
         CHECK ((trigger_type = 'payment'         AND id_payment IS NOT NULL AND id_mandate IS NULL)
             OR (trigger_type = 'mandate_expired' AND id_mandate IS NOT NULL AND id_payment IS NULL)

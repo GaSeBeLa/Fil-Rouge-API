@@ -322,3 +322,21 @@ def test_p34_score_now_or_past_is_accepted(db_session: Session, delay: str):
 
 
 # Le paiement payé dans le futur : test_constraints_db.py, qui sait écrire une vente.
+
+
+# --- P35 : une note va au chasseur de son mandat (ou de son paiement) --------
+
+# Le mandat 13 est celui du chasseur 2. Le cas du paiement est dans
+# test_constraints_db.py, qui sait écrire une vente.
+EXPIRED_MANDATE_SCORE = (
+    "INSERT INTO hunter_performance (score, scored_at, trigger_type, id_hunter, id_mandate) "
+    "VALUES (40, '2026-09-01', 'mandate_expired', :hunter, 13)"
+)
+
+
+def test_p35_score_of_another_hunters_mandate_is_refused(db_session: Session):
+    refused(db_session, EXPIRED_MANDATE_SCORE, match="fk_perf_mandate_same_hunter", hunter=1)
+
+
+def test_p35_score_of_own_mandate_is_accepted(db_session: Session):
+    run(db_session, EXPIRED_MANDATE_SCORE, hunter=2)

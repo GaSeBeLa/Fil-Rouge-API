@@ -800,6 +800,15 @@ def test_hunter_performance_same_payment_twice_returns_409(db_client: TestClient
     assert db_client.post("/hunter-performances", json=second).status_code == 409
 
 
+def test_hunter_performance_of_another_hunters_payment_returns_409(db_client: TestClient):
+    # Audit P35 : la note du paiement du chasseur 1 ne va pas au chasseur 2
+    # (fk_perf_payment_same_hunter).
+    payment = db_client.post("/payments", json=payment_payload(db_client))
+    assert payment.status_code == 201, payment.text
+    score = score_payload(trigger_type="payment", id_payment=payment.json()["id"], id_hunter=2)
+    assert db_client.post("/hunter-performances", json=score).status_code == 409
+
+
 def test_hunter_performance_same_mandate_twice_returns_409(db_client: TestClient):
     # Q-SCH-06 : un mandat échu donne une note, une seule (uq_perf_mandate).
     first = score_payload(trigger_type="mandate_expired", id_mandate=1)
