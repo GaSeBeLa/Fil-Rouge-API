@@ -324,7 +324,13 @@ CREATE TABLE search_request (
                          REFERENCES real_estate_manager(id_user) ON DELETE RESTRICT,
     -- Correction 7 : VARCHAR(9) dans le MPD, au ras de 'confirmed'.
     status               VARCHAR(20) NOT NULL
-                         CHECK (status IN ('confirmed', 'accepted', 'rejected', 'launched'))
+                         CHECK (status IN ('confirmed', 'accepted', 'rejected', 'launched')),
+
+    -- P6 (audit, 2026-10-12) : 'accepted', 'rejected' et 'launched' sont la
+    -- réponse d'un chasseur ; seule 'confirmed' (demande reçue) peut ne pas
+    -- en avoir encore (ADR-041, Décision 1).
+    CONSTRAINT chk_search_request_hunter_after_confirmed
+        CHECK (status = 'confirmed' OR id_hunter IS NOT NULL)
 );
 
 -- Versionnée : chaque révision pointe vers la précédente (id_previous_version).

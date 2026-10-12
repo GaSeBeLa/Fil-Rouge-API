@@ -73,3 +73,19 @@ def test_p2_malformed_email_is_refused(db_session: Session):
 def test_p2_two_different_emails_are_accepted(db_session: Session):
     new_user(db_session, "un@exemple.fr")
     new_user(db_session, "deux@exemple.fr")
+
+
+# --- P6 : une demande qui a reçu une réponse a un chasseur --------------------
+
+NEW_REQUEST = "INSERT INTO search_request (id_author, id_client, id_hunter, status) VALUES (7, 7, {hunter}, '{status}')"
+
+
+@pytest.mark.parametrize("status", ["accepted", "rejected", "launched"])
+def test_p6_answered_request_without_hunter_is_refused(db_session: Session, status: str):
+    sql = NEW_REQUEST.format(hunter="NULL", status=status)
+    refused(db_session, sql, match="chk_search_request_hunter_after_confirmed")
+
+
+def test_p6_confirmed_request_without_hunter_is_accepted(db_session: Session):
+    run(db_session, NEW_REQUEST.format(hunter="NULL", status="confirmed"))
+    run(db_session, NEW_REQUEST.format(hunter=1, status="accepted"))
