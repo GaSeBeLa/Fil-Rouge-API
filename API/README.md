@@ -1,7 +1,7 @@
 
 # API — Fil Rouge Immobilier
 
-API REST (FastAPI + SQLModel) exposant les 18 tables du schéma PostgreSQL
+API REST (FastAPI + SQLModel) exposant les 20 tables du schéma PostgreSQL
 `fil_rouge_immobilier` (voir [`../docker/init-v3/01_create_fil_rouge_immobilier.sql`](../docker/init-v3/01_create_fil_rouge_immobilier.sql)).
 
 ## Stack
@@ -135,6 +135,8 @@ Puis **370 passed, 7 skipped** (fiche API8) : 12 tests de signature et de vente 
 Puis **379 passed, 7 skipped** (fiche API9) : 9 tests de demande déposée avant le compte.
 Puis **391 passed, 7 skipped** (fiche API10) : 15 tests d'anonymisation ; les 3 tests de
 `DELETE` (routeur, `/users`, `/payments`) attendent désormais `405`.
+Puis **393 passed, 7 skipped** (relecture de la série) : un renouvellement non signé
+n'efface plus la fin du mandat signé ; le paiement seul garde le nom d'un chasseur.
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -160,7 +162,7 @@ les biens : `post_as_hunter` dans `test_constraints_db.py`).
 | [`integration/test_propositions_visites.py`](tests/integration/test_propositions_visites.py) | proposition : bien hors de la sélection de la demande du mandat → `409` (P19), mandat non `'active'` → `409` (P20), un `PUT` qui change de bien repasse P19 ; visite `'client'` sur un bien jamais proposé → `409`, visite `'hunter'` libre (P23) ; visite après la fin du mandat → `409`, mandat annulé dans ses dates → `201` (P25) ; avant la signature, ou mandat non signé → `409` (ADR-044) |
 | [`integration/test_signature_vente.py`](tests/integration/test_signature_vente.py) | mandat signé (créé signé ou par `PUT`) → demande `'launched'`, mandat refusé → demande inchangée (ADR-044) ; vente sur mandat non signé → `409` (Q-MAN-06) ; vente `'hunter'` sans offre `'accepted'` → `409`, `'client_alone'` libre (P27) ; vente → mandat `'completed'`, vente refusée → mandat inchangé (P28) ; grille qui n'est pas celle en vigueur à la date de l'acte → `409` (ADR-030) |
 | [`integration/test_demande_avant_compte.py`](tests/integration/test_demande_avant_compte.py) | formulaire neuf → user **inactif** (mot de passe factice), fiche client et demande `'confirmed'` ; connexion refusée ; même email en majuscules → même compte (P2) ; email d'un client connu → sa fiche **n'est pas réécrite** ; email d'un chasseur → `409` ; adresse manquante → `422` ; refus de la base au milieu → `409` et **0 ligne** écrite ; `PUT /users/{id}` active le compte ; clé d'API exigée, pas de jeton (P5) |
-| [`integration/test_anonymisation.py`](tests/integration/test_anonymisation.py) | `POST /users/{id}/anonymize` : client sans mandat → **tout** anonyme, compte désactivé, connexion refusée ; nom gardé **10 ans** après la fin du dernier mandat de la chaîne (renouvellement compris) ou le paiement (versé, ou pas encore : à partir d'aujourd'hui), reste anonyme tout de suite ; commentaire du client et motif des critères vidés ; rappelée après le délai → nom « Anonyme » ; non-`Admin` → `403` ; `DELETE /clients/1` → `405` (ADR-049) |
+| [`integration/test_anonymisation.py`](tests/integration/test_anonymisation.py) | `POST /users/{id}/anonymize` : client sans mandat → **tout** anonyme, compte désactivé, connexion refusée ; nom gardé **10 ans** après la fin du dernier mandat **signé** de la chaîne (un renouvellement pas encore signé n'efface pas la fin d'avant) ou le paiement (seul, pour un chasseur dont les mandats sont finis depuis longtemps) (versé, ou pas encore : à partir d'aujourd'hui), reste anonyme tout de suite ; commentaire du client et motif des critères vidés ; rappelée après le délai → nom « Anonyme » ; non-`Admin` → `403` ; `DELETE /clients/1` → `405` (ADR-049) |
 | [`test_remuneration.py`](tests/test_remuneration.py) | les **55 cas** de [`10_calcul_remuneration_chasseur.feature`](../user-stories/10_calcul_remuneration_chasseur.feature), lignes d'exemples recopiées telles quelles |
 
 **Calcul de la rémunération** : [`services/remuneration.py`](src/app/services/remuneration.py)
@@ -217,7 +219,7 @@ Chaque table suit une architecture en 3 couches (Router → Service → Reposito
 
 Ces trois couches héritent chacune d'une classe générique (`routes/crud_router.py`,
 `services/base_service.py`, `repositories/base_repository.py`) qui porte le
-comportement CRUD commun aux 18 tables.
+comportement CRUD commun aux 20 tables.
 
 ## Arborescence
 
@@ -234,7 +236,7 @@ API/
 │       │   └── database.py       # engine SQLModel + injection de session (get_session)
 │       ├── utils/
 │       │   └── exceptions.py     # NotFoundError, ConflictError, ForbiddenError
-│       ├── models/                # une classe SQLModel par table (18 fichiers)
+│       ├── models/                # une classe SQLModel par table (20 fichiers)
 │       ├── repositories/          # accès base : base_repository.py + 1 fichier par table
 │       ├── services/              # logique métier : base_service.py + 1 fichier par table
 │       └── routes/                # routage HTTP : crud_router.py + 1 fichier par table
@@ -246,7 +248,7 @@ API/
 
 ## Endpoints
 
-Les 18 tables ont les **mêmes 4 routes**, construites par
+Les 20 tables ont les **mêmes 4 routes**, construites par
 [`routes/crud_router.py`](src/app/routes/crud_router.py) : `GET` (liste),
 `GET /{id}`, `POST`, `PUT /{id}`. **Plus de `DELETE`** (ADR-049, fiche API10) : un
 `DELETE` rend `405`. Plus `GET /` (health-check), `/auth`, la demande avant le compte
@@ -257,7 +259,7 @@ et l'anonymisation. Soit **85 opérations** (compté dans `/openapi.json` le 12/
 | `/users` `/roles` `/hunters` `/clients` `/real-estate-managers` |
 | `/search-requests` `/criteria` `/mandates` `/estates` `/estate-proposed` |
 | `/estate-search-requests` `/pictures` `/visits` `/sales` `/payments` |
-| `/commission-scales` `/parameters-fees` `/hunter-performances` |
+| `/commission-scales` `/parameters-fees` `/hunter-rate-parameters` `/hunter-performances` `/review-media` |
 
 ### Connexion — `/auth` (ADR-052)
 

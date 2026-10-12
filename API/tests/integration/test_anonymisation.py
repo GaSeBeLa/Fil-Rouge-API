@@ -31,10 +31,12 @@ from .conftest import USER_PASSWORD
 from .test_constraints_db import (
     ACTIVE_MANDATE,
     ACTIVE_REQUEST,
+    ESTATE,
     HUNTER_ID,
     MANDATE,
     advance,
     payment_payload,
+    post_as_hunter,
     selected_estate,
 )
 
@@ -69,9 +71,9 @@ def _login(db_client: TestClient, email: str, password: str) -> int:
     return db_client.post("/auth/login", json={"email": email, "password": password}).status_code
 
 
-def _paid_on(db_client: TestClient, paid: date) -> None:
-    """Un paiement versé au chasseur 1 ce jour-là (ADR-038, pas à pas)."""
-    payload = payment_payload(db_client, announced_at=f"{paid - timedelta(days=30)}T09:00:00Z")
+def _paid_on(db_client: TestClient, paid: date, **overrides: object) -> None:
+    """Un paiement versé ce jour-là, au chasseur 1 par défaut (ADR-038, pas à pas)."""
+    payload = payment_payload(db_client, announced_at=f"{paid - timedelta(days=30)}T09:00:00Z", **overrides)
     scheduled = {"status": "scheduled", "scheduled_for": str(paid)}
     advance(db_client, payload, scheduled, {**scheduled, "status": "paid", "paid_at": f"{paid}T00:00:00Z"})
 
@@ -144,23 +146,73 @@ def test_client_comment_is_cleared_and_name_waits_for_the_mandate(
 # --- Le nom attend la fin du plus long délai (Décision 5) ------------------------
 
 
+def _hunter_with_an_old_mandate(db_client: TestClient) -> tuple[int, int]:
+    """
+    Un chasseur neuf, dont le seul mandat (demande 1, client 7) a fini le
+    2024-07-01, et une vente 'client_alone' sur ce mandat : son id, et celui
+    de la vente. Aucun mandat du seed ne lui garde son nom.
+    """
+    account = {"email": "paul.martel.api10@exemple.fr", "password": USER_PASSWORD, "id_role": 2}
+    hunter_id = db_client.post("/users", json=account).json()["id"]
+    profile = {
+        "id_user": hunter_id,
+        "first_name": "Paul",
+        "last_name": "Martel",
+        "phone_number": "+33611111111",
+        "hire_date": "2020-01-02",
+        "id_realestatemanager": 25,  # manager posé par 02
+    }
+    assert (created := db_client.post("/hunters", json=profile)).status_code == 201, created.text
+    mandate = {
+        **MANDATE,
+        "reference": "TEST-M-ANCIEN",
+        "status": "expired",
+        "signature_date": "2024-01-01",
+        "ends_at": "2024-07-01",
+        "id_hunter": hunter_id,
+    }
+    assert (created := db_client.post("/mandates", json=mandate)).status_code == 201, created.text
+    grid = {"effective_from": "2024-01-01", "fixed_amount": 3000, "rate": "0.0250"}
+    sale = {
+        "signature_date": "2024-06-01",
+        "purchase_amount": 354712,
+        "fees_amount": "11867.80",
+        "sale_origin": "client_alone",
+        "id_mandate": created.json()["id"],
+        "id_estate": post_as_hunter(db_client, "/estates", {**ESTATE, "reference": "TEST-API10-1"}).json()["id"],
+        "id_parameters_fees": db_client.post("/parameters-fees", json=grid).json()["id"],
+    }
+    assert (created := db_client.post("/sales", json=sale)).status_code == 201, created.text
+    return hunter_id, created.json()["id"]
+
+
 def test_hunter_paid_two_years_ago_keeps_name_rest_anonymized(
     db_client: TestClient, db_session: Session
 ) -> None:
-    _paid_on(db_client, date.today() - timedelta(days=730))
+    hunter_id, sale_id = _hunter_with_an_old_mandate(db_client)
+    paid = date.today() - timedelta(days=730)  # après la fin du mandat (2024-07-01)
+    _paid_on(db_client, paid, id_sale=sale_id, id_hunter=hunter_id)
 
-    response = _anonymize(db_client, HUNTER_ID)
+    response = _anonymize(db_client, hunter_id)
 
     assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["names_anonymized"] is False
-    assert date.fromisoformat(body["names_kept_until"]) > date.today()
-    hunter = db_session.exec(select(Hunter).where(Hunter.id_user == HUNTER_ID)).one()
-    assert (hunter.first_name, hunter.last_name) == ("Marina", "Roussel")
+    # C'est le paiement, et lui seul, qui garde le nom : 10 ans après le versement.
+    assert response.json() == {
+        "id_user": hunter_id,
+        "names_anonymized": False,
+        "names_kept_until": str(plus_years(paid, 10)),
+    }
+    hunter = db_session.exec(select(Hunter).where(Hunter.id_user == hunter_id)).one()
+    assert (hunter.first_name, hunter.last_name) == ("Paul", "Martel")
     assert hunter.phone_number == "+33000000000"
-    user = db_session.get(User, HUNTER_ID)
+    user = db_session.get(User, hunter_id)
     assert user is not None and user.is_activated is False
-    assert user.email == f"anonyme-{HUNTER_ID}@exemple.invalid"
+    assert user.email == f"anonyme-{hunter_id}@exemple.invalid"
+
+
+def test_criteria_reasons_written_by_the_hunter_are_cleared(db_client: TestClient, db_session: Session) -> None:
+    assert _anonymize(db_client, HUNTER_ID).status_code == 200
+
     written = db_session.exec(select(Criteria).where(Criteria.id_author == HUNTER_ID)).all()
     assert written and all(version.change_reason is None for version in written)
 
@@ -202,6 +254,27 @@ def test_renewal_by_another_hunter_extends_the_delay(db_client: TestClient) -> N
     body = _anonymize(db_client, HUNTER_ID).json()
 
     assert body["names_kept_until"] == str(plus_years(date(2027, 3, 26), 10))
+
+
+def test_unsigned_renewal_keeps_the_signed_end(db_client: TestClient) -> None:
+    # Relecture de la série : un renouvellement pas encore signé n'a pas de
+    # fin ; il ne doit pas effacer celle du mandat 15, signé (fin 2026-09-25).
+    renewal = {
+        **MANDATE,
+        "reference": "TEST-M-ATTENTE",
+        "status": "pending_signature",
+        "signature_date": None,
+        "ends_at": None,
+        "id_client": ACTIVE_MANDATE_CLIENT,
+        "id_search_request": ACTIVE_REQUEST,
+        "id_mandate_parent": ACTIVE_MANDATE,
+    }
+    assert (created := db_client.post("/mandates", json=renewal)).status_code == 201, created.text
+
+    body = _anonymize(db_client, ACTIVE_MANDATE_CLIENT).json()
+
+    assert body["names_anonymized"] is False
+    assert body["names_kept_until"] == str(plus_years(ACTIVE_MANDATE_END, 10))
 
 
 def test_second_call_after_the_delay_finishes_the_work(db_client: TestClient, db_session: Session) -> None:

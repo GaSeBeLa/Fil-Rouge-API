@@ -156,10 +156,11 @@ class AnonymizationService:
             *self.mandates.list_where(session, id_hunter=user_id),
         ]
         for mandate in mandates:
-            # Un mandat jamais signé n'a pas de fin : il n'entre pas au registre.
-            end = self._last_of_chain(session, mandate).ends_at
-            if end is not None:
-                dates.append(end)
+            # Toute la chaîne, renouvellements compris : chaque maillon SIGNÉ
+            # compte. Un maillon jamais signé (en attente, ou annulé avant la
+            # signature) n'a pas de fin et n'entre pas au registre ; il ne
+            # doit pas effacer la fin du maillon signé d'avant.
+            dates.extend(link.ends_at for link in self._chain_from(session, mandate) if link.ends_at is not None)
         for payment in self.payments.list_where(session, id_hunter=user_id):
             if payment.status == _PAID and payment.paid_at is not None:
                 dates.append(payment.paid_at.date())
@@ -169,15 +170,15 @@ class AnonymizationService:
                 dates.append(today)
         return dates
 
-    def _last_of_chain(self, session: Session, mandate: Mandate) -> Mandate:
-        """Le dernier renouvellement du mandat (id_mandate_parent, UNIQUE)."""
-        current, seen = mandate, {mandate.id}
-        while (child := _first(self.mandates.list_where(session, id_mandate_parent=current.id))) is not None:
+    def _chain_from(self, session: Session, mandate: Mandate) -> List[Mandate]:
+        """Le mandat, puis ses renouvellements successifs (id_mandate_parent, UNIQUE)."""
+        chain, seen = [mandate], {mandate.id}
+        while (child := _first(self.mandates.list_where(session, id_mandate_parent=chain[-1].id))) is not None:
             if child.id in seen:  # garde contre une boucle
                 break
-            current = child
+            chain.append(child)
             seen.add(child.id)
-        return current
+        return chain
 
     def _clear_written_texts(self, session: Session, user_id: int) -> None:
         """Les textes écrits par la personne (Décision 7), vidés tout de suite."""
