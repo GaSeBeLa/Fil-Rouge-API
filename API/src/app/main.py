@@ -38,7 +38,10 @@ une interface interactive (Swagger UI) pour tester chaque route sans rien
 ============================================================================
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from .routes import (
     auth_router,
@@ -69,6 +72,17 @@ app = FastAPI(
     description="API du service de chasse immobilière (projet fil rouge EISI Data-IA).",
     version="0.1.0",
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_without_input(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """
+    Le 422 de FastAPI, sans recopier le corps reçu (`input`) : un NaN qu'il
+    contiendrait ne s'écrit pas en JSON, et la réponse 422 devenait un 500.
+    Le client a déjà ce corps : c'est lui qui l'a envoyé.
+    """
+    errors = [{key: value for key, value in error.items() if key != "input"} for error in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
 
 
 @app.get("/", tags=["health"])

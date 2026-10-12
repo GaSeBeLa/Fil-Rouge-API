@@ -135,6 +135,11 @@ def _check_tiers(name: str, tiers: list[dict[str, Any]]) -> None:
 def _is_number(value: Any) -> bool:
     # bool est un int en Python : on l'écarte exprès. NaN et l'infini aussi :
     # le JSON reçu les accepte, et NaN ne se compare pas (500 au lieu de 422).
+    # Un entier est toujours fini, et math.isfinite déborderait (10**400).
     if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)):
         return False
+    if isinstance(value, int):
+        return True
+    if isinstance(value, Decimal):
+        return value.is_finite()
     return math.isfinite(value)

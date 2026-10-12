@@ -180,13 +180,50 @@ def test_p29_malformed_tiers_return_422(api: TestClient, tiers: list[dict[str, A
 
 @pytest.mark.parametrize(
     "tier",
-    [{"maximum": float("nan"), "note": 100}, {"maximum": 12, "note": float("nan")}, {"maximum": 12, "note": float("inf")}],
+    [
+        {"maximum": float("nan"), "note": 100},
+        {"maximum": 12, "note": float("nan")},
+        {"maximum": 12, "note": float("inf")},
+    ],
 )
 def test_p29_non_finite_number_returns_422(api: TestClient, tier: dict[str, Any]):
     # Le JSON reçu accepte NaN et Infinity ; json.dumps les écrit tels quels.
     body = json.dumps(rates(delay_tiers=[tier, {"maximum": None, "note": 0}]))
     response = api.post("/rates", content=body, headers={"Content-Type": "application/json"})
     assert response.status_code == 422
+
+
+def test_p29_huge_integer_is_a_number(api: TestClient):
+    # 10**400 est un entier JSON valide, et fini : math.isfinite débordait
+    # (OverflowError, 500). La borne des notes n'est pas une règle de P29.
+    tiers = [{"maximum": 10**400, "note": 100}, {"maximum": None, "note": 0}]
+    body = json.dumps(rates(delay_tiers=tiers))
+    response = api.post("/rates", content=body, headers={"Content-Type": "application/json"})
+    assert response.status_code == 201, response.text
+
+
+@pytest.mark.parametrize(
+    ("url", "body"),
+    [
+        ("/auth/login", {"email": float("nan"), "password": "x"}),
+        ("/users", {"email": "a@example.com", "password": "un-mot-de-passe-assez-long", "id_role": float("nan")}),
+    ],
+)
+def test_nan_in_a_plain_body_returns_422(url: str, body: dict[str, Any]):
+    # Ces corps-là, c'est FastAPI qui les valide, pas _validated : le
+    # gestionnaire de main.py retire aussi `input` de leurs erreurs.
+    from src.app.main import app
+
+    app.dependency_overrides[get_session] = lambda: None
+    app.dependency_overrides[get_principal] = principal_as(ADMIN)
+    try:
+        client = TestClient(app, headers={**TEST_HEADERS, "Content-Type": "application/json"})
+        response = client.post(url, content=json.dumps(body))
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+        app.dependency_overrides.pop(get_principal, None)
+    assert response.status_code == 422, response.text
+    assert all("input" not in error for error in response.json()["detail"])
 
 
 # --- P32 : forme du détail du calcul --------------------------------------------
