@@ -129,6 +129,7 @@ de la série (lecture sans rejuger P16/P29, connexion au chronomètre, `NaN` et 
 entiers, `/users` et `/roles` à `Admin`, paiement pas à pas, créé `'announced'`, payé
 figé). Puis **341 passed, 7 skipped** (fiche API6) : 11 tests d'auteurs, et les 2
 anciens tests de la clé `estate.id_author` retirés (la valeur envoyée est ignorée).
+Puis **358 passed, 7 skipped** (fiche API7) : 17 tests de propositions et de visites.
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -151,6 +152,7 @@ les biens : `post_as_hunter` dans `test_constraints_db.py`).
 | [`test_entrees.py`](tests/test_entrees.py) | `422` avant la base : email mal formé (P2), plus de chambres que de pièces (P16), réglages du taux incohérents — poids ≠ 1, plancher > plafond, paliers mal formés (P29), détail du calcul mal formé (P32) |
 | [`integration/test_versions_paiement.py`](tests/integration/test_versions_paiement.py) | grille d'honoraires, ligne de barème, réglages du taux : citée → `PUT` `409`, non citée → `200` (ADR-030, ADR-034) ; statut du paiement : pas à pas → `200` ; saut, retour en arrière, refus après `'announced'`, paiement `'paid'` modifié ou supprimé, `POST` au-delà de `'announced'` → `409` (ADR-038) ; taux final faux → `409` (P33) |
 | [`integration/test_auteurs.py`](tests/integration/test_auteurs.py) | `POST /estates` en Hunter ou Manager → `id_author` = le compte du jeton, la valeur envoyée ignorée ; Client, Admin, Reader → `403` ; un `PUT` garde l'auteur (ADR-047) ; `POST /review-media` par le chasseur de la note → `201`, un autre chasseur ou un autre rôle → `403` (ADR-051) |
+| [`integration/test_propositions_visites.py`](tests/integration/test_propositions_visites.py) | proposition : bien hors de la sélection de la demande du mandat → `409` (P19), mandat non `'active'` → `409` (P20), un `PUT` qui change de bien repasse P19 ; visite `'client'` sur un bien jamais proposé → `409`, visite `'hunter'` libre (P23) ; visite après la fin du mandat → `409`, mandat annulé dans ses dates → `201` (P25) ; avant la signature, ou mandat non signé → `409` (ADR-044) |
 | [`test_remuneration.py`](tests/test_remuneration.py) | les **55 cas** de [`10_calcul_remuneration_chasseur.feature`](../user-stories/10_calcul_remuneration_chasseur.feature), lignes d'exemples recopiées telles quelles |
 
 **Calcul de la rémunération** : [`services/remuneration.py`](src/app/services/remuneration.py)
@@ -269,6 +271,11 @@ Soit **91 opérations** (compté dans `/openapi.json`).
   ignorée, et un `PUT` ne la change pas ; vide = bien importé. `POST /review-media`
   réservé au **chasseur qui a écrit la note** (`estate_searchrequest.id_hunter`,
   ADR-051) : un autre compte → `403`.
+* 🏠 **Propositions et visites** (fiche API7, règles entre tables dans les services,
+  ADR-040) : on ne propose qu'un bien de la **sélection** de la demande du mandat
+  (P19), sur un mandat **`'active'`** (P20). Une visite tombe **entre la signature et
+  la fin** du mandat (ADR-044, P25 ; le statut n'est pas regardé), et une visite
+  `'client'` porte sur un bien **proposé sur ce mandat** (P23). Refus → `409`.
 * 🔑 **Toutes les routes exigent aussi l'en-tête `X-API-Key`** (fiche API3),
   `/auth/login` compris : clé absente ou inconnue → `401`. La clé dit quel programme
   appelle, le jeton quelle personne agit : il faut les deux.

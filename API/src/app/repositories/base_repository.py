@@ -46,6 +46,11 @@ class BaseRepository(Generic[ModelType]):
         column = getattr(self.model, field)
         return session.exec(select(column).where(column == value).limit(1)).first() is not None
 
+    def exists_where(self, session: Session, **values: object) -> bool:
+        """Vrai si au moins une ligne a toutes ces valeurs (ex. un bien proposé sur un mandat)."""
+        conditions = [getattr(self.model, field) == value for field, value in values.items()]
+        return session.exec(select(self.model).where(*conditions).limit(1)).first() is not None
+
     def create(self, session: Session, item: ModelType) -> ModelType:
         # id toujours réinitialisé : en base, "id" est GENERATED ALWAYS AS
         # IDENTITY, PostgreSQL refuse une valeur explicite (voir 02_migration.sql).

@@ -482,16 +482,31 @@ def test_review_media_without_review_returns_409(db_client: TestClient):
 # --- estate_proposed ---------------------------------------------------------
 
 
-def proposition_payload(db_client: TestClient, status: str) -> dict[str, Any]:
-    """Une offre sur un bien neuf, pour le mandat 1 posé par 02."""
-    estate = post_as_hunter(db_client, "/estates", ESTATE)
+# Mandat 15 posé par 02 : 'active', chasseur 1, demande 15, signé le
+# 2026-03-25, fin le 2026-09-25. On ne propose que sur un mandat actif (P20).
+ACTIVE_MANDATE = 15
+ACTIVE_REQUEST = 15
+
+
+def selected_estate(db_client: TestClient, search_request: int = ACTIVE_REQUEST, reference: str = "TEST-0001") -> int:
+    """Un bien neuf, mis par le chasseur 1 dans la sélection de la demande (P19)."""
+    estate = post_as_hunter(db_client, "/estates", {**ESTATE, "reference": reference})
     assert estate.status_code == 201, estate.text
+    estate_id = estate.json()["id"]
+    selection = {"id_estate": estate_id, "id_search_request": search_request, "id_hunter": HUNTER_ID}
+    response = db_client.post("/estate-search-requests", json=selection)
+    assert response.status_code == 201, response.text
+    return estate_id
+
+
+def proposition_payload(db_client: TestClient, status: str) -> dict[str, Any]:
+    """Une offre sur un bien neuf de la sélection, pour le mandat actif 15."""
     return {
         "proposition_status": status,
         "amount_proposition": 350000,
-        "id_hunter": 1,
-        "id_estate": estate.json()["id"],
-        "id_mandate": 1,
+        "id_hunter": HUNTER_ID,
+        "id_estate": selected_estate(db_client),
+        "id_mandate": ACTIVE_MANDATE,
     }
 
 
