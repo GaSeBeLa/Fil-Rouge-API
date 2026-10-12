@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import SQLModel
 
 from src.app.conf.database import get_session
-from src.app.routes import hunter_performance_router, user_router
+from src.app.routes import hunter_performance_router, role_router, user_router
 from src.app.routes.crud_router import build_crud_router
 from src.app.services.base_service import BaseService
 from src.app.utils.roles import ADMIN, CLIENT, HUNTER, MANAGER, READER, get_principal
@@ -49,6 +49,7 @@ def test_app(service: MagicMock) -> FastAPI:
     app.include_router(build_crud_router(service=service, prefix="/things", tag="things", response_model=Thing))
     app.include_router(hunter_performance_router.router)
     app.include_router(user_router.router)
+    app.include_router(role_router.router)
     app.dependency_overrides[get_session] = lambda: None
     return app
 
@@ -110,6 +111,17 @@ def test_only_admin_writes_users(test_app: FastAPI, role: str):
     assert client.post("/users", json=body).status_code == 403
     assert client.put("/users/1", json={"password": "un-autre-mot-de-passe"}).status_code == 403
     assert client.delete("/users/1").status_code == 403
+
+
+@pytest.mark.parametrize("role", [CLIENT, HUNTER, MANAGER, READER])
+def test_only_admin_writes_roles(test_app: FastAPI, role: str):
+    # Sinon un Client supprimait le rôle Admin vide, puis renommait le sien
+    # en « Admin » : tous les Clients devenaient Admin.
+    client = client_as(test_app, role)
+
+    assert client.post("/roles", json={"wording": "Admin"}).status_code == 403
+    assert client.put("/roles/1", json={"wording": "Admin"}).status_code == 403
+    assert client.delete("/roles/4").status_code == 403
 
 
 def test_health_and_login_stay_open():

@@ -256,7 +256,8 @@ Soit **91 opérations** (compté dans `/openapi.json`).
 * 🔒 **Toutes les routes CRUD exigent le jeton** (fiche API2, ADR-028) : sans jeton
   `401` ; `GET` ouvert à tout compte connecté ; `POST`, `PUT`, `DELETE` refusés à
   `Reader` (`403`) ; `POST` et `PUT /hunter-performances` refusés **à tous** (ADR-035) ;
-  `POST`, `PUT` et `DELETE /users` réservés à **`Admin`** (sinon un compte prenait celui d'un Admin).
+  `POST`, `PUT` et `DELETE` sur `/users` et `/roles` réservés à **`Admin`** (sinon un compte
+  prenait celui d'un Admin, ou renommait son rôle en « Admin »).
   La matrice complète des droits (ADR-027) n'est pas codée.
 * 🔑 **Toutes les routes exigent aussi l'en-tête `X-API-Key`** (fiche API3),
   `/auth/login` compris : clé absente ou inconnue → `401`. La clé dit quel programme
@@ -309,9 +310,9 @@ encore référencé échoue toujours en `409`.
 
 ## Limites connues
 
-* Droits : seul le mécanisme est codé (`Reader` lit sans écrire, ADR-028 ; `/users` en
-  écriture à `Admin` seul) ; tout autre compte connecté peut tout faire tant que la
-  matrice d'ADR-027 n'est pas tranchée.
+* Droits : seul le mécanisme est codé (`Reader` lit sans écrire, ADR-028 ; `/users` et
+  `/roles` en écriture à `Admin` seul) ; tout autre compte connecté peut tout faire tant que
+  la matrice d'ADR-027 n'est pas tranchée.
 * TODO — pas de verrou entre un contrôle et l'écriture qui le suit (versions figées,
   ordre du paiement) : deux `PUT` simultanés sur le même paiement lisent tous deux
   `'announced'`, et le dernier écrit gagne. Correctif : `SELECT … FOR UPDATE` dans le
