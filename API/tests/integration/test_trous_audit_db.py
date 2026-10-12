@@ -340,3 +340,21 @@ def test_p35_score_of_another_hunters_mandate_is_refused(db_session: Session):
 
 def test_p35_score_of_own_mandate_is_accepted(db_session: Session):
     run(db_session, EXPIRED_MANDATE_SCORE, hunter=2)
+
+
+# --- P36 : une seule note de départ par chasseur ------------------------------
+
+INITIAL_SCORE = (
+    "INSERT INTO hunter_performance (score, scored_at, trigger_type, id_hunter) "
+    "VALUES (:score, '2026-01-01', 'initial', :hunter)"
+)
+
+
+def test_p36_second_initial_score_is_refused(db_session: Session):
+    run(db_session, INITIAL_SCORE, score=50, hunter=1)
+    refused(db_session, INITIAL_SCORE, match="uq_perf_one_initial", score=90, hunter=1)
+
+
+def test_p36_initial_scores_of_two_hunters_are_accepted(db_session: Session):
+    run(db_session, INITIAL_SCORE, score=50, hunter=1)
+    run(db_session, INITIAL_SCORE, score=50, hunter=2)

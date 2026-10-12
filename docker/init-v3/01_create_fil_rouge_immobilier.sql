@@ -1140,6 +1140,11 @@ CREATE TABLE hunter_performance (
 );
 
 -- Q-SCH-06 : « la dernière note du chasseur » se lit par cet index.
+-- P36 (ADR-053) : une seule note de départ par chasseur (ADR-042 l. 122 ;
+-- ADR-048, point 8).
+CREATE UNIQUE INDEX uq_perf_one_initial
+    ON hunter_performance (id_hunter) WHERE trigger_type = 'initial';
+
 CREATE INDEX idx_perf_hunter_scored_at
     ON hunter_performance (id_hunter, scored_at DESC);
 
