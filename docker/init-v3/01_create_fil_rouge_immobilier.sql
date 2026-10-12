@@ -1188,6 +1188,14 @@ COMMENT ON COLUMN visit.visitor_type IS
   'chasseur, sur un bien propose qui lui convient ; seules celles-ci comptent '
   'pour la remuneration (ADR-048, ADR-053).';
 
+-- Sens de floor : l'étage du logement, comme la source (ADR-053, P18).
+COMMENT ON COLUMN estate.floor IS
+  'Etage du logement, sens de la source (colonne etage) : 0 = rez-de-chaussee, '
+  'last floor = dernier etage. PAS le nombre d etages du bien (ADR-053, P18).';
+COMMENT ON COLUMN criteria.floor IS
+  'Etage du logement souhaite par le client, meme sens que estate.floor '
+  '(ADR-053, P18).';
+
 -- Clés étrangères : ce que la colonne contient réellement.
 COMMENT ON COLUMN mandate.id_client IS
   'Reference client(id_user) — donc un id de "user", PAS client.id.';
