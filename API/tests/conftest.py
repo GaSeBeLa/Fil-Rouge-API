@@ -18,6 +18,11 @@ volontairement faible, le temps d'un test : le vrai coûte ~300 ms et 512 Mo
 par empreinte, ce qui rendrait la suite lente sans rien prouver de plus.
 Le format de l'empreinte (PHC) et la vérification restent ceux d'argon2.
 
+`client` (et `db_client`, tests/integration/conftest.py) se présentent en
+`Admin` : `get_principal` est remplacé (fiche API2), pour que les tests
+écrits avant les rôles restent verts sans jeton. Un test qui vérifie les
+droits utilise `principal_as(<rôle>)` ou retire ce remplacement.
+
 Pas encore de fixture de base de données de test (session PostgreSQL
 isolée, rollback automatique après chaque test) : à ajouter quand les
 premiers tests touchant réellement la base seront écrits. Les tests
@@ -26,12 +31,16 @@ objets factices (unittest.mock).
 ============================================================================
 """
 
+from collections.abc import Callable, Iterator
+
 import pytest
 from argon2 import PasswordHasher
 from fastapi.testclient import TestClient
 
 from src.app.main import app
+from src.app.models import User
 from src.app.utils import security
+from src.app.utils.roles import ADMIN, Principal, get_principal
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -39,9 +48,19 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "integration: test qui parle à la base de test PostgreSQL")
 
 
+def principal_as(role: str) -> Callable[[], Principal]:
+    """Remplaçant de get_principal : un compte activé du rôle donné, sans base."""
+    user = User(id=0, email=f"{role.lower()}@test.local", password="-", is_activated=True, id_role=0)
+    return lambda: Principal(user=user, role=role)
+
+
 @pytest.fixture
-def client():
-    return TestClient(app)
+def client() -> Iterator[TestClient]:
+    app.dependency_overrides[get_principal] = principal_as(ADMIN)
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(get_principal, None)
 
 
 @pytest.fixture

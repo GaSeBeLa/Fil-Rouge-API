@@ -8,4 +8,7 @@ router = build_crud_router(
     prefix="/hunter-performances",
     tag="hunter_performance",
     response_model=HunterPerformance,
+    # ADR-035 : la performance d'un chasseur n'est jamais saisie à la main ;
+    # POST et PUT fermés à tous, le service de rémunération l'écrira (API12).
+    write_roles=(),
 )

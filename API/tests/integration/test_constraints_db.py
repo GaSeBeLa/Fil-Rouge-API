@@ -51,6 +51,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session  # mère de sqlmodel.Session, la fixture db_session
+from sqlmodel import Session as SQLModelSession
+
+from src.app.models import HunterPerformance
+from src.app.repositories.hunter_performance_repository import HunterPerformanceRepository
+from src.app.services.hunter_performance_service import HunterPerformanceService
+from src.app.utils.exceptions import ConflictError
 
 ESTATE: dict[str, Any] = {
     "reference": "TEST-0001",
@@ -785,6 +791,10 @@ def test_sale_second_sale_of_same_estate_returns_409(db_client: TestClient):
 
 
 # --- hunter_performance ------------------------------------------------------
+#
+# POST /hunter-performances est fermé à tous (ADR-035, fiche API2) : ces tests
+# écrivent par le service, qui traduit la contrainte violée en ConflictError
+# (le 409 de la route, prouvé par test_crud_router.py).
 
 
 def score_payload(**overrides: Any) -> dict[str, Any]:
@@ -799,42 +809,50 @@ def score_payload(**overrides: Any) -> dict[str, Any]:
     return payload
 
 
-def test_hunter_performance_same_payment_twice_returns_409(db_client: TestClient):
+def add_score(db_session: SQLModelSession, payload: dict[str, Any]) -> HunterPerformance:
+    """Écrit une note comme le fera le service de rémunération (API12)."""
+    service = HunterPerformanceService(HunterPerformanceRepository())
+    return service.create(db_session, HunterPerformance.model_validate(payload))
+
+
+def test_hunter_performance_same_payment_twice_conflicts(db_client: TestClient, db_session: SQLModelSession):
     # Q-SCH-06 : un paiement donne une note, une seule (uq_perf_payment).
     payment = db_client.post("/payments", json=payment_payload(db_client))
     assert payment.status_code == 201, payment.text
     first = score_payload(trigger_type="payment", id_payment=payment.json()["id"])
-    assert db_client.post("/hunter-performances", json=first).status_code == 201
+    add_score(db_session, first)
     second = {**first, "scored_at": "2026-03-02T11:00:00Z"}
-    assert db_client.post("/hunter-performances", json=second).status_code == 409
+    with pytest.raises(ConflictError):
+        add_score(db_session, second)
 
 
-def test_hunter_performance_of_another_hunters_payment_returns_409(db_client: TestClient):
+def test_hunter_performance_of_another_hunters_payment_conflicts(db_client: TestClient, db_session: SQLModelSession):
     # Audit P35 : la note du paiement du chasseur 1 ne va pas au chasseur 2
     # (fk_perf_payment_same_hunter).
     payment = db_client.post("/payments", json=payment_payload(db_client))
     assert payment.status_code == 201, payment.text
     score = score_payload(trigger_type="payment", id_payment=payment.json()["id"], id_hunter=2)
-    assert db_client.post("/hunter-performances", json=score).status_code == 409
+    with pytest.raises(ConflictError):
+        add_score(db_session, score)
 
 
-def test_hunter_performance_same_mandate_twice_returns_409(db_client: TestClient):
+def test_hunter_performance_same_mandate_twice_conflicts(db_session: SQLModelSession):
     # Q-SCH-06 : un mandat échu donne une note, une seule (uq_perf_mandate).
     first = score_payload(trigger_type="mandate_expired", id_mandate=1)
-    assert db_client.post("/hunter-performances", json=first).status_code == 201
+    add_score(db_session, first)
     second = {**first, "scored_at": "2026-03-02T11:00:00Z"}
-    assert db_client.post("/hunter-performances", json=second).status_code == 409
+    with pytest.raises(ConflictError):
+        add_score(db_session, second)
 
 
-def test_hunter_performance_two_scores_same_day_are_accepted(db_client: TestClient):
+def test_hunter_performance_two_scores_same_day_are_accepted(db_session: SQLModelSession):
     # Q-SCH-06 (ferme D9) : la note se recalcule à chaque événement, donc deux
     # notes le même jour passent. En v2, excl_perf_no_overlap ('[]') les
     # refusait : il fallait un jour d'écart.
     morning = score_payload(scored_at="2026-03-02T09:00:00Z")
     evening = score_payload(scored_at="2026-03-02T17:00:00Z", trigger_type="mandate_expired", id_mandate=1)
-    assert db_client.post("/hunter-performances", json=morning).status_code == 201
-    response = db_client.post("/hunter-performances", json=evening)
-    assert response.status_code == 201, response.text
+    add_score(db_session, morning)
+    assert add_score(db_session, evening).id is not None
 
 
 # --- hunter_rate_parameters -------------------------------------------------

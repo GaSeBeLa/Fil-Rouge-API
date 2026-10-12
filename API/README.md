@@ -112,6 +112,11 @@ un prix à virgule et un champ obligatoire manquant rendent `422`.
 
 **Au 2026-10-12** : **258 passed, 7 skipped** (fiche API1) — 7 tests de connexion
 ajoutés ; les 7 sautés sont ceux du seed, qui se lancent depuis `API/`, hors conteneur.
+Puis **265 passed, 7 skipped** (fiche API2) : 7 tests de rôles.
+
+⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
+(`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
+de droits utilise `principal_as(<rôle>)`, ou retire ce remplacement.
 
 | Fichier | Ce qu'il prouve |
 |---|---|
@@ -123,6 +128,7 @@ ajoutés ; les 7 sautés sont ceux du seed, qui se lancent depuis `API/`, hors c
 | [`test_user_models.py`](tests/test_user_models.py) | mot de passe ≥ 12 caractères ; `UserPublic` sans `password` |
 | [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 pour les 18 ressources |
 | [`integration/test_auth.py`](tests/integration/test_auth.py) | connexion : jeton rendu ; mauvais mot de passe, compte inactif, jeton expiré ou forgé → `401` ; compte désactivé **après** l'émission du jeton → `401` (relu en base) |
+| [`test_roles.py`](tests/test_roles.py), [`integration/test_roles_db.py`](tests/integration/test_roles_db.py) | sans jeton → `401` ; `Reader` lit (`200`) mais n'écrit pas (`403`) ; `Admin` crée (`201`) ; `/hunter-performances` fermé en écriture ; `/` et `/auth/login` ouverts |
 | [`test_remuneration.py`](tests/test_remuneration.py) | les **55 cas** de [`10_calcul_remuneration_chasseur.feature`](../user-stories/10_calcul_remuneration_chasseur.feature), lignes d'exemples recopiées telles quelles |
 
 **Calcul de la rémunération** : [`services/remuneration.py`](src/app/services/remuneration.py)
@@ -230,7 +236,11 @@ Soit **91 opérations** (compté dans `/openapi.json`).
 * Jeton JWT `HS256`, valable **60 minutes**, sans jeton de rafraîchissement.
 * La dépendance `get_current_user` ([`auth_router.py`](src/app/routes/auth_router.py))
   **relit le compte en base à chaque appel** : rôle et activation du moment font foi.
-* ⚠️ Les routes CRUD ne l'exigent **pas encore** (fiche API2).
+* 🔒 **Toutes les routes CRUD exigent le jeton** (fiche API2, ADR-028) : sans jeton
+  `401` ; `GET` ouvert à tout compte connecté ; `POST`, `PUT`, `DELETE` refusés à
+  `Reader` (`403`) ; `POST` et `PUT /hunter-performances` refusés **à tous** (ADR-035).
+  La matrice complète des droits (ADR-027) n'est pas codée.
+* Ouverts sans jeton : `GET /` et `POST /auth/login`.
 * Swagger : bouton **Authorize**, coller le jeton seul (sans `Bearer`).
 
 ### Ce qu'un test doit attendre
@@ -273,8 +283,8 @@ encore référencé échoue toujours en `409`.
 
 ## Limites connues
 
-* Connexion en place (`/auth`, ADR-052), mais **aucune route CRUD ne l'exige encore** :
-  tout reste ouvert sans jeton jusqu'à la fiche API2.
+* Droits : seul le mécanisme est codé (`Reader` lit sans écrire, ADR-028) ; tout autre
+  compte connecté peut tout faire tant que la matrice d'ADR-027 n'est pas tranchée.
 * Les contraintes `CHECK` du schéma SQL (ex. `typology`, `estate_type`, `floor`, `gender`,
   `country_iso`) ne sont pas répliquées côté Pydantic : une valeur hors liste est acceptée
   par FastAPI puis rejetée par PostgreSQL avec une erreur `409` peu explicite.

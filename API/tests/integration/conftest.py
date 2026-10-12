@@ -40,6 +40,9 @@ from sqlmodel import Session, create_engine
 
 from src.app.conf.database import DATABASE_URL, get_session
 from src.app.main import app
+from src.app.utils.roles import ADMIN, get_principal
+
+from ..conftest import principal_as
 
 TEST_DB = os.getenv("TEST_POSTGRES_DB", "fil_rouge_test")
 
@@ -87,16 +90,21 @@ def db_session(test_engine: Engine) -> Iterator[Session]:
 
 @pytest.fixture
 def db_client(db_session: Session, fast_hasher: PasswordHasher) -> Iterator[TestClient]:
-    """TestClient sur la vraie app, branché sur `db_session` au lieu de la base de dev."""
+    """
+    TestClient sur la vraie app, branché sur `db_session` au lieu de la base
+    de dev, et connecté en `Admin` (fiche API2 ; voir tests/conftest.py).
+    """
 
     def override_get_session() -> Iterator[Session]:
         yield db_session
 
     app.dependency_overrides[get_session] = override_get_session
+    app.dependency_overrides[get_principal] = principal_as(ADMIN)
     try:
         yield TestClient(app)
     finally:
         app.dependency_overrides.pop(get_session, None)
+        app.dependency_overrides.pop(get_principal, None)
 
 
 @pytest.fixture
