@@ -24,6 +24,7 @@ from src.app.models import User, UserCreate, UserUpdate
 from src.app.repositories.user_repository import UserRepository
 from src.app.services.user_service import UserService
 from src.app.utils.exceptions import NotFoundError
+from src.app.utils import security
 from src.app.utils.security import verify_password
 
 PLAIN = "un-mot-de-passe-assez-long"
@@ -104,3 +105,33 @@ def test_replace_unknown_id_raises_not_found(service: UserService, repository: M
         service.replace(MagicMock(), 999, UserUpdate(email="x@exemple.fr"))
     assert str(exc.value) == "Utilisateur introuvable"
     repository.save.assert_not_called()
+
+
+# --- Connexion : le chronomètre ne dit pas quels emails existent (ADR-052) -------
+
+
+@pytest.fixture
+def verify_spy(fast_hasher: PasswordHasher, monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Le hacheur rapide, espionné : compte les vérifications argon2."""
+    spy = MagicMock(wraps=fast_hasher)
+    monkeypatch.setattr(security, "_hasher", spy)
+    return spy
+
+
+def test_authenticate_unknown_email_pays_one_verification(
+    service: UserService, repository: MagicMock, verify_spy: MagicMock
+):
+    repository.get_by_email.return_value = None
+
+    assert service.authenticate(MagicMock(), "inconnu@exemple.fr", PLAIN) is None
+    verify_spy.verify.assert_called_once()
+
+
+def test_authenticate_invalid_hash_pays_one_verification(
+    service: UserService, repository: MagicMock, existing_user: User, verify_spy: MagicMock
+):
+    # Les 24 comptes migrés : leur placeholder n'est pas une empreinte.
+    repository.get_by_email.return_value = existing_user
+
+    assert service.authenticate(MagicMock(), existing_user.email, PLAIN) is None
+    assert verify_spy.verify.call_count == 2  # l'empreinte refusée, puis la factice

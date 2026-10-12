@@ -27,7 +27,9 @@ de signer des jetons avec une clé vide.
 """
 
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import jwt
 from argon2 import PasswordHasher
@@ -38,6 +40,9 @@ _hasher = PasswordHasher(
     memory_cost=524288,  # 512 Mo — mesuré sur cette machine, ~298 ms
     parallelism=4,
 )
+
+# Empreinte factice, refaite si le hacheur change (tests : fast_hasher).
+_dummy: Optional[tuple[PasswordHasher, str]] = None
 
 
 def hash_password(plain: str) -> str:
@@ -54,12 +59,32 @@ def verify_password(stored: str, plain: str) -> bool:
 
     InvalidHashError couvre les 24 comptes migrés, dont le placeholder n'est
     pas une empreinte valide : ils ne peuvent tout simplement pas se
-    connecter, ce qui est le comportement voulu.
+    connecter, ce qui est le comportement voulu. Ils paient quand même le
+    coût d'une vérification (spend_password_check), sinon leur réponse
+    immédiate dirait que l'email existe.
     """
     try:
         return _hasher.verify(stored, plain)
-    except (VerifyMismatchError, InvalidHashError):
+    except VerifyMismatchError:
         return False
+    except InvalidHashError:
+        spend_password_check(plain)
+        return False
+
+
+def spend_password_check(plain: str) -> None:
+    """
+    Le coût d'une vraie vérification, sans compte derrière (ADR-052) : un
+    email inconnu répond aussi lentement qu'un connu, et le chronomètre ne
+    dit plus quels emails existent. Le résultat est ignoré.
+    """
+    global _dummy
+    if _dummy is None or _dummy[0] is not _hasher:
+        _dummy = (_hasher, _hasher.hash(secrets.token_hex(16)))
+    try:
+        _hasher.verify(_dummy[1], plain)
+    except VerifyMismatchError:
+        pass
 
 
 def needs_rehash(stored: str) -> bool:

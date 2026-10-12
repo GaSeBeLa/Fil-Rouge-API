@@ -4,7 +4,7 @@ from sqlmodel import Session
 
 from ..models import User, UserCreate, UserUpdate
 from ..repositories.user_repository import UserRepository
-from ..utils.security import hash_password, needs_rehash, verify_password
+from ..utils.security import hash_password, needs_rehash, spend_password_check, verify_password
 from .base_service import BaseService
 
 
@@ -30,7 +30,10 @@ class UserService(BaseService[User]):
         paramètres sont plus faibles que les courants (ADR-016, needs_rehash).
         """
         user = self.users.get_by_email(session, email)
-        if user is None or not verify_password(user.password, password):
+        if user is None:
+            spend_password_check(password)  # même durée qu'un email connu
+            return None
+        if not verify_password(user.password, password):
             return None
         if not user.is_activated:
             return None
