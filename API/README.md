@@ -132,6 +132,7 @@ anciens tests de la clé `estate.id_author` retirés (la valeur envoyée est ign
 Puis **358 passed, 7 skipped** (fiche API7) : 17 tests de propositions et de visites.
 Puis **370 passed, 7 skipped** (fiche API8) : 12 tests de signature et de vente ;
 `sale_payload` part d'un mandat neuf, signé, avec une offre `'accepted'`.
+Puis **379 passed, 7 skipped** (fiche API9) : 9 tests de demande déposée avant le compte.
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -156,6 +157,7 @@ les biens : `post_as_hunter` dans `test_constraints_db.py`).
 | [`integration/test_auteurs.py`](tests/integration/test_auteurs.py) | `POST /estates` en Hunter ou Manager → `id_author` = le compte du jeton, la valeur envoyée ignorée ; Client, Admin, Reader → `403` ; un `PUT` garde l'auteur (ADR-047) ; `POST /review-media` par le chasseur de la note → `201`, un autre chasseur ou un autre rôle → `403` (ADR-051) |
 | [`integration/test_propositions_visites.py`](tests/integration/test_propositions_visites.py) | proposition : bien hors de la sélection de la demande du mandat → `409` (P19), mandat non `'active'` → `409` (P20), un `PUT` qui change de bien repasse P19 ; visite `'client'` sur un bien jamais proposé → `409`, visite `'hunter'` libre (P23) ; visite après la fin du mandat → `409`, mandat annulé dans ses dates → `201` (P25) ; avant la signature, ou mandat non signé → `409` (ADR-044) |
 | [`integration/test_signature_vente.py`](tests/integration/test_signature_vente.py) | mandat signé (créé signé ou par `PUT`) → demande `'launched'`, mandat refusé → demande inchangée (ADR-044) ; vente sur mandat non signé → `409` (Q-MAN-06) ; vente `'hunter'` sans offre `'accepted'` → `409`, `'client_alone'` libre (P27) ; vente → mandat `'completed'`, vente refusée → mandat inchangé (P28) ; grille qui n'est pas celle en vigueur à la date de l'acte → `409` (ADR-030) |
+| [`integration/test_demande_avant_compte.py`](tests/integration/test_demande_avant_compte.py) | formulaire neuf → user **inactif** (mot de passe factice), fiche client et demande `'confirmed'` ; connexion refusée ; même email en majuscules → même compte (P2) ; email d'un client connu → sa fiche **n'est pas réécrite** ; email d'un chasseur → `409` ; adresse manquante → `422` ; refus de la base au milieu → `409` et **0 ligne** écrite ; `PUT /users/{id}` active le compte ; clé d'API exigée, pas de jeton (P5) |
 | [`test_remuneration.py`](tests/test_remuneration.py) | les **55 cas** de [`10_calcul_remuneration_chasseur.feature`](../user-stories/10_calcul_remuneration_chasseur.feature), lignes d'exemples recopiées telles quelles |
 
 **Calcul de la rémunération** : [`services/remuneration.py`](src/app/services/remuneration.py)
@@ -285,12 +287,21 @@ Soit **91 opérations** (compté dans `/openapi.json`).
   (P27), et la grille d'honoraires **en vigueur à la date de l'acte** (ADR-030) ; refus
   → `409`. Une vente créée passe son mandat à **`'completed'`** (P28). Ces écritures
   doubles tiennent dans **une seule transaction** (`BaseRepository.stage`).
+* 📝 **Demande avant le compte** (fiche API9, P5) : `POST /search-requests/submit`
+  reçoit le formulaire du site (email, nom, téléphone, adresse obligatoire) et crée,
+  **en une transaction**, un user **inactif** au mot de passe factice
+  (`PENDING_SIGNUP_PASSWORD`, refusé à la connexion), sa fiche client et la demande
+  `'confirmed'`. Un email déjà connu, **aux majuscules près**, retrouve son compte, sans
+  réécrire sa fiche ; un email de chasseur ou de manager → `409`. Refus de la base en
+  chemin → `409`, rien d'écrit. Activation : `PUT /users/{id}` (mot de passe et
+  `is_activated`). La route exige la clé d'API, **pas de jeton** ; les critères de la
+  demande ne sont pas pris par le formulaire.
 * 🔑 **Toutes les routes exigent aussi l'en-tête `X-API-Key`** (fiche API3),
   `/auth/login` compris : clé absente ou inconnue → `401`. La clé dit quel programme
   appelle, le jeton quelle personne agit : il faut les deux.
 * Ouverts sans clé ni jeton : `GET /`, et la doc Swagger (`/docs`, `/redoc`, `/openapi.json`),
   laissée ouverte exprès pour que l'équipe teste dans le navigateur ; elle ne montre
-  aucune donnée. `POST /auth/login` : la clé, pas de jeton.
+  aucune donnée. `POST /auth/login` et `POST /search-requests/submit` : la clé, pas de jeton.
 * Swagger : bouton **Authorize**, deux champs — `APIKeyHeader` (la clé) et
   `HTTPBearer` (le jeton seul, sans `Bearer`).
 

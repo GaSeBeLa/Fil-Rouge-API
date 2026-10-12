@@ -76,6 +76,21 @@ class BaseRepository(Generic[ModelType]):
         """
         session.add(item)
 
+    def insert_pending(self, session: Session, item: ModelType) -> ModelType:
+        """
+        Écrit `item` sans valider, pour connaître son id tout de suite : le
+        commit suivant, celui d'une autre ligne, le valide avec elle. Un
+        refus de la base annule tout ce qui attendait ce commit (P5).
+        """
+        item.id = None  # GENERATED ALWAYS AS IDENTITY, comme dans create()
+        session.add(item)
+        try:
+            session.flush()
+        except IntegrityError as exc:
+            session.rollback()
+            raise ConflictError(_WRITE_CONFLICT_DETAIL) from exc
+        return item
+
     def save(self, session: Session, existing: ModelType) -> ModelType:
         """
         Persiste un objet déjà modifié en mémoire (mise à jour partielle),

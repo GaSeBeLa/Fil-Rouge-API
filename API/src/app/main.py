@@ -57,6 +57,7 @@ from .routes import (
     review_media_router,
     role_router,
     search_request_router,
+    signup_router,
     user_router,
     sale_router,
     commission_scale_router,
@@ -97,6 +98,8 @@ def health_check():
 
 # ADR-052 : connexion par jeton JWT, exigé par toutes les routes CRUD (fiche API2).
 app.include_router(auth_router.router)
+# P5 : demande déposée avant le compte — clé d'API, pas de jeton (fiche API9).
+app.include_router(signup_router.router)
 app.include_router(user_router.router)
 app.include_router(role_router.router)
 app.include_router(hunter_router.router)

@@ -44,6 +44,13 @@ _hasher = PasswordHasher(
 # Empreinte factice, refaite si le hacheur change (tests : fast_hasher).
 _dummy: Optional[tuple[PasswordHasher, str]] = None
 
+# P5 : mot de passe d'un compte créé par le formulaire de demande, avant que
+# son titulaire n'en choisisse un. Ce n'est pas une empreinte argon2 :
+# verify_password le refuse (InvalidHashError), comme le placeholder des
+# comptes repris. L'activation (PUT /users/{id}) le remplace par une vraie
+# empreinte.
+PENDING_SIGNUP_PASSWORD = "!PENDING_SIGNUP_MUST_SET_PASSWORD"
+
 
 def hash_password(plain: str) -> str:
     """Renvoie l'empreinte PHC d'un mot de passe en clair."""
