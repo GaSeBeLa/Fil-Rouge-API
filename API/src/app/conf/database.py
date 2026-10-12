@@ -30,7 +30,7 @@ load_dotenv()
 # codée en dur : ça permet de pointer facilement vers différentes bases
 # (locale, Docker, staging...) sans jamais toucher au code.
 #
-# Format : postgresql://<user>:<password>@<host>:<port>/<database>
+# Format : postgresql+psycopg2://<user>:<password>@<host>:<port>/<database>
 #
 # Valeur par défaut ci-dessous = celle de docker-compose.yml, pour que ça
 # marche "out of the box" une fois le conteneur lancé.
@@ -57,7 +57,9 @@ def _build_url() -> str:
     host = os.getenv("POSTGRES_HOST", "localhost")
     port = os.getenv("POSTGRES_PORT", "5432")
     database = os.getenv("POSTGRES_DB", "fil_rouge_immobilier")
-    return f"postgresql://{user}:{password}@{host}:{port}/{database}"
+    # Pilote nommé : depuis SQLAlchemy 2.1, `postgresql://` seul choisit
+    # psycopg 3, absent de requirements.txt (psycopg2-binary).
+    return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}"
 
 
 DATABASE_URL = _build_url()
