@@ -1038,6 +1038,11 @@ CREATE TABLE payment (
     CONSTRAINT chk_paid
         CHECK ((status =  'paid' AND paid_at IS NOT NULL)
             OR (status <> 'paid' AND paid_at IS NULL)),
+    -- P34 (audit, 2026-10-12) : un paiement payé a eu lieu, sa date n'est pas
+    -- à venir. clock_timestamp(), pas now() (heure du début de la
+    -- transaction) ; 5 minutes de marge pour l'écart d'horloge avec l'API.
+    CONSTRAINT chk_paid_not_in_future
+        CHECK (paid_at <= (clock_timestamp() AT TIME ZONE 'utc') + INTERVAL '5 minutes'),
 
     -- Q-REM-17 — comme chk_paid : la date se remplit quand l'étape est
     --   atteinte, et reste ensuite. Un refus n'est ni annoncé ni programmé.
@@ -1108,6 +1113,10 @@ CREATE TABLE hunter_performance (
     id_mandate   INTEGER REFERENCES mandate(id) ON DELETE RESTRICT,
 
     -- Chaque type de déclencheur impose sa source, et interdit l'autre.
+    -- P34 (audit) : une note est calculée, pas prévue ; même règle que
+    -- payment.paid_at.
+    CONSTRAINT chk_perf_not_in_future
+        CHECK (scored_at <= (clock_timestamp() AT TIME ZONE 'utc') + INTERVAL '5 minutes'),
     CONSTRAINT chk_perf_source
         CHECK ((trigger_type = 'payment'         AND id_payment IS NOT NULL AND id_mandate IS NULL)
             OR (trigger_type = 'mandate_expired' AND id_mandate IS NOT NULL AND id_payment IS NULL)

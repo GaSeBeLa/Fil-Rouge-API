@@ -301,3 +301,24 @@ def test_p24_visit_in_the_future_is_refused(db_session: Session):
 def test_p24_visit_done_is_accepted(db_session: Session, days: int):
     estate = new_estate(db_session, f"P24-{days}")
     run(db_session, NEW_VISIT, days=days, estate=estate)
+
+
+# --- P34 : un paiement payé et une note ne sont pas datés du futur ------------
+
+NEW_SCORE = (
+    "INSERT INTO hunter_performance (score, scored_at, trigger_type, id_hunter) "
+    "VALUES (50, (clock_timestamp() AT TIME ZONE 'utc') + CAST(:delay AS interval), 'initial', 1)"
+)
+
+
+def test_p34_score_in_the_future_is_refused(db_session: Session):
+    refused(db_session, NEW_SCORE, match="chk_perf_not_in_future", delay="1 day")
+
+
+@pytest.mark.parametrize("delay", ["-1 day", "1 minute"])
+def test_p34_score_now_or_past_is_accepted(db_session: Session, delay: str):
+    # 1 minute d'avance : dans la marge d'horloge de 5 minutes.
+    run(db_session, NEW_SCORE, delay=delay)
+
+
+# Le paiement payé dans le futur : test_constraints_db.py, qui sait écrire une vente.

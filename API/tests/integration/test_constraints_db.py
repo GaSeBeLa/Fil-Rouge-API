@@ -547,7 +547,7 @@ def sale_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
     estate = db_client.post("/estates", json=ESTATE)
     assert estate.status_code == 201, estate.text
     payload: dict[str, Any] = {
-        "signature_date": "2030-03-01",
+        "signature_date": "2026-03-01",
         "purchase_amount": 354712,
         "fees_amount": "11867.80",  # 3 000 € + 2,5 % du prix
         "sale_origin": "hunter",
@@ -572,7 +572,7 @@ def payment_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "amount": "3560.34",
         "status": "announced",
-        "announced_at": "2030-03-02T09:00:00Z",
+        "announced_at": "2026-03-02T09:00:00Z",
         "base_rate": "0.3000",
         "seniority_rate": "0.0000",
         "performance_rate": "0.0000",
@@ -688,8 +688,8 @@ def test_payment_paid_keeps_its_dates_and_details(db_client: TestClient):
     payload = payment_payload(
         db_client,
         status="paid",
-        scheduled_for="2030-03-15",
-        paid_at="2030-03-15T10:00:00Z",
+        scheduled_for="2026-03-15",
+        paid_at="2026-03-15T10:00:00Z",
         calculation_details=details,
     )
     created = db_client.post("/payments", json=payload)
@@ -697,6 +697,14 @@ def test_payment_paid_keeps_its_dates_and_details(db_client: TestClient):
 
     read = db_client.get(f"/payments/{created.json()['id']}")
     assert read.json()["calculation_details"] == details
+
+
+def test_payment_paid_in_the_future_returns_409(db_client: TestClient):
+    # Audit P34 : un paiement payé a eu lieu (chk_paid_not_in_future).
+    payload = payment_payload(
+        db_client, status="paid", scheduled_for="2099-03-15", paid_at="2099-03-15T10:00:00Z"
+    )
+    assert db_client.post("/payments", json=payload).status_code == 409
 
 
 @pytest.mark.parametrize(("field", "value"), [("seniority_rate", "0.1200"), ("performance_rate", "-0.2500")])
@@ -774,7 +782,7 @@ def score_payload(**overrides: Any) -> dict[str, Any]:
     """Une note du chasseur 1, posé par 02."""
     payload: dict[str, Any] = {
         "score": "62.5",
-        "scored_at": "2030-03-02T10:00:00Z",
+        "scored_at": "2026-03-02T10:00:00Z",
         "trigger_type": "initial",
         "id_hunter": 1,
     }
@@ -788,7 +796,7 @@ def test_hunter_performance_same_payment_twice_returns_409(db_client: TestClient
     assert payment.status_code == 201, payment.text
     first = score_payload(trigger_type="payment", id_payment=payment.json()["id"])
     assert db_client.post("/hunter-performances", json=first).status_code == 201
-    second = {**first, "scored_at": "2030-03-02T11:00:00Z"}
+    second = {**first, "scored_at": "2026-03-02T11:00:00Z"}
     assert db_client.post("/hunter-performances", json=second).status_code == 409
 
 
@@ -796,7 +804,7 @@ def test_hunter_performance_same_mandate_twice_returns_409(db_client: TestClient
     # Q-SCH-06 : un mandat échu donne une note, une seule (uq_perf_mandate).
     first = score_payload(trigger_type="mandate_expired", id_mandate=1)
     assert db_client.post("/hunter-performances", json=first).status_code == 201
-    second = {**first, "scored_at": "2030-03-02T11:00:00Z"}
+    second = {**first, "scored_at": "2026-03-02T11:00:00Z"}
     assert db_client.post("/hunter-performances", json=second).status_code == 409
 
 
@@ -804,8 +812,8 @@ def test_hunter_performance_two_scores_same_day_are_accepted(db_client: TestClie
     # Q-SCH-06 (ferme D9) : la note se recalcule à chaque événement, donc deux
     # notes le même jour passent. En v2, excl_perf_no_overlap ('[]') les
     # refusait : il fallait un jour d'écart.
-    morning = score_payload(scored_at="2030-03-02T09:00:00Z")
-    evening = score_payload(scored_at="2030-03-02T17:00:00Z", trigger_type="mandate_expired", id_mandate=1)
+    morning = score_payload(scored_at="2026-03-02T09:00:00Z")
+    evening = score_payload(scored_at="2026-03-02T17:00:00Z", trigger_type="mandate_expired", id_mandate=1)
     assert db_client.post("/hunter-performances", json=morning).status_code == 201
     response = db_client.post("/hunter-performances", json=evening)
     assert response.status_code == 201, response.text
