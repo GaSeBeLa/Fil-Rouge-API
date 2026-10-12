@@ -10,8 +10,10 @@ la ligne à autre chose qu'elle-même :
 - ADR-038 — l'ordre du statut. Un paiement avance pas à pas, sans saut :
   'announced' -> 'scheduled' -> 'paid'. 'refused' (droit fermé, ADR-024)
   n'est possible que depuis 'announced', et ne se rouvre pas. Un paiement
-  'paid' est figé : plus aucun PUT. Le PUT est comparé au statut EN BASE :
-  un retour en arrière, un saut ou un paiement payé modifié -> 409.
+  'paid' est figé : plus aucun PUT, et il ne s'efface plus (trace d'un
+  versement). Le PUT est comparé au statut EN BASE : un retour en arrière,
+  un saut ou un paiement payé modifié -> 409. Un POST ne crée qu'un
+  paiement 'announced' ou 'refused' : les étapes suivantes passent par PUT.
 - P33 — le taux final. Il est recalculé depuis les taux stockés (base,
   ancienneté, performance) et les bornes de la version des réglages citée
   (`taux_final` de remuneration.py) ; s'il diffère -> 409. Complète
@@ -34,6 +36,9 @@ from .parametrage_service import modulation
 from .remuneration import taux_final
 
 REFUSED = "refused"
+PAID = "paid"
+# ADR-038 : un paiement naît annoncé, ou refusé d'emblée.
+CREATE_STATUSES = frozenset({"announced", REFUSED})
 # ADR-038 : les statuts qu'un PUT peut donner, selon le statut en base.
 # 'paid' n'en a aucun : un paiement payé ne se modifie plus.
 NEXT_STATUSES: dict[str, frozenset[str]] = {
@@ -50,6 +55,11 @@ class PaymentService(BaseService[Payment]):
         self.rate_parameters = rate_parameters
 
     def create(self, session: Session, item: Payment) -> Payment:
+        if item.status not in CREATE_STATUSES:
+            raise ConflictError(
+                f"Un paiement se crée 'announced' ou 'refused', pas '{item.status}' : "
+                "les étapes suivantes passent par PUT (ADR-038)."
+            )
         self._check_final_rate(session, item)
         return super().create(session, item)
 
@@ -63,6 +73,12 @@ class PaymentService(BaseService[Payment]):
             )
         self._check_final_rate(session, data)
         return self.repository.replace(session, existing, data)
+
+    def delete(self, session: Session, item_id: int) -> Payment:
+        existing = self.get_by_id(session, item_id)
+        if existing.status == PAID:
+            raise ConflictError("Un paiement payé ne s'efface pas : c'est la trace d'un versement (ADR-038).")
+        return self.repository.delete(session, existing)
 
     def _check_final_rate(self, session: Session, payment: Payment) -> None:
         """P33 : le taux final stocké doit être celui que les taux stockés donnent."""

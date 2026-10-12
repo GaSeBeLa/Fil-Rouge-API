@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 from .test_constraints_db import (
     HUNTER_RATE_PARAMETERS,
     REFUSED,
+    advance,
     fees_grid,
     payment_payload,
     rate_parameters,
@@ -31,11 +32,9 @@ GRID = {"effective_from": "2025-01-01", "fixed_amount": 3000, "rate": "0.0250"}
 SCALE = {"amount_min": 0, "rate": "0.3000", "valid_from": "2025-01-01"}
 
 
-def create_payment(db_client: TestClient, **overrides: Any) -> tuple[int, dict[str, Any]]:
-    payload = payment_payload(db_client, **overrides)
-    response = db_client.post("/payments", json=payload)
-    assert response.status_code == 201, response.text
-    return response.json()["id"], payload
+def create_payment(db_client: TestClient, *steps: dict[str, Any], **overrides: Any) -> tuple[int, dict[str, Any]]:
+    """Un paiement 'announced', puis avancé par PUT, étape par étape (ADR-038)."""
+    return advance(db_client, payment_payload(db_client, **overrides), *steps)
 
 
 # --- ADR-030, ADR-034 : une version citée est figée ---------------------------
@@ -105,7 +104,7 @@ def test_payment_moves_forward_step_by_step(db_client: TestClient):
 
 
 def test_paid_payment_cannot_go_back_to_announced(db_client: TestClient):
-    payment_id, payload = create_payment(db_client, **PAID)
+    payment_id, payload = create_payment(db_client, SCHEDULED, PAID)
 
     response = db_client.put(f"/payments/{payment_id}", json={**payload, **ANNOUNCED})
     assert response.status_code == 409
@@ -120,15 +119,37 @@ def test_announced_payment_cannot_skip_scheduled(db_client: TestClient):
 
 
 def test_paid_payment_is_frozen(db_client: TestClient):
-    payment_id, payload = create_payment(db_client, **PAID)
+    payment_id, payload = create_payment(db_client, SCHEDULED, PAID)
 
     response = db_client.put(f"/payments/{payment_id}", json={**payload, "amount": "3600.00"})
     assert response.status_code == 409
     assert "ADR-038" in response.text
 
 
+def test_paid_payment_cannot_be_deleted(db_client: TestClient):
+    payment_id, _ = create_payment(db_client, SCHEDULED, PAID)
+
+    response = db_client.delete(f"/payments/{payment_id}")
+    assert response.status_code == 409
+    assert "ADR-038" in response.text
+
+
+def test_announced_payment_can_be_deleted(db_client: TestClient):
+    payment_id, _ = create_payment(db_client)
+
+    assert db_client.delete(f"/payments/{payment_id}").status_code == 200
+
+
+@pytest.mark.parametrize("step", [SCHEDULED, PAID])
+def test_payment_cannot_be_created_past_announced(db_client: TestClient, step: dict[str, Any]):
+    # Les dates sont là : la base accepterait, seule ADR-038 refuse.
+    response = db_client.post("/payments", json=payment_payload(db_client, **step))
+    assert response.status_code == 409
+    assert "ADR-038" in response.text
+
+
 def test_scheduled_payment_cannot_go_back_to_announced(db_client: TestClient):
-    payment_id, payload = create_payment(db_client, **SCHEDULED)
+    payment_id, payload = create_payment(db_client, SCHEDULED)
 
     assert db_client.put(f"/payments/{payment_id}", json={**payload, **ANNOUNCED}).status_code == 409
 
@@ -143,7 +164,7 @@ def test_announced_payment_can_be_refused_but_not_reopened(db_client: TestClient
 
 
 def test_scheduled_payment_cannot_be_refused(db_client: TestClient):
-    payment_id, payload = create_payment(db_client, **SCHEDULED)
+    payment_id, payload = create_payment(db_client, SCHEDULED)
 
     # scheduled_for vidé : sans lui, chk_scheduled refuserait déjà, et le test
     # ne prouverait plus la règle d'ADR-038.

@@ -686,9 +686,22 @@ def test_payment_announced_without_date_returns_409(db_client: TestClient):
     assert response.status_code == 409
 
 
+def advance(db_client: TestClient, payload: dict[str, Any], *steps: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    """Crée le paiement 'announced', puis le fait avancer par PUT (ADR-038 : pas de POST en 'paid')."""
+    created = db_client.post("/payments", json=payload)
+    assert created.status_code == 201, created.text
+    payment_id = created.json()["id"]
+    for step in steps:
+        payload = {**payload, **step}
+        moved = db_client.put(f"/payments/{payment_id}", json=payload)
+        assert moved.status_code == 200, moved.text
+    return payment_id, payload
+
+
 def test_payment_scheduled_without_date_returns_409(db_client: TestClient):
     # Q-REM-17 : chk_scheduled — programmé, donc prévu pour un jour.
-    response = db_client.post("/payments", json=payment_payload(db_client, status="scheduled"))
+    payment_id, payload = advance(db_client, payment_payload(db_client))
+    response = db_client.put(f"/payments/{payment_id}", json={**payload, "status": "scheduled"})
     assert response.status_code == 409
 
 
@@ -696,26 +709,21 @@ def test_payment_paid_keeps_its_dates_and_details(db_client: TestClient):
     # Q-REM-17 : un paiement fait garde ses trois dates. Q-REM-04 : les
     # termes du calcul se relisent tels quels (clés de CalculationDetails).
     details = {**DETAILS, "mandate_signature_date": "2026-01-05", "is_exclusive": True}
-    payload = payment_payload(
-        db_client,
-        status="paid",
-        scheduled_for="2026-03-15",
-        paid_at="2026-03-15T10:00:00Z",
-        calculation_details=details,
-    )
-    created = db_client.post("/payments", json=payload)
-    assert created.status_code == 201, created.text
+    scheduled = {"status": "scheduled", "scheduled_for": "2026-03-15"}
+    paid = {"status": "paid", "paid_at": "2026-03-15T10:00:00Z"}
+    payment_id, _ = advance(db_client, payment_payload(db_client, calculation_details=details), scheduled, paid)
 
-    read = db_client.get(f"/payments/{created.json()['id']}")
-    assert read.json()["calculation_details"] == details
+    read = db_client.get(f"/payments/{payment_id}").json()
+    assert read["calculation_details"] == details
+    assert read["announced_at"] and read["scheduled_for"] and read["paid_at"]
 
 
 def test_payment_paid_in_the_future_returns_409(db_client: TestClient):
     # Audit P34 : un paiement payé a eu lieu (chk_paid_not_in_future).
-    payload = payment_payload(
-        db_client, status="paid", scheduled_for="2099-03-15", paid_at="2099-03-15T10:00:00Z"
-    )
-    assert db_client.post("/payments", json=payload).status_code == 409
+    scheduled = {"status": "scheduled", "scheduled_for": "2099-03-15"}
+    payment_id, payload = advance(db_client, payment_payload(db_client), scheduled)
+    paid = {**payload, "status": "paid", "paid_at": "2099-03-15T10:00:00Z"}
+    assert db_client.put(f"/payments/{payment_id}", json=paid).status_code == 409
 
 
 @pytest.mark.parametrize(
