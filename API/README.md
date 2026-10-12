@@ -139,6 +139,8 @@ Puis **393 passed, 7 skipped** (relecture de la série) : un renouvellement non 
 n'efface plus la fin du mandat signé ; le paiement seul garde le nom d'un chasseur.
 Puis **398 passed, 7 skipped** (relecture, ADR-051) : la note d'un bien a pour auteur le
 chasseur du jeton ; un `PUT` ne la donne plus à un autre ; Admin, Manager, Client → `403`.
+Puis **399 passed, 7 skipped** (relecture) : `POST /search-requests/submit` répond pareil
+à tous (`202`, sans id) ; un email de non-client est ignoré et logué.
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -163,7 +165,7 @@ les biens : `post_as_hunter` dans `test_constraints_db.py`).
 | [`integration/test_auteurs.py`](tests/integration/test_auteurs.py) | `POST /estates` en Hunter ou Manager → `id_author` = le compte du jeton, la valeur envoyée ignorée ; Client, Admin, Reader → `403` ; un `PUT` garde l'auteur (ADR-047) ; `POST /review-media` par le chasseur de la note → `201`, un autre chasseur ou un autre rôle → `403` (ADR-051) ; la note a pour auteur le chasseur du jeton, un `PUT` la garde, les autres rôles → `403` |
 | [`integration/test_propositions_visites.py`](tests/integration/test_propositions_visites.py) | proposition : bien hors de la sélection de la demande du mandat → `409` (P19), mandat non `'active'` → `409` (P20), un `PUT` qui change de bien repasse P19 ; visite `'client'` sur un bien jamais proposé → `409`, visite `'hunter'` libre (P23) ; visite après la fin du mandat → `409`, mandat annulé dans ses dates → `201` (P25) ; avant la signature, ou mandat non signé → `409` (ADR-044) |
 | [`integration/test_signature_vente.py`](tests/integration/test_signature_vente.py) | mandat signé (créé signé ou par `PUT`) → demande `'launched'`, mandat refusé → demande inchangée (ADR-044) ; vente sur mandat non signé → `409` (Q-MAN-06) ; vente `'hunter'` sans offre `'accepted'` → `409`, `'client_alone'` libre (P27) ; vente → mandat `'completed'`, vente refusée → mandat inchangé (P28) ; grille qui n'est pas celle en vigueur à la date de l'acte → `409` (ADR-030) |
-| [`integration/test_demande_avant_compte.py`](tests/integration/test_demande_avant_compte.py) | formulaire neuf → user **inactif** (mot de passe factice), fiche client et demande `'confirmed'` ; connexion refusée ; même email en majuscules → même compte (P2) ; email d'un client connu → sa fiche **n'est pas réécrite** ; email d'un chasseur → `409` ; adresse manquante → `422` ; refus de la base au milieu → `409` et **0 ligne** écrite ; `PUT /users/{id}` active le compte ; clé d'API exigée, pas de jeton (P5) |
+| [`integration/test_demande_avant_compte.py`](tests/integration/test_demande_avant_compte.py) | formulaire neuf → user **inactif** (mot de passe factice), fiche client et demande `'confirmed'` ; connexion refusée ; même email en majuscules → même compte (P2) ; email d'un client connu → sa fiche **n'est pas réécrite** ; email d'un chasseur → ignoré et logué (l'id, pas l'email) ; **même réponse** `202` pour tous ; adresse manquante → `422` ; refus de la base au milieu → `409` et **0 ligne** écrite ; `PUT /users/{id}` active le compte ; clé d'API exigée, pas de jeton (P5) |
 | [`integration/test_anonymisation.py`](tests/integration/test_anonymisation.py) | `POST /users/{id}/anonymize` : client sans mandat → **tout** anonyme, compte désactivé, connexion refusée ; nom gardé **10 ans** après la fin du dernier mandat **signé** de la chaîne (un renouvellement pas encore signé n'efface pas la fin d'avant) ou le paiement (seul, pour un chasseur dont les mandats sont finis depuis longtemps) (versé, ou pas encore : à partir d'aujourd'hui), reste anonyme tout de suite ; commentaire du client et motif des critères vidés ; rappelée après le délai → nom « Anonyme » ; non-`Admin` → `403` ; `DELETE /clients/1` → `405` (ADR-049) |
 | [`test_remuneration.py`](tests/test_remuneration.py) | les **55 cas** de [`10_calcul_remuneration_chasseur.feature`](../user-stories/10_calcul_remuneration_chasseur.feature), lignes d'exemples recopiées telles quelles |
 
@@ -302,8 +304,11 @@ et l'anonymisation. Soit **85 opérations** (compté dans `/openapi.json` le 12/
   **en une transaction**, un user **inactif** au mot de passe factice
   (`PENDING_SIGNUP_PASSWORD`, refusé à la connexion), sa fiche client et la demande
   `'confirmed'`. Un email déjà connu, **aux majuscules près**, retrouve son compte, sans
-  réécrire sa fiche ; un email de chasseur ou de manager → `409`. Refus de la base en
-  chemin → `409`, rien d'écrit. Activation : `PUT /users/{id}` (mot de passe et
+  réécrire sa fiche ; un email de chasseur ou de manager est ignoré, et logué. **Même
+  réponse pour tous** : `202` et `{"detail": "Demande reçue."}`, sans id (relecture
+  de la série). Refus de la base en chemin → `409`, rien d'écrit — limite : les formats
+  ne se contrôlent qu'en base, donc un formulaire mal formé dit encore si l'email est
+  neuf. Activation : `PUT /users/{id}` (mot de passe et
   `is_activated`). La route exige la clé d'API, **pas de jeton** ; les critères de la
   demande ne sont pas pris par le formulaire.
 * 🧹 **Effacer un compte** (fiche API10, ADR-049) : `POST /users/{id}/anonymize`,

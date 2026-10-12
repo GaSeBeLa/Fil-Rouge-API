@@ -22,11 +22,20 @@ Un email déjà connu, majuscules comprises (P2), retrouve son compte : la
 demande s'y rattache, et une fiche client existante n'est PAS réécrite — un
 formulaire envoyé sans connexion ne doit pas changer l'adresse d'un autre.
 
+Même réponse pour tous (relecture de la série API6 → API10) : la route ne
+dit jamais si l'email existait. Un email de chasseur, de manager ou d'admin
+ne reçoit pas de fiche client (P1) : la demande est écartée sans le dire,
+et notée dans les logs. Limite connue : les formats (code postal, téléphone)
+ne sont contrôlés que par la base, et seulement quand une fiche s'écrit ;
+un formulaire mal formé donne donc 409 pour un email neuf, 202 pour un
+email connu.
+
 L'activation passe par PUT /users/{id} (mot de passe et is_activated) :
 aucun envoi d'email ici.
 ============================================================================
 """
 
+import logging
 from typing import Optional
 
 from pydantic import EmailStr
@@ -37,11 +46,15 @@ from ..repositories.client_repository import ClientRepository
 from ..repositories.role_repository import RoleRepository
 from ..repositories.search_request_repository import SearchRequestRepository
 from ..repositories.user_repository import UserRepository
-from ..utils.exceptions import ConflictError
 from ..utils.roles import CLIENT
 from ..utils.security import PENDING_SIGNUP_PASSWORD
 
+logger = logging.getLogger(__name__)
+
 _RECEIVED = "confirmed"  # demande reçue, pas encore de chasseur (ADR-041)
+
+# La seule réponse de la route, quel que soit l'email.
+RECEIPT = "Demande reçue."
 
 _CLIENT_FIELDS = {
     "first_name",
@@ -75,6 +88,12 @@ class SearchRequestSubmission(SQLModel):
     town: str = Field(min_length=1, max_length=100)
 
 
+class SubmissionReceipt(SQLModel):
+    """La réponse au formulaire : rien qui dise si l'email existait."""
+
+    detail: str = RECEIPT
+
+
 class SignupService:
     """Enregistre la demande d'un visiteur, compte et fiche client compris (P5)."""
 
@@ -90,7 +109,8 @@ class SignupService:
         self.roles = roles
         self.requests = requests
 
-    def submit(self, session: Session, form: SearchRequestSubmission) -> SearchRequest:
+    def submit(self, session: Session, form: SearchRequestSubmission) -> Optional[SearchRequest]:
+        """La demande enregistrée, ou None si l'email est celui d'un compte non client."""
         client_role_id = self._client_role_id(session)
         user = self.users.find_by_email_ignoring_case(session, form.email)
         if user is None:
@@ -109,8 +129,11 @@ class SignupService:
 
         if not self.clients.exists_with(session, "id_user", user_id):
             if user.id_role != client_role_id:
-                # P1 : pas de fiche client pour un chasseur, un manager…
-                raise ConflictError("Cet email appartient à un compte qui n'est pas un compte client.")
+                # P1 : pas de fiche client pour un chasseur, un manager… Rien
+                # n'est écrit, et rien n'est dit au visiteur. Le log garde
+                # l'id du compte, pas l'email.
+                logger.warning("Demande écartée : le compte %s n'est pas un compte client.", user_id)
+                return None
             self.clients.insert_pending(
                 session, Client(id_user=user_id, **form.model_dump(include=_CLIENT_FIELDS))
             )
