@@ -13,7 +13,7 @@ COMMENT LIRE CE FICHIER
 - Le visiteur n'a pas encore de compte : la route exige la clé d'API du
   site (`X-API-Key`, fiche API3), pas de jeton.
 - Refus de la base en chemin (format du code postal, du téléphone…) : 409,
-  et rien n'est écrit.
+  et rien n'est écrit — pour un email connu aussi (fiche DRO11).
 ============================================================================
 """
 
@@ -40,9 +40,9 @@ _service = SignupService(UserRepository(), ClientRepository(), RoleRepository(),
 
 # Clé d'API sans jeton, par nature : le visiteur n'a pas encore de compte,
 # il le crée avec sa demande (Q-ACC-12, P5). Même réponse pour tous, sans id :
-# rien d'un autre compte ne sort. Limite connue (signup_service.py) : un
-# format refusé par la base rend 409 pour un email neuf, 202 pour un email
-# connu ; test xfail dans test_droits_par_role.py. Revue en DRO3 : inchangée.
+# rien d'un autre compte ne sort. Un format refusé par la base rend 409 quel
+# que soit l'email : un email connu passe par la sonde du service
+# (signup_service.py, fiche DRO11).
 @router.post(
     "/submit",
     response_model=SubmissionReceipt,

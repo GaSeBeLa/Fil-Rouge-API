@@ -31,6 +31,7 @@ import jwt
 import pytest
 from fastapi.testclient import TestClient
 from httpx import Response
+from sqlmodel import Session
 
 from src.app.main import app
 from src.app.models import UserPublic
@@ -38,7 +39,7 @@ from src.app.utils.roles import ADMIN, ALL_ROLES, CLIENT, HUNTER, MANAGER, READE
 
 from ..conftest import acting_as
 from .conftest import USER_PASSWORD
-from .test_demande_avant_compte import FORM, SEED_CLIENT_EMAIL, SUBMIT
+from .test_demande_avant_compte import FORM, SEED_CLIENT_EMAIL, SEED_HUNTER_EMAIL, SUBMIT, _counts
 
 A, C, H, M, R = ADMIN, CLIENT, HUNTER, MANAGER, READER
 
@@ -207,12 +208,19 @@ def test_me_gives_the_token_account_only(db_client: TestClient, two_accounts: tu
         assert set(body) == set(UserPublic.model_fields)
 
 
-# Limite connue (signup_service.py) : les formats ne sont jugés par la base
-# que quand une fiche client s'écrit. Ce test passera le jour où elle tombe.
-@pytest.mark.xfail(strict=True, reason="Formats jugés par la base seulement pour un email neuf (signup_service.py).")
-def test_malformed_form_gets_the_same_answer_whoever_the_email(db_client: TestClient):
+# Fiche DRO11 : un email connu rejoue le chemin d'un email neuf dans un
+# SAVEPOINT annulé (signup_service.py) ; la base juge pareil pour tous.
+def test_malformed_form_gets_the_same_answer_whoever_the_email(db_client: TestClient, db_session: Session):
+    before = _counts(db_session)
     # Téléphone sans indicatif : refusé par le CHECK de client.phone_number.
     malformed = {**FORM, "phone_number": "0612345678"}
-    emails = (FORM["email"], SEED_CLIENT_EMAIL)
-    answers = {db_client.post(SUBMIT, json={**malformed, "email": email}).status_code for email in emails}
-    assert len(answers) == 1, answers
+    emails = (FORM["email"], SEED_CLIENT_EMAIL, SEED_HUNTER_EMAIL)
+    answers = {email: db_client.post(SUBMIT, json={**malformed, "email": email}).status_code for email in emails}
+    assert set(answers.values()) == {409}, answers
+    assert _counts(db_session) == before
+
+    # Bien formé, un email connu passe toujours, sans compte ni fiche de plus.
+    users, clients, requests = before
+    for email in (SEED_CLIENT_EMAIL, SEED_HUNTER_EMAIL):
+        assert db_client.post(SUBMIT, json={**FORM, "email": email}).status_code == 202
+    assert _counts(db_session) == (users, clients, requests + 1)  # la demande du client seule

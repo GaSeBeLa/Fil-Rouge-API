@@ -25,10 +25,17 @@ formulaire envoyé sans connexion ne doit pas changer l'adresse d'un autre.
 Même réponse pour tous (relecture de la série API6 → API10) : la route ne
 dit jamais si l'email existait. Un email de chasseur, de manager ou d'admin
 ne reçoit pas de fiche client (P1) : la demande est écartée sans le dire,
-et notée dans les logs. Limite connue : les formats (code postal, téléphone)
-ne sont contrôlés que par la base, et seulement quand une fiche s'écrit ;
-un formulaire mal formé donne donc 409 pour un email neuf, 202 pour un
-email connu.
+et notée dans les logs.
+
+Les formats (code postal, téléphone…) ne sont jugés que par la base, quand
+une fiche s'écrit. Pour qu'un formulaire mal formé rende la même réponse
+quel que soit l'email (fiche DRO11, choix B de Sébastien, 2026-10-13), un
+email connu rejoue d'abord le chemin d'un email neuf dans un SAVEPOINT
+annulé (_probe_new_signup) : un compte jetable, sa fiche client avec les
+champs du formulaire. Un refus de la base → ConflictError, comme pour un
+email neuf ; sinon le chemin connu continue, sans rien réécrire. Les CHECK
+ne sont pas recopiés en Python : la base reste seul juge. La sonde avance
+les compteurs d'id (une séquence ne recule pas) ; rien d'autre n'en reste.
 
 L'activation passe par PUT /users/{id} (mot de passe et is_activated) :
 aucun envoi d'email ici.
@@ -37,11 +44,13 @@ aucun envoi d'email ici.
 
 import logging
 from typing import Optional
+from uuid import uuid4
 
 from pydantic import EmailStr
 from sqlmodel import Field, Session, SQLModel
 
 from ..models import Client, SearchRequest, User
+from ..repositories.base_repository import discarded_writes
 from ..repositories.client_repository import ClientRepository
 from ..repositories.role_repository import RoleRepository
 from ..repositories.search_request_repository import SearchRequestRepository
@@ -113,7 +122,9 @@ class SignupService:
         """La demande enregistrée, ou None si l'email est celui d'un compte non client."""
         client_role_id = self._client_role_id(session)
         user = self.users.find_by_email_ignoring_case(session, form.email)
-        if user is None:
+        if user is not None:
+            self._probe_new_signup(session, form, client_role_id)
+        else:
             user = self.users.insert_pending(
                 session,
                 User(
@@ -141,6 +152,26 @@ class SignupService:
         # Le commit de la demande valide aussi le compte et la fiche en attente.
         request = SearchRequest(id_author=user_id, id_client=user_id, status=_RECEIVED)
         return self.requests.create(session, request)
+
+    def _probe_new_signup(self, session: Session, form: SearchRequestSubmission, client_role_id: int) -> None:
+        """
+        Le chemin d'un email neuf, joué puis annulé (fiche DRO11) : la base
+        juge le formulaire comme pour un inconnu. Refus → ConflictError.
+        """
+        with discarded_writes(session):
+            probe = self.users.insert_pending(
+                session,
+                User(
+                    # Jetable, et unique : il ne heurte aucun compte réel.
+                    email=f"sonde-{uuid4().hex}@formulaire.invalid",
+                    password=PENDING_SIGNUP_PASSWORD,
+                    is_activated=False,
+                    id_role=client_role_id,
+                ),
+            )
+            if probe.id is None:  # posé par la base au flush ; garde pour le typage
+                raise RuntimeError("Le compte de la sonde n'a pas reçu d'id.")
+            self.clients.insert_pending(session, Client(id_user=probe.id, **form.model_dump(include=_CLIENT_FIELDS)))
 
     def _client_role_id(self, session: Session) -> int:
         role = self.roles.get_by_wording(session, CLIENT)

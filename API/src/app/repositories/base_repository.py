@@ -19,10 +19,14 @@ classe.
 `where` (fiche DRO4) : list_all et get_by_id acceptent la condition SQL
 des lignes visibles, que le service tire de son crochet « le sien ». Le
 filtre se fait dans la requête, jamais en Python après coup.
+
+`discarded_writes` (fiche DRO11) : un SAVEPOINT toujours annulé. La base
+juge des écritures (ses CHECK), et rien n'en reste.
 ============================================================================
 """
 
-from typing import Generic, List, Optional, Sequence, Type, TypeVar
+from contextlib import contextmanager
+from typing import Generator, Generic, List, Optional, Sequence, Type, TypeVar
 
 from sqlalchemy import ColumnElement
 from sqlalchemy.exc import IntegrityError
@@ -34,6 +38,21 @@ ModelType = TypeVar("ModelType", bound=SQLModel)
 
 _WRITE_CONFLICT_DETAIL = "Contrainte violée (valeur en double ou référence inexistante)."
 _DELETE_CONFLICT_DETAIL = "Suppression impossible : cette ligne est encore référencée ailleurs."
+
+
+@contextmanager
+def discarded_writes(session: Session) -> Generator[None, None, None]:
+    """
+    Les écritures du bloc passent devant la base (flush), puis sont annulées :
+    un SAVEPOINT qui ne se valide jamais. Un refus de la base dans le bloc
+    (insert_pending : rollback, puis ConflictError) a déjà tout annulé.
+    """
+    savepoint = session.begin_nested()
+    try:
+        yield
+    finally:
+        if savepoint.is_active:
+            savepoint.rollback()
 
 
 class BaseRepository(Generic[ModelType]):

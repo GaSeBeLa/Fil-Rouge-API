@@ -208,6 +208,8 @@ Puis **897 passed, 8 skipped, 7 xfailed** (fiche DRO7, 2026-10-13) : le Manager 
 son équipe. Puis **905 passed** (fiche DRO8) : les comptes désactivés réservés à l'Admin.
 Puis **910 passed, 8 skipped, 7 xfailed** (fiche DRO9, 2026-10-13) : `fil_rouge_reader`
 fermé sur `payment` et sur les comptes désactivés, 5 tests dans `test_lecteur_sql.py`.
+Puis **911 passed, 8 skipped, 6 xfailed** (fiche DRO11, 2026-10-13) : la fuite du
+formulaire fermée, le `xfail` de DRO3 passe.
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -230,7 +232,7 @@ par le service (`write_payment`) : un refus y est un `ConflictError`, le `409` d
 | [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 sur un routeur factice ; `DELETE` → `405` (ADR-049) ; les deux `GET`, le `POST` et le `PUT` passent le compte au service (DRO4, DRO5) ; `ForbiddenError` au `PUT` → `403` |
 | [`integration/test_auth.py`](tests/integration/test_auth.py) | connexion : jeton rendu ; mauvais mot de passe, compte inactif, jeton expiré ou forgé → `401` ; compte désactivé **après** l'émission du jeton → `401` (relu en base) |
 | [`test_roles.py`](tests/test_roles.py), [`integration/test_roles_db.py`](tests/integration/test_roles_db.py) | sans jeton → `401` ; `Reader` lit (`200`) mais n'écrit pas (`403`) ; `Admin` crée (`201`) ; un routeur sans rôles déclarés → `403` pour les 5 rôles (DRO1) ; `/hunter-performances` et `/roles` fermés en écriture ; `/users` créé par l'Admin seul, modifié par l'Admin, le Client et le Hunter (DRO5, DRO6) ; `/` et `/auth/login` ouverts |
-| [`integration/test_droits_par_role.py`](tests/integration/test_droits_par_role.py) | la grille de l'annexe d'ADR-027, recopiée à la main : chaque case fermée → `403` en lecture (liste et ligne), création, modification ; chaque case ouverte ≠ `403` ; au moins un refus par table (DRO1) ; tables d'argent, et `POST /sales/{id}/payment` réservé à l'Admin (DRO2) ; chaque route hors CRUD nommée avec le test qui la juge, `/` ne rend qu'un statut, `/auth/login` qu'un jeton (`sub`, `iat`, `exp`), `/auth/me` le seul compte du jeton, même avec un id dans l'URL (DRO3) |
+| [`integration/test_droits_par_role.py`](tests/integration/test_droits_par_role.py) | la grille de l'annexe d'ADR-027, recopiée à la main : chaque case fermée → `403` en lecture (liste et ligne), création, modification ; chaque case ouverte ≠ `403` ; au moins un refus par table (DRO1) ; tables d'argent, et `POST /sales/{id}/payment` réservé à l'Admin (DRO2) ; chaque route hors CRUD nommée avec le test qui la juge, `/` ne rend qu'un statut, `/auth/login` qu'un jeton (`sub`, `iat`, `exp`), `/auth/me` le seul compte du jeton, même avec un id dans l'URL (DRO3) ; formulaire mal formé → `409` quel que soit l'email (neuf, client, chasseur), bien formé → `202` sans compte ni fiche de plus (DRO11) |
 | [`integration/test_le_sien.py`](tests/integration/test_le_sien.py) | « le sien » sur `/payments` (DRO4) : un Hunter liste ses paiements seulement, `404` sur celui d'un autre chasseur (même réponse qu'un id absent), refus au service en modification ; l'Admin voit tout. Le Client (DRO5) : deux clients du seed, une ligne chacun dans les 13 tables de sa colonne ; chacun liste les siennes, `404` sur celles de l'autre ; `PUT` du mandat d'un autre → `404` ; son mandat passé à un autre client, une fiche client ou une demande pour un autre compte, des critères sur la demande d'un autre, sa proposition déplacée sur le mandat d'un autre → `409` ; son rôle ou son activation → `403`. Le Hunter (DRO6) : chasseurs 1 et 2, une ligne chacun dans les 13 tables où sa colonne dit « le sien » ; même preuve ; biens et photos lisibles en entier, barème par défaut visible, son seul manager ; `PUT` de la ligne d'un autre → `404` (7 tables) ; une ligne au nom d'un autre → `409` (6 tables), un mandat sur la demande d'un autre aussi ; hors de ses coordonnées (même un champ omis), son rôle, son média sur la note d'un autre → `403` |
 | [`test_api_keys.py`](tests/test_api_keys.py) | sans clé ou clé inconnue → `401` ; bonne clé et bon jeton → `200` ; bonne clé sans jeton → `401` ; `/` sans clé ; démarrage refusé sans clé ou clé trop courte |
 | [`test_entrees.py`](tests/test_entrees.py) | `422` avant la base : email mal formé (P2), plus de chambres que de pièces (P16), réglages du taux incohérents — poids ≠ 1, plancher > plafond, paliers mal formés (P29), détail du calcul mal formé (P32) |
@@ -497,9 +499,9 @@ ensuite créer d'autres comptes avec `POST /users`, pour essayer les autres rôl
   `'confirmed'`. Un email déjà connu, **aux majuscules près**, retrouve son compte, sans
   réécrire sa fiche ; un email de chasseur ou de manager est ignoré, et logué. **Même
   réponse pour tous** : `202` et `{"detail": "Demande reçue."}`, sans id (relecture
-  de la série). Refus de la base en chemin → `409`, rien d'écrit — limite : les formats
-  ne se contrôlent qu'en base, donc un formulaire mal formé dit encore si l'email est
-  neuf. Activation : `PUT /users/{id}` (mot de passe et
+  de la série). Refus de la base en chemin → `409`, rien d'écrit, **quel que soit
+  l'email** : un email connu rejoue d'abord le chemin d'un email neuf dans un SAVEPOINT
+  annulé, pour que la base juge ses formats (fiche DRO11). Activation : `PUT /users/{id}` (mot de passe et
   `is_activated`). La route exige la clé d'API, **pas de jeton** ; les critères de la
   demande ne sont pas pris par le formulaire.
 * 🧹 **Effacer un compte** (fiche API10, ADR-049) : `POST /users/{id}/anonymize`,
@@ -635,9 +637,6 @@ encore référencé échoue toujours, même en SQL direct (l'API, elle, ne suppr
   sur ses demandes (fiche DRO6). La base l'accepte ; la réaffectation attend Jeff (Q-JEF-30).
 * Le `PUT` recopie `created_at` du corps reçu, sur toute table (`BaseRepository.replace`) ;
   le garde des coordonnées du chasseur ne le regarde pas.
-* Formulaire du site : un format refusé par la base (téléphone, code postal) rend `409`
-  pour un email neuf, `202` pour un email connu ; l'email se devine. Test `xfail` strict
-  dans `test_droits_par_role.py` (fiche DRO3).
 * TODO — pas de verrou entre un contrôle et l'écriture qui le suit (versions figées,
   ordre du paiement) : deux `PUT` simultanés sur le même paiement lisent tous deux
   `'announced'`, et le dernier écrit gagne. Correctif : `SELECT … FOR UPDATE` dans le
