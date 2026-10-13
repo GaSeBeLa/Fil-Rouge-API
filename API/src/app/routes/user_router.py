@@ -7,7 +7,7 @@ from ..repositories.user_repository import UserRepository
 from ..services.anonymization_service import AnonymizationReport, AnonymizationService
 from ..services.user_service import UserService
 from ..utils.exceptions import ConflictError, NotFoundError
-from ..utils.roles import ADMIN, ALL_ROLES, CLIENT, HUNTER, require_roles
+from ..utils.roles import ADMIN, ALL_ROLES, CLIENT, HUNTER, MANAGER, require_roles
 from .crud_router import build_crud_router
 
 router = build_crud_router(
@@ -22,15 +22,15 @@ router = build_crud_router(
     update_model=UserUpdate,
     # SORTIE : UserPublic — `password` ne sort jamais.
     read_model=UserPublic,
-    # ADR-027, annexe § 1 : tout compte lit, un Client ou un Hunter son seul
-    # compte (DRO5, DRO6 ; le Manager en DRO7). Le PUT : l'Admin, et le
-    # Client ou le Hunter sur son compte, sans rôle ni activation (UserService,
+    # ADR-027, annexe § 1 : tout compte lit, un Client, un Hunter ou un
+    # Manager son seul compte (DRO5, DRO6, DRO7). Le PUT : l'Admin, et le
+    # Client, le Hunter ou le Manager sur son compte, sans rôle ni activation (UserService,
     # ADMIN_ONLY_FIELDS -> 403) ; le compte d'un autre rend 404. Le client
     # crée « son compte » (Q-ACC-12) par POST /search-requests/submit, sans
     # jeton (signup_router.py) : ouvrir ce POST au rôle Client lui
     # laisserait choisir id_role, donc créer un Admin.
     read_roles=ALL_ROLES,
-    write_roles=(ADMIN, CLIENT, HUNTER),
+    write_roles=(ADMIN, CLIENT, HUNTER, MANAGER),
     create_roles=(ADMIN,),
 )
 

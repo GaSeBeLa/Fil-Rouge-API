@@ -24,6 +24,8 @@ rémunération).
 
 « Le sien » (ADR-027, annexe § 4 ; fiche DRO5) : un Client voit la vente
 de son mandat (P8, P9) ; le Hunter (fiche DRO6), les ventes de ses mandats.
+Le Manager (fiche DRO7) voit les ventes des mandats de son équipe, et n'en
+enregistre (Q-ACC-03) que sur l'un d'eux : sinon ConflictError (409).
 """
 
 from typing import Optional
@@ -37,10 +39,11 @@ from ..repositories.mandate_repository import MandateRepository
 from ..repositories.parameters_fees_repository import ParametersFeesRepository
 from ..repositories.sale_repository import SaleRepository
 from ..utils.exceptions import ConflictError
-from ..utils.roles import CLIENT, HUNTER, Principal
+from ..utils.roles import CLIENT, HUNTER, MANAGER, Principal
 from .base_service import BaseService
 from .client_rows import mandates_of
 from .hunter_rows import mandates_handled_by
+from .manager_rows import in_team, team_has_mandate, team_mandates
 
 HUNTER_SALE = "hunter"
 ACCEPTED_OFFER = "accepted"
@@ -65,7 +68,12 @@ class SaleService(BaseService[Sale]):
             return col(Sale.id_mandate).in_(mandates_of(viewer.user.id))
         if viewer.role == HUNTER:
             return col(Sale.id_mandate).in_(mandates_handled_by(viewer.user.id))
+        if viewer.role == MANAGER:
+            return in_team(Sale.id_mandate, team_mandates(viewer.user.id))
         return None
+
+    def owns(self, session: Session, item: Sale, viewer: Principal) -> bool:
+        return viewer.role != MANAGER or team_has_mandate(session, viewer.user.id, item.id_mandate)
 
     def _check_sale(self, session: Session, item: Sale) -> Mandate:
         mandate = self.mandates.get_by_id(session, item.id_mandate)

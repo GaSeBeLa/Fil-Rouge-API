@@ -412,16 +412,25 @@ ensuite créer d'autres comptes avec `POST /users`, pour essayer les autres rôl
   barème par défaut et le sien (Q-ACC-06), son manager ; les biens et leurs photos
   restent lisibles en entier (H2, H5). Chemins : `services/hunter_rows.py`. Il ne
   change de sa fiche que ses coordonnées (`HunterService`, `CONTACT_FIELDS` → `403`).
-  Le Manager suit (fiches DRO7, DRO8).
+  Pour le Manager (fiche DRO7), le travail de **son équipe** (ADR-027, annexe) : ses
+  chasseurs (`hunter.id_realestatemanager`) et les demandes qui lui sont confiées
+  (`search_request.id_realestatemanager`). Il lit ses chasseurs, les demandes de
+  l'équipe et leurs critères, ses mandats, leurs visites et leurs ventes, et ce qui suit
+  ses chasseurs : paiements (Q-ACC-02), notes, barèmes (le leur et celui par défaut) ;
+  plus son compte et sa fiche. Chemins : `services/manager_rows.py`, qui reprend ceux
+  du chasseur. En écriture : il affecte une demande à l'un de ses chasseurs seulement
+  (Q-ACC-10 ; un autre champ → `403`, hors équipe → `409`), enregistre une vente de
+  son équipe (Q-ACC-03, sinon `409`), change ses coordonnées et son compte, sans rôle ni
+  activation (`403`). Client, sélection et avis lui restent fermés (fiche DRO1).
 
   | Table | Lire | Créer | Modifier |
   |---|---|---|---|
   | `/roles` | Admin, Reader | personne | personne |
-  | `/users` | tous | Admin | Admin, Client, Hunter (son compte, sans rôle ni activation) |
+  | `/users` | tous | Admin | Admin, Client, Hunter, Manager (son compte, sans rôle ni activation) |
   | `/clients` | Admin, Client, Hunter, Reader | Client | Admin, Client |
   | `/hunters` | tous | Admin | Admin, Hunter (ses coordonnées) |
-  | `/real-estate-managers` | Admin, Hunter, Manager, Reader | Admin | Admin |
-  | `/search-requests` | tous | Client, Hunter | Hunter, Manager |
+  | `/real-estate-managers` | Admin, Hunter, Manager, Reader | Admin | Admin, Manager (ses coordonnées) |
+  | `/search-requests` | tous | Client, Hunter | Hunter, Manager (affecter un chasseur) |
   | `/criteria` | tous | Client, Hunter | personne (nouvelle version) |
   | `/mandates` | tous | Hunter | Admin, Client, Hunter |
   | `/estates`, `/pictures` | tous | Hunter, Manager | Admin |
@@ -603,10 +612,8 @@ encore référencé échoue toujours, même en SQL direct (l'API, elle, ne suppr
 
 ## Limites connues
 
-* Droits : « le sien » est filtré pour le Client (fiche DRO5) et le Hunter (fiches DRO4,
-  DRO6) ; un Manager lit encore les lignes des autres sur les tables qui lui sont
-  ouvertes (fiches DRO7, DRO8). Le Manager lit encore tous les
-  paiements, pas seulement ceux de ses chasseurs (Q-ACC-02, fiche DRO7).
+* Droits : « le sien » est filtré pour le Client (fiche DRO5), le Hunter (fiches DRO4,
+  DRO6) et le Manager (fiche DRO7). Les comptes désactivés attendent la fiche DRO8.
 * Le Client modifie son mandat et ses biens proposés **champ par champ sans limite** :
   l'annexe ne lui donne que signer (P3), commenter, prioriser, faire une offre (H6, H8).
   Seule l'appartenance est gardée (fiche DRO5).

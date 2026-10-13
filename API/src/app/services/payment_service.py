@@ -31,7 +31,7 @@ planifié n'a pas de note.
 
 « Le sien » (ADR-027, annexe § 4 ; fiche DRO4, table pilote) : un Hunter
 ne voit que ses paiements (H10) ; celui d'un autre chasseur rend 404. Le
-Manager les voit tous jusqu'à DRO7 (« ceux de ses chasseurs », Q-ACC-02).
+Manager (fiche DRO7) voit ceux de ses chasseurs (Q-ACC-02).
 ============================================================================
 """
 
@@ -45,8 +45,9 @@ from ..repositories.hunter_performance_repository import HunterPerformanceReposi
 from ..repositories.hunter_rate_parameters_repository import HunterRateParametersRepository
 from ..repositories.payment_repository import PaymentRepository
 from ..utils.exceptions import ConflictError
-from ..utils.roles import HUNTER, Principal
+from ..utils.roles import HUNTER, MANAGER, Principal
 from .base_service import BaseService
+from .manager_rows import hunters_of_team
 from .parametrage_service import modulation
 from .payment_calculation_service import PaymentCalculationService
 from .remuneration import taux_final
@@ -82,9 +83,11 @@ class PaymentService(BaseService[Payment]):
         self.performances = performances
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
-        """Un Hunter : ses paiements seulement (annexe § 4, H10)."""
+        """Un Hunter : ses paiements (annexe § 4, H10) ; un Manager : ceux de ses chasseurs (Q-ACC-02)."""
         if viewer.role == HUNTER:
             return col(Payment.id_hunter) == viewer.user.id
+        if viewer.role == MANAGER:
+            return col(Payment.id_hunter).in_(hunters_of_team(viewer.user.id))
         return None
 
     def create(self, session: Session, item: Payment, actor: Optional[User] = None) -> Payment:

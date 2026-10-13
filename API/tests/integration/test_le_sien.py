@@ -25,6 +25,13 @@ hunter_rows) ; même preuve, table par table. Les biens et leurs photos
 restent lisibles en entier, le barème par défaut aussi. En écriture : 404
 sur la ligne d'un autre, 409 sur une ligne qui serait à un autre, 403 hors de
 ses coordonnées (hunter) et sur le média d'une note d'un autre (ADR-051).
+
+Le Manager (fiche DRO7) : le seed n'a qu'un manager ; un second est créé, et
+le chasseur 2 passe dans son équipe (fixture team_rows). Chacun voit les
+lignes de son équipe dans les 8 tables de sa colonne, ses paiements, son
+compte et sa fiche, et reçoit 404 sur celles de l'autre. En écriture : il
+n'affecte une demande qu'à l'un de ses chasseurs (409), ne change rien
+d'autre (403), n'enregistre une vente que pour son équipe (409).
 ============================================================================
 """
 
@@ -40,7 +47,7 @@ from sqlmodel import Session
 from src.app.models import HunterPerformance, Payment
 from src.app.routes.payment_router import payment_service
 from src.app.utils.exceptions import NotFoundError
-from src.app.utils.roles import CLIENT, HUNTER
+from src.app.utils.roles import CLIENT, HUNTER, MANAGER
 
 from ..conftest import acting_as, principal_as
 from .conftest import USER_PASSWORD
@@ -430,19 +437,25 @@ def test_hunter_sees_the_default_scale(db_client: TestClient):
     assert read.status_code == 200, read.text
 
 
-def test_hunter_sees_his_manager_not_another(db_client: TestClient):
-    account = {"email": "manager.dro6@exemple.fr", "password": USER_PASSWORD, "id_role": MANAGER_ROLE}
+def new_manager(db_client: TestClient, email: str) -> tuple[int, int]:
+    """Un second manager, créé par l'Admin : l'id de son compte, celui de sa fiche."""
+    account = {"email": email, "password": USER_PASSWORD, "id_role": MANAGER_ROLE}
     user = db_client.post("/users", json=account)
     assert user.status_code == 201, user.text
     profile = {"id_user": user.json()["id"], "first_name": "Marc", "last_name": "Autre", "phone_number": "+33622222222"}
-    other = db_client.post("/real-estate-managers", json=profile)
-    assert other.status_code == 201, other.text
+    created_profile = db_client.post("/real-estate-managers", json=profile)
+    assert created_profile.status_code == 201, created_profile.text
+    return user.json()["id"], created_profile.json()["id"]
+
+
+def test_hunter_sees_his_manager_not_another(db_client: TestClient):
+    _, other = new_manager(db_client, "manager.dro6@exemple.fr")
     mine = id_where(db_client, "/real-estate-managers", "id_user", SEED_MANAGER)
 
     with acting_as(HUNTER, HUNTER_ID):
         listed = db_client.get("/real-estate-managers")
         read_mine = db_client.get(f"/real-estate-managers/{mine}")
-        read_other = db_client.get(f"/real-estate-managers/{other.json()['id']}")
+        read_other = db_client.get(f"/real-estate-managers/{other}")
 
     assert {row["id"] for row in listed.json()} == {mine}
     assert read_mine.status_code == 200, read_mine.text
@@ -591,3 +604,168 @@ def test_hunter_cannot_sign_a_mandate_on_another_hunters_request(
     assert response.status_code == 409, response.text
     assert "le sien" in response.json()["detail"]
     assert still_hidden.status_code == 404, still_hidden.text
+
+
+# --- Le Manager (DRO7) --------------------------------------------------------
+
+# Le seed 02 n'a qu'un manager, 25, celui des six chasseurs (compté le
+# 13/10 dans fil_rouge_test). Un second manager est créé ; le chasseur 2 passe
+# dans son équipe, une fois ses lignes posées (la vente du chasseur 2 est
+# enregistrée par le manager 25, qui ne le pourrait plus après).
+SEED, NEW = "seed", "new"
+
+# Les 8 tables où la colonne Manager de l'annexe d'ADR-027 dit « son équipe ».
+TEAM_TABLES = [
+    "/hunters", "/search-requests", "/criteria", "/mandates", "/visits", "/sales",
+    "/hunter-performances", "/commission-scales",
+]
+
+
+def move_hunter(db_client: TestClient, hunter: int, manager: int) -> None:
+    """L'Admin passe le chasseur dans l'équipe de ce manager."""
+    profile_id = id_where(db_client, "/hunters", "id_user", hunter)
+    body = db_client.get(f"/hunters/{profile_id}").json()
+    response = db_client.put(f"/hunters/{profile_id}", json={**body, "id_realestatemanager": manager})
+    assert response.status_code == 200, response.text
+
+
+@pytest.fixture
+def other_manager(db_client: TestClient) -> int:
+    """Un second manager ; l'id de son compte."""
+    user_id, _ = new_manager(db_client, "manager.dro7@exemple.fr")
+    return user_id
+
+
+@pytest.fixture
+def team_rows(
+    db_client: TestClient, hunter_rows: dict[int, dict[str, int]], other_manager: int
+) -> dict[str, tuple[int, dict[str, int]]]:
+    """Par manager : son compte, et les lignes d'un chasseur de son équipe (1 pour le seed, 2 pour l'autre)."""
+    move_hunter(db_client, OTHER_HUNTER_ID, other_manager)
+    return {SEED: (SEED_MANAGER, hunter_rows[HUNTER_ID]), NEW: (other_manager, hunter_rows[OTHER_HUNTER_ID])}
+
+
+@pytest.mark.parametrize("endpoint", TEAM_TABLES)
+@pytest.mark.parametrize(("me", "other"), [(SEED, NEW), (NEW, SEED)])
+def test_manager_sees_his_team_not_the_other_team(
+    db_client: TestClient, team_rows: dict[str, tuple[int, dict[str, int]]], endpoint: str, me: str, other: str
+):
+    manager, rows = team_rows[me]
+    mine, theirs = rows[endpoint], team_rows[other][1][endpoint]
+    with acting_as(MANAGER, manager):
+        listed = db_client.get(endpoint)
+        read_mine = db_client.get(f"{endpoint}/{mine}")
+        read_theirs = db_client.get(f"{endpoint}/{theirs}")
+        absent = db_client.get(f"{endpoint}/999999")
+
+    assert listed.status_code == 200, listed.text
+    listed_ids = {row["id"] for row in listed.json()}
+    assert mine in listed_ids
+    assert theirs not in listed_ids
+    assert read_mine.status_code == 200, read_mine.text
+    assert read_theirs.status_code == 404, read_theirs.text
+    assert read_theirs.json() == absent.json()
+
+
+def test_manager_sees_his_hunters_payments_not_the_other_teams(
+    db_client: TestClient, payments: tuple[int, int], other_manager: int
+):
+    # Q-ACC-02 : « ceux de ses chasseurs ». Le paiement du chasseur 2 passe
+    # avec lui dans l'autre équipe.
+    move_hunter(db_client, OTHER_HUNTER_ID, other_manager)
+    of_hunter_1, of_hunter_2 = payments
+    seen: dict[int, tuple[set[int], int, int]] = {}
+    for manager in (SEED_MANAGER, other_manager):
+        with acting_as(MANAGER, manager):
+            listed = {row["id"] for row in db_client.get("/payments").json()}
+            seen[manager] = (
+                listed,
+                db_client.get(f"/payments/{of_hunter_1}").status_code,
+                db_client.get(f"/payments/{of_hunter_2}").status_code,
+            )
+
+    assert of_hunter_1 in seen[SEED_MANAGER][0] and of_hunter_2 not in seen[SEED_MANAGER][0]
+    assert seen[SEED_MANAGER][1:] == (200, 404)
+    assert seen[other_manager][0] == {of_hunter_2}
+    assert seen[other_manager][1:] == (404, 200)
+
+
+def test_manager_sees_only_his_account_and_profile(db_client: TestClient, other_manager: int):
+    mine = id_where(db_client, "/real-estate-managers", "id_user", SEED_MANAGER)
+    theirs = id_where(db_client, "/real-estate-managers", "id_user", other_manager)
+    with acting_as(MANAGER, SEED_MANAGER):
+        users = {row["id"] for row in db_client.get("/users").json()}
+        other_user = db_client.get(f"/users/{other_manager}")
+        profiles = {row["id"] for row in db_client.get("/real-estate-managers").json()}
+        other_profile = db_client.get(f"/real-estate-managers/{theirs}")
+
+    assert users == {SEED_MANAGER}
+    assert other_user.status_code == 404, other_user.text
+    assert profiles == {mine}
+    assert other_profile.status_code == 404, other_profile.text
+
+
+def test_manager_changes_his_contact_details_and_nothing_else(db_client: TestClient, other_manager: int):
+    mine = id_where(db_client, "/real-estate-managers", "id_user", SEED_MANAGER)
+    theirs = id_where(db_client, "/real-estate-managers", "id_user", other_manager)
+    body = db_client.get(f"/real-estate-managers/{mine}").json()
+    their_body = db_client.get(f"/real-estate-managers/{theirs}").json()
+    with acting_as(MANAGER, SEED_MANAGER):
+        phone = db_client.put(f"/real-estate-managers/{mine}", json={**body, "phone_number": "+33644444444"})
+        account = db_client.put(f"/real-estate-managers/{mine}", json={**body, "id_user": other_manager})
+        other = db_client.put(f"/real-estate-managers/{theirs}", json=their_body)
+
+    assert phone.status_code == 200, phone.text
+    assert phone.json()["phone_number"] == "+33644444444"
+    assert account.status_code == 403, account.text
+    assert other.status_code == 404, other.text
+    assert db_client.get(f"/real-estate-managers/{theirs}").json() == their_body
+
+
+def test_manager_updates_his_account_but_not_his_role(db_client: TestClient, other_manager: int):
+    before = db_client.get(f"/users/{SEED_MANAGER}").json()
+    with acting_as(MANAGER, SEED_MANAGER):
+        mine = db_client.put(f"/users/{SEED_MANAGER}", json={"email": "manager.25.dro7@exemple.fr"})
+        role = db_client.put(f"/users/{SEED_MANAGER}", json={"id_role": 4})
+        theirs = db_client.put(f"/users/{other_manager}", json={"email": "autre.dro7@exemple.fr"})
+
+    assert mine.status_code == 200, mine.text
+    assert role.status_code == 403, role.text
+    assert theirs.status_code == 404, theirs.text
+    assert db_client.get(f"/users/{SEED_MANAGER}").json()["id_role"] == before["id_role"]
+
+
+def test_manager_assigns_a_request_to_one_of_his_hunters_only(
+    db_client: TestClient, team_rows: dict[str, tuple[int, dict[str, int]]]
+):
+    # Q-ACC-10 : affecter un chasseur. Le chasseur 3 est resté au manager 25.
+    mine, theirs = team_rows[SEED][1]["/search-requests"], team_rows[NEW][1]["/search-requests"]
+    body = db_client.get(f"/search-requests/{mine}").json()
+    their_body = db_client.get(f"/search-requests/{theirs}").json()
+    with acting_as(MANAGER, SEED_MANAGER):
+        to_other_team = db_client.put(f"/search-requests/{mine}", json={**body, "id_hunter": OTHER_HUNTER_ID})
+        status = db_client.put(f"/search-requests/{mine}", json={**body, "status": "rejected"})
+        their_request = db_client.put(f"/search-requests/{theirs}", json={**their_body, "id_hunter": 3})
+        assigned = db_client.put(f"/search-requests/{mine}", json={**body, "id_hunter": 3})
+
+    assert to_other_team.status_code == 409, to_other_team.text
+    assert "le sien" in to_other_team.json()["detail"]
+    assert status.status_code == 403, status.text
+    assert their_request.status_code == 404, their_request.text
+    assert assigned.status_code == 200, assigned.text
+    assert assigned.json()["id_hunter"] == 3
+    assert db_client.get(f"/search-requests/{theirs}").json() == their_body
+
+
+def test_manager_records_a_sale_only_for_his_team(
+    db_client: TestClient, team_rows: dict[str, tuple[int, dict[str, int]]]
+):
+    # Q-ACC-03 : une vente de son équipe. Celle du chasseur 2, renvoyée par le
+    # manager 25, porte sur un mandat de l'autre équipe : refusée avant tout
+    # contrôle de la vente elle-même.
+    theirs = db_client.get(f"/sales/{team_rows[NEW][1]['/sales']}").json()
+    with acting_as(MANAGER, SEED_MANAGER):
+        response = db_client.post("/sales", json=without_id(theirs))
+
+    assert response.status_code == 409, response.text
+    assert "le sien" in response.json()["detail"]

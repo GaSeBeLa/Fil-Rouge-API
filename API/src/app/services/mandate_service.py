@@ -17,6 +17,8 @@ modifie qu'à son nom, sur une de ses demandes : sinon un mandat sur la
 demande d'un autre lui ouvrait le client de cet autre (H3). Renouveler le
 mandat d'un autre chasseur reste fermé tant que Jeff n'a pas tranché la
 réaffectation d'un mandat (Q-JEF-30).
+
+Le Manager (fiche DRO7) voit les mandats de son équipe (manager_rows.py).
 """
 
 from typing import Optional
@@ -27,9 +29,10 @@ from sqlmodel import Session, col
 from ..models import Mandate, User
 from ..repositories.mandate_repository import MandateRepository
 from ..repositories.search_request_repository import SearchRequestRepository
-from ..utils.roles import CLIENT, HUNTER, Principal
+from ..utils.roles import CLIENT, HUNTER, MANAGER, Principal
 from .base_service import BaseService
 from .hunter_rows import handles_request
+from .manager_rows import in_team, team_mandates
 
 LAUNCHED = "launched"
 
@@ -44,6 +47,8 @@ class MandateService(BaseService[Mandate]):
             return col(Mandate.id_client) == viewer.user.id
         if viewer.role == HUNTER:
             return col(Mandate.id_hunter) == viewer.user.id
+        if viewer.role == MANAGER:
+            return in_team(Mandate.id, team_mandates(viewer.user.id))
         return None
 
     def owns(self, session: Session, item: Mandate, viewer: Principal) -> bool:

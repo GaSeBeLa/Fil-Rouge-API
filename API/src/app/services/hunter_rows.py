@@ -18,25 +18,41 @@ Les fonctions en `_by` et `_of` rendent une sous-requête, placée dans un `IN`
 par le crochet `visible_rows` d'un service : le filtre se fait dans la base.
 `handles_request` et `handles_mandate` servent aux écritures (crochet `owns`,
 base_service.py). Le pendant du Client : client_rows.py.
+
+`requests_handled_by` et `mandates_handled_by` prennent un chasseur (son id)
+ou plusieurs (une sous-requête d'ids) : l'équipe d'un manager reprend ainsi
+les chemins du chasseur (fiche DRO7, manager_rows.py).
 ============================================================================
 """
 
-from typing import Optional
+from typing import Any, Optional, Union
 
-from sqlmodel import Session, select
+from sqlalchemy import ColumnElement
+from sqlmodel import Session, col, select
+from sqlmodel.sql.expression import SelectOfScalar
 
 from ..models import EstateSearchRequest, Hunter, Mandate, SearchRequest
 from .client_rows import IdQuery
 
-
-def requests_handled_by(user_id: Optional[int]) -> IdQuery:
-    """Les ids des demandes du chasseur (H1, H2)."""
-    return select(SearchRequest.id).where(SearchRequest.id_hunter == user_id)
+# Un chasseur (l'id de son compte), ou plusieurs (une sous-requête d'ids).
+Hunters = Union[Optional[int], IdQuery]
 
 
-def mandates_handled_by(user_id: Optional[int]) -> IdQuery:
-    """Les ids des mandats du chasseur."""
-    return select(Mandate.id).where(Mandate.id_hunter == user_id)
+def is_hunter(column: Any, hunters: Hunters) -> ColumnElement[bool]:
+    """La condition « `column` est ce chasseur », ou « l'un de ces chasseurs »."""
+    if isinstance(hunters, SelectOfScalar):
+        return col(column).in_(hunters)
+    return col(column) == hunters
+
+
+def requests_handled_by(hunters: Hunters) -> IdQuery:
+    """Les ids des demandes du chasseur (H1, H2), ou de ces chasseurs."""
+    return select(SearchRequest.id).where(is_hunter(SearchRequest.id_hunter, hunters))
+
+
+def mandates_handled_by(hunters: Hunters) -> IdQuery:
+    """Les ids des mandats du chasseur, ou de ces chasseurs."""
+    return select(Mandate.id).where(is_hunter(Mandate.id_hunter, hunters))
 
 
 def reviews_by(user_id: Optional[int]) -> IdQuery:

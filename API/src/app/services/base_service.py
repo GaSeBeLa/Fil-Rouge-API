@@ -26,8 +26,10 @@ rôle. Le routeur passe le compte connecté (`viewer`) à list_all, get_by_id
 et replace_visible. visible_rows, le crochet, rend la condition SQL des
 lignes que ce compte voit ; par défaut, toutes. Une table le surcharge
 (payment_service.py ; les 13 tables du Client, fiche DRO5, par les chemins
-de client_rows.py ; celles du Hunter, fiche DRO6, par hunter_rows.py). Une ligne hors du crochet est introuvable : 404, en
-lecture comme en modification, comme une ligne qui n'existe pas. L'Admin
+de client_rows.py ; celles du Hunter, fiche DRO6, par hunter_rows.py ;
+celles du Manager, fiche DRO7, par manager_rows.py). Une ligne hors du
+crochet est introuvable : 404, en lecture comme en modification, comme une
+ligne qui n'existe pas. L'Admin
 voit tout : le crochet n'est pas appelé pour lui. Sans `viewer` (contrôle
 interne, script, test), rien n'est filtré.
 
@@ -35,10 +37,13 @@ En écriture (fiche DRO5) : le POST passe par create_as, le PUT par
 replace_visible. Les deux demandent au crochet `owns` si la ligne, telle
 qu'elle sera écrite, reste à ce compte ; sinon ConflictError (409), comme
 une référence à une ligne qui n'existe pas. Par défaut, oui. Les tables où
-le Client ou le Hunter écrit le surchargent : client, search_request,
-criteria, mandate, estate_proposed, estate_searchrequest, visit. Se gardent à
-part : le compte (user_service.py), la fiche du chasseur (hunter_service.py)
-et les médias d'avis (review_media_service.py, ADR-051, 403).
+le Client, le Hunter ou le Manager écrit le surchargent : client,
+search_request, criteria, mandate, estate_proposed, estate_searchrequest,
+visit, sale. Se gardent à part, par des champs permis (403) : le compte
+(user_service.py), les fiches du chasseur et du manager (hunter_service.py,
+real_estate_manager_service.py ; fields_changed_outside ci-dessous),
+l'affectation d'une demande (search_request_service.py) ; et les médias
+d'avis (review_media_service.py, ADR-051, 403).
 ============================================================================
 """
 
@@ -56,6 +61,22 @@ if TYPE_CHECKING:
     from ..utils.roles import Principal
 
 ModelType = TypeVar("ModelType", bound=SQLModel)
+
+# Hors de toute garde de champ : `id`, que replace() ignore ; `created_at`,
+# que replace() recopie du corps pour toute table (limite connue, API/README.md).
+UNWRITTEN_FIELDS = ("id", "created_at")
+
+
+def fields_changed_outside(existing: SQLModel, data: SQLModel, allowed: tuple[str, ...]) -> list[str]:
+    """
+    Les champs que `data` change hors de `allowed`. Tout le modèle, pas les
+    seuls champs envoyés : replace() écrit la ligne entière, un champ omis y
+    vaudrait son défaut (relecture DRO6).
+    """
+    kept = allowed + UNWRITTEN_FIELDS
+    return [
+        field for field, value in data.model_dump().items() if field not in kept and value != getattr(existing, field)
+    ]
 
 
 class BaseService(Generic[ModelType]):

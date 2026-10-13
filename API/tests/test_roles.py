@@ -131,12 +131,12 @@ def test_only_admin_creates_users(test_app: FastAPI, role: str):
     assert client_as(test_app, role).post("/users", json=body).status_code == 403
 
 
-@pytest.mark.parametrize("role", [MANAGER, READER])
-def test_only_admin_client_and_hunter_update_users(test_app: FastAPI, role: str):
+def test_reader_does_not_update_users(test_app: FastAPI):
     # Sinon un compte changeait le mot de passe d'un Admin, puis se
-    # connectait à sa place (relecture de la série API). Le Client et le
-    # Hunter modifient leur seul compte (DRO5, DRO6,
-    # tests/integration/test_le_sien.py) ; le Manager attend DRO7.
+    # connectait à sa place (relecture de la série API). Le Client, le
+    # Hunter et le Manager modifient leur seul compte (DRO5, DRO6, DRO7,
+    # tests/integration/test_le_sien.py).
+    role = READER
     response = client_as(test_app, role).put("/users/1", json={"password": "un-autre-mot-de-passe"})
 
     assert response.status_code == 403

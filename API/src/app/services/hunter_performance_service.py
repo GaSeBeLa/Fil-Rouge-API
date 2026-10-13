@@ -2,7 +2,8 @@
 hunter_performance_service.py — La note de performance des chasseurs.
 
 « Le sien » (ADR-027, annexe § 4 ; fiche DRO6) : un Hunter voit sa note
-(H12) ; celle d'un autre chasseur rend 404.
+(H12) ; celle d'un autre chasseur rend 404. Le Manager (fiche DRO7) voit
+celle de ses chasseurs.
 """
 
 from typing import Optional
@@ -12,8 +13,9 @@ from sqlmodel import col
 
 from ..models import HunterPerformance
 from ..repositories.hunter_performance_repository import HunterPerformanceRepository
-from ..utils.roles import HUNTER, Principal
+from ..utils.roles import HUNTER, MANAGER, Principal
 from .base_service import BaseService
+from .manager_rows import hunters_of_team
 
 
 class HunterPerformanceService(BaseService[HunterPerformance]):
@@ -23,4 +25,6 @@ class HunterPerformanceService(BaseService[HunterPerformance]):
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == HUNTER:
             return col(HunterPerformance.id_hunter) == viewer.user.id
+        if viewer.role == MANAGER:
+            return col(HunterPerformance.id_hunter).in_(hunters_of_team(viewer.user.id))
         return None

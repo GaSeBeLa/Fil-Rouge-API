@@ -14,7 +14,9 @@ lève ConflictError (409). Elles valent au POST comme au PUT :
 
 « Le sien » (ADR-027, annexe § 3 ; fiche DRO5) : un Client voit les
 visites de ses mandats. Le Hunter (fiche DRO6) aussi, et n'en crée que sur
-un de ses mandats (Q-ACC-13).
+un de ses mandats (Q-ACC-13). Le Manager (fiche DRO7) voit celles des
+mandats de son équipe : contre-pouvoir au conflit d'intérêts du chasseur
+(ADR-027, annexe § 3).
 """
 
 from typing import Optional
@@ -27,10 +29,11 @@ from ..repositories.estate_proposed_repository import EstateProposedRepository
 from ..repositories.mandate_repository import MandateRepository
 from ..repositories.visit_repository import VisitRepository
 from ..utils.exceptions import ConflictError
-from ..utils.roles import CLIENT, HUNTER, Principal
+from ..utils.roles import CLIENT, HUNTER, MANAGER, Principal
 from .base_service import BaseService
 from .client_rows import mandates_of
 from .hunter_rows import handles_mandate, mandates_handled_by
+from .manager_rows import in_team, team_mandates
 
 CLIENT_VISIT = "client"
 
@@ -46,6 +49,8 @@ class VisitService(BaseService[Visit]):
             return col(Visit.id_mandate).in_(mandates_of(viewer.user.id))
         if viewer.role == HUNTER:
             return col(Visit.id_mandate).in_(mandates_handled_by(viewer.user.id))
+        if viewer.role == MANAGER:
+            return in_team(Visit.id_mandate, team_mandates(viewer.user.id))
         return None
 
     def owns(self, session: Session, item: Visit, viewer: Principal) -> bool:

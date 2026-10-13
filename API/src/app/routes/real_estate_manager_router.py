@@ -10,8 +10,9 @@ router = build_crud_router(
     tag="real_estate_manager",
     response_model=RealEstateManager,
     # ADR-027, annexe § 1 : lu par ses chasseurs, lui-même, l'Admin et
-    # Reader ; créé par l'Admin. Le manager modifiera ses coordonnées
-    # en DRO7 : Admin seul d'ici là.
+    # Reader ; créé par l'Admin. Le manager modifie ses coordonnées
+    # seulement (RealEstateManagerService, CONTACT_FIELDS -> 403 ; DRO7).
     read_roles=(ADMIN, HUNTER, MANAGER, READER),
-    write_roles=(ADMIN,),
+    write_roles=(ADMIN, MANAGER),
+    create_roles=(ADMIN,),
 )

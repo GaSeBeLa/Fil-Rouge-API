@@ -23,9 +23,9 @@ class UserService(BaseService[User]):
     empreinte. Si un mot de passe en clair atteint la base, c'est qu'un
     chemin d'écriture contourne cette classe.
 
-    « Le sien » (ADR-027, annexe § 1 ; fiches DRO5, DRO6) : un Client ou un
-    Hunter voit son compte et le modifie, sauf ADMIN_ONLY_FIELDS (403). Le
-    Manager suit en DRO7.
+    « Le sien » (ADR-027, annexe § 1 ; fiches DRO5, DRO6, DRO7) : un Client,
+    un Hunter ou un Manager voit son compte et le modifie, sauf
+    ADMIN_ONLY_FIELDS (403).
     """
 
     def __init__(self, repository: UserRepository):
@@ -85,9 +85,9 @@ class UserService(BaseService[User]):
         return self.repository.save(session, existing)
 
     def visible_rows(self, viewer: "Principal") -> Optional[ColumnElement[bool]]:
-        from ..utils.roles import CLIENT, HUNTER  # à l'appel : même cycle d'import que Principal
+        from ..utils.roles import CLIENT, HUNTER, MANAGER  # à l'appel : même cycle d'import que Principal
 
-        if viewer.role in (CLIENT, HUNTER):
+        if viewer.role in (CLIENT, HUNTER, MANAGER):
             return col(User.id) == viewer.user.id
         return None
 
