@@ -27,12 +27,16 @@
 --     Liste écrite en dur : une colonne ajoutée à "user" reste fermée tant
 --     qu'on ne l'ouvre pas ici et dans 18_role-lecture-seule-sans-mot-de-passe.sql.
 --     Conséquence : SELECT * sur "user" est refusé au rôle.
+--   - et sauf estate_contact, fermée en entier : le contact du vendeur est
+--     la donnée personnelle d'un tiers, inutile à une analyse (ADR-054,
+--     question 5).
 --
 -- Psql seulement (\getenv, \if, \gexec) : chargé par l'entrypoint de
 -- l'image, par docker/create_test_db.sh et par docker/compare_v2_v3.sh.
 -- Une base v2 existante reçoit le même par
 -- docker/migrations/v2-vers-v3/12_role-lecture-seule.sql, puis la
--- fermeture du mot de passe par 18_role-lecture-seule-sans-mot-de-passe.sql.
+-- fermeture du mot de passe par 18_role-lecture-seule-sans-mot-de-passe.sql,
+-- et celle du contact du vendeur par 41_contact-ferme-au-lecteur.sql.
 -- =====================================================================
 
 \getenv reader_password POSTGRES_READER_PASSWORD
@@ -63,3 +67,6 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO fil_rouge_re
 -- Le mot de passe reste fermé : ce GRANT doit rester après celui de la table.
 REVOKE SELECT ON "user" FROM fil_rouge_reader;
 GRANT SELECT (id, created_at, email, is_activated, id_role) ON "user" TO fil_rouge_reader;
+
+-- Le contact du vendeur reste fermé (ADR-054) : après le GRANT sur toutes les tables.
+REVOKE SELECT ON estate_contact FROM fil_rouge_reader;

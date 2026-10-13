@@ -6,6 +6,8 @@ test_contact_vendeur.py — Le contact du vendeur d'un bien (ADR-054).
 - `id_author` est le compte du jeton ; un PUT ne le change pas.
 - La base refuse : un second contact pour le même bien (UNIQUE), un
   téléphone hors du format d'ADR-007, une ligne sans aucun renseignement.
+- `is_private` est obligatoire, et gardé avec un nom d'agence (questions 1, 2).
+- Le rôle PostgreSQL `fil_rouge_reader` ne lit pas la table (question 5).
 
 Comptes du seed 02 : chasseurs 1 et 2, manager 25.
 """
@@ -14,6 +16,9 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.orm import Session  # mère de sqlmodel.Session, la fixture db_session
 
 from src.app.utils.roles import ADMIN, CLIENT, HUNTER, MANAGER, READER
 
@@ -24,7 +29,7 @@ OTHER_HUNTER_ID = 2
 MANAGER_ID = 25
 
 CONTACT: dict[str, Any] = {
-    "seller_type": "agency",
+    "is_private": False,
     "agency_name": "Agence du Centre",
     "contact_name": "Mme Martin",
     "phone_number": "+33612345678",
@@ -114,12 +119,31 @@ def test_phone_must_follow_adr_007(db_client: TestClient, phone: str):
 
 
 def test_contact_needs_at_least_one_detail(db_client: TestClient):
-    response = post_contact(db_client, {"seller_type": "private", "id_estate": new_estate(db_client)})
+    response = post_contact(db_client, {"is_private": True, "id_estate": new_estate(db_client)})
     assert response.status_code == 409
 
 
-def test_unknown_seller_type_is_allowed(db_client: TestClient):
-    # ADR-054 : vide = inconnu ; un nom seul suffit.
-    response = post_contact(db_client, {"contact_name": "M. Bernard", "id_estate": new_estate(db_client)})
+def test_private_seller_keeps_its_agency(db_client: TestClient):
+    # ADR-054, question 1 : « particulier » et une agence, on garde les deux.
+    payload = {**CONTACT, "is_private": True, "id_estate": new_estate(db_client)}
+    response = post_contact(db_client, payload)
     assert response.status_code == 201, response.text
-    assert response.json()["seller_type"] is None
+    assert response.json()["is_private"] is True
+    assert response.json()["agency_name"] == "Agence du Centre"
+
+
+def test_is_private_is_required(db_client: TestClient):
+    # ADR-054, question 2 : vrai ou faux, jamais vide.
+    response = post_contact(db_client, {"contact_name": "M. Bernard", "id_estate": new_estate(db_client)})
+    assert response.status_code == 422
+
+
+# --- Rôle PostgreSQL en lecture seule (ADR-054, question 5) --------------------
+
+
+def test_reader_role_cannot_read_contacts(db_session: Session):
+    # SET LOCAL ROLE : les droits de fil_rouge_reader jusqu'au rollback de la fixture.
+    connection = db_session.connection()
+    connection.execute(text("SET LOCAL ROLE fil_rouge_reader"))
+    with pytest.raises(ProgrammingError, match="permission denied"):
+        connection.execute(text("SELECT phone_number FROM estate_contact"))

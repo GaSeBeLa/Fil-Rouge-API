@@ -14,10 +14,10 @@ référence de l'annonce, comme les photos de 03.
 Règles (ADR-054) :
 - pas de ligne si les quatre champs de contact sont vides ;
 - téléphone national 0XXXXXXXXX → +33XXXXXXXXX (format de ADR-007) ;
-- seller_type : 'private' si l'annonce dit « particulier » sans agence,
-  'agency' si elle a une agence sans dire « particulier », sinon vide :
-  normalised.py change un « particulier » vide en False, et 166 annonces
-  disent « particulier » avec une agence ; on ne devine pas.
+- is_private : la case « particulier » du CSV telle quelle, vraie ou
+  fausse, jamais vide (questions 1 et 2 de l'ADR-054). Le nom de l'agence
+  est gardé à côté, même quand l'annonce dit aussi « particulier » (166) :
+  on garde les deux.
 
 Lancement, depuis la racine de Fil-Rouge-API :
 
@@ -58,14 +58,6 @@ def to_international(phone: str) -> str:
     return "+33" + phone[1:]
 
 
-def seller_type(is_private: bool, agency: str | None) -> str | None:
-    if is_private and agency is None:
-        return "private"
-    if agency is not None and not is_private:
-        return "agency"
-    return None
-
-
 def sql_literal(value: str | None) -> str:
     return "NULL" if value is None else "'" + value.replace("'", "''") + "'"
 
@@ -92,14 +84,14 @@ def build_rows(csv_path: Path) -> tuple[list[str], Counter[str]]:
             for text in (name, agency):
                 if text is not None and len(text) > MAX_TEXT:
                     raise ValueError(f"texte de plus de {MAX_TEXT} caractères : {text!r}")
-            kind = seller_type(clean(row["is_particulier"]) == "True", agency)
-            counts[f"seller_type {kind}"] += 1
+            is_private = clean(row["is_particulier"]) == "True"
+            counts[f"is_private {is_private}"] += 1
             counts["contacts"] += 1
             reference = sql_literal(row["reference"])
-            values = ", ".join(sql_literal(v) for v in (kind, agency, name, phone, email))
+            values = ", ".join(sql_literal(v) for v in (agency, name, phone, email))
             lines.append(
-                "INSERT INTO estate_contact (seller_type, agency_name, contact_name, phone_number, email, id_estate) "
-                f"SELECT {values}, id FROM estate WHERE reference = {reference} "
+                "INSERT INTO estate_contact (is_private, agency_name, contact_name, phone_number, email, id_estate) "
+                f"SELECT {str(is_private).upper()}, {values}, id FROM estate WHERE reference = {reference} "
                 "ON CONFLICT (id_estate) DO NOTHING;"
             )
     return lines, counts
@@ -112,8 +104,8 @@ HEADER = """\
 --   python docker/tools/generate_estate_contact.py <csv>
 -- Contact du vendeur de chaque bien importé par 03_populate_estate.sql
 -- (ADR-054) : {contacts} lignes pour {annonces} annonces, {sans} annonces
--- sans aucun contact ; seller_type : {private} 'private', {agency} 'agency',
--- {unknown} vides. id_author vide : contacts importés.
+-- sans aucun contact ; is_private : {private} vrais, {not_private} faux.
+-- id_author vide : contacts importés.
 -- Chaque ligne retrouve son bien par sa référence : sans 03, elle n'insère rien.
 -- ============================================================================
 
@@ -135,9 +127,8 @@ def main() -> None:
         contacts=counts["contacts"],
         annonces=counts["annonces"],
         sans=counts["sans contact"],
-        private=counts["seller_type private"],
-        agency=counts["seller_type agency"],
-        unknown=counts["seller_type None"],
+        private=counts["is_private True"],
+        not_private=counts["is_private False"],
     )
     OUTPUT.write_text(header + "\n".join(lines) + "\n" + FOOTER, encoding="utf-8", newline="\n")
     for key in sorted(counts):

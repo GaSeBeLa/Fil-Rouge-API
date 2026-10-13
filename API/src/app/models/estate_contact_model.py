@@ -18,8 +18,9 @@ class EstateContact(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    # 'private', 'agency', ou vide : inconnu (ADR-054).
-    seller_type: Optional[str] = Field(default=None, max_length=10)
+    # La case « particulier » de l'annonce : obligatoire, vraie ou fausse
+    # (ADR-054, questions 1 et 2). Gardée même avec un nom d'agence.
+    is_private: bool
     agency_name: Optional[str] = Field(default=None, max_length=100)
     contact_name: Optional[str] = Field(default=None, max_length=100)
     # CHECK côté base : format international d'ADR-007, ex. +33612345678.

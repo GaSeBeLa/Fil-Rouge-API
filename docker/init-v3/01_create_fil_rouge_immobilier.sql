@@ -735,9 +735,11 @@ CREATE TABLE picture (
 CREATE TABLE estate_contact (
     id           INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at   TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
-    -- Vide (NULL) : inconnu. Le CSV ne dit « particulier » que 406 fois, et
-    -- 166 de ces annonces ont aussi une agence : on ne devine pas.
-    seller_type  VARCHAR(10) CHECK (seller_type IN ('private', 'agency')),
+    -- La case « particulier » de l'annonce, vraie ou fausse, jamais vide
+    -- (ADR-054, questions 1 et 2). Gardée telle quelle à côté de
+    -- agency_name : 166 annonces disent « particulier » et donnent une
+    -- agence ; on garde les deux, sans trancher.
+    is_private   BOOLEAN NOT NULL,
     agency_name  VARCHAR(100)
                  CHECK (agency_name = btrim(agency_name) AND agency_name <> ''),
     contact_name VARCHAR(100)
