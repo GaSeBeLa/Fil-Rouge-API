@@ -90,13 +90,13 @@ reprend le volume de base déjà créé par un autre clone. Rien ne marche pour
 autant, l'API n'a ni secret ni clé. Une fois le `.env` en place, depuis `docker/` :
 
 - `.env` **recopié de l'ancien clone** : mêmes mots de passe que le volume
-  existant, `docker compose up -d` suffit.
+  existant, `docker compose up -d --build` suffit.
 - `.env` **refait depuis le modèle**, avec d'autres mots de passe : le volume
   garde ceux de sa création, il faut repartir de zéro (⚠️ efface la base de dev
   locale) :
 
 ```bash
-docker compose down -v && docker compose up -d
+docker compose down -v && docker compose up -d --build
 ```
 
 Dans les deux cas, puis depuis la racine du dépôt : `bash docker/create_test_db.sh`.
@@ -104,8 +104,17 @@ Dans les deux cas, puis depuis la racine du dépôt : `bash docker/create_test_d
 L'API est un service du `docker-compose` du projet. Depuis `docker/` :
 
 ```bash
-docker compose up -d api
+docker compose up -d --build api
 ```
+
+**Pourquoi `--build`** : l'image de l'API installe `requirements.txt` une seule
+fois, quand elle est construite (`API/Dockerfile`). Sans `--build`,
+`docker compose up -d` reprend l'image existante, même celle d'un autre clone
+(le nom de projet est fixe). Après un `git pull` qui ajoute une dépendance,
+l'API plante alors sur un module absent (vu le 2026-10-13 : `email-validator`,
+ajouté par API4). `--build` ne coûte presque rien : si `requirements.txt` n'a
+pas changé, Docker reprend sa couche en cache. Ne pas installer la dépendance
+avec `pip` sur son poste : l'API tourne dans le conteneur.
 
 Elle attend que PostgreSQL réponde (`healthcheck`) avant de démarrer, lit ses
 identifiants dans le même `docker/.env` que la base, et recharge le code à
