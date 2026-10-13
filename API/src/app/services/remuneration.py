@@ -17,9 +17,11 @@ ci-dessous.
 UN ÉCART AU CODE DU SUJET, à dire en soutenance (ADR-048, fiche API11,
 2026-10-13) : le critère « mandats » est noté par le taux de
 transformation, ventes ÷ mandats, au lieu de min(100 ; mandats × 10)
-(RCR:146). Trois endroits changent, et eux seuls :
+(RCR:146). Quatre endroits changent, et eux seuls :
 - `ParametresPerformance` : `points_par_mandat` devient
   `taux_reussite_mandats_note_max` ;
+- `Vente` : `mandats_vendus_12_mois` s'ajoute, le numérateur du taux
+  (ADR-048, point 7 ; fiche API12, choix du groupe du 2026-10-13) ;
 - `noter_criteres` : la note « mandats » vient de `note_mandats`, fonction
   ajoutée ;
 - `parametrage_par_defaut` : le réglage vaut 1.0000 (100 %).
@@ -151,7 +153,11 @@ class Vente:
     nb_visites: int
     annees_anciennete: int          # années révolues à la date de l'acte
     ventes_12_mois: int             # hors vente en cours
+    # ADR-048, point 7 : les chaînes de mandats signées sur la fenêtre et
+    # arrivées à leur première issue, hors chaîne en cours (le dénominateur
+    # du taux) ; et, parmi elles, celles finies par une vente (le numérateur).
     mandats_12_mois: int
+    mandats_vendus_12_mois: int
 
 
 @dataclass(frozen=True)
@@ -218,7 +224,8 @@ def semaines_ecoulees(debut: date, fin: date) -> int:
 def note_mandats(vente: Vente, p: ParametresPerformance) -> Decimal:
     """Critère « mandats » noté par le taux de transformation (ADR-048, écart au sujet).
 
-    T = ventes ÷ mandats, sur la fenêtre ; note = min(100 ; 100 × T ÷ réglage).
+    T = mandats vendus ÷ mandats arrivés au bout, sur la fenêtre (ADR-048,
+    point 7) ; note = min(100 ; 100 × T ÷ réglage).
     Un mandat sans vente grossit le seul dénominateur : la note baisse, ce que
     min(100 ; mandats × 10) du sujet ne permettait pas (F10:295-300).
     Zéro mandat : 0, un critère d'activité sans activité (ADR-048, point 7 ;
@@ -227,7 +234,7 @@ def note_mandats(vente: Vente, p: ParametresPerformance) -> Decimal:
     """
     if vente.mandats_12_mois == 0:
         return Decimal(0)
-    taux = Decimal(vente.ventes_12_mois) / Decimal(vente.mandats_12_mois)
+    taux = Decimal(vente.mandats_vendus_12_mois) / Decimal(vente.mandats_12_mois)
     return min(Decimal(100), Decimal(100) * taux / p.taux_reussite_mandats_note_max)
 
 

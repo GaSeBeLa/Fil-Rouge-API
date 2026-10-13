@@ -28,8 +28,8 @@ Qui ferme la boucle : `reglages_applicables` rend la ligne choisie, donc son
 `id` — celui que `payment.id_hunter_rate_parameters` doit garder pour que le
 calcul reste explicable plus tard (REGLES-CALCUL-REMUNERATION.md l. 281-292).
 
-Pas encore branché sur une route : aucun endpoint ne calcule de paiement
-aujourd'hui.
+Branché par `PaymentCalculationService` (fiche API12), derrière
+`POST /sales/{id}/payment` : il charge le `Parametrage` à la date de l'acte.
 ============================================================================
 """
 
@@ -93,7 +93,7 @@ def _bareme(scale: list[CommissionScale]) -> tuple[LigneBareme, ...]:
     )
 
 
-def _performance(r: HunterRateParameters) -> ParametresPerformance:
+def performance(r: HunterRateParameters) -> ParametresPerformance:
     return ParametresPerformance(
         poids_delai=r.weight_delay,
         poids_exclusivite=r.weight_exclusivity,
@@ -151,6 +151,6 @@ class ParametrageService:
         return Parametrage(
             honoraires=_honoraires(self.fees_repository.list_all(session)),
             bareme=_bareme(self.scale_repository.list_all(session)),
-            performance=_performance(reglages),
+            performance=performance(reglages),
             modulation=modulation(reglages),
         )

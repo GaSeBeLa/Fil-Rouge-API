@@ -108,6 +108,7 @@ BRUNO = Vente(
     annees_anciennete=3,
     ventes_12_mois=4,
     mandats_12_mois=9,
+    mandats_vendus_12_mois=4,  # ADR-048, point 7 : le numérateur du taux
 )
 
 

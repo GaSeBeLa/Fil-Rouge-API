@@ -92,7 +92,7 @@ def test_admin_can_create(test_app: FastAPI):
 
 
 def test_hunter_performance_closed_to_writes_even_for_admin(test_app: FastAPI):
-    # ADR-035 : jamais saisie à la main ; le service d'API12 l'écrira.
+    # ADR-035 : jamais saisie à la main ; PaymentService l'écrit au passage à 'paid' (API12).
     client = client_as(test_app, ADMIN)
 
     assert client.post("/hunter-performances", json=SCORE).status_code == 403

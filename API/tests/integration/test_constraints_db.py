@@ -876,7 +876,8 @@ def score_payload(**overrides: Any) -> dict[str, Any]:
 
 
 def add_score(db_session: SQLModelSession, payload: dict[str, Any]) -> HunterPerformance:
-    """Écrit une note comme le fera le service de rémunération (API12)."""
+    """Écrit une note par le service, sans attendre le passage à 'paid' : seules
+    les contraintes de la base sont testées ici (la règle d'ADR-035 : test_calcul_paiement.py)."""
     service = HunterPerformanceService(HunterPerformanceRepository())
     return service.create(db_session, HunterPerformance.model_validate(payload))
 

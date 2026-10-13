@@ -94,6 +94,8 @@ def vente_bruno(**overrides: Any) -> Vente:
         "annees_anciennete": 3,
         "ventes_12_mois": 4,
         "mandats_12_mois": 9,
+        # ADR-048, point 7 : le numérateur du taux ; 4 garde le Bruno refait d'API11.
+        "mandats_vendus_12_mois": 4,
     }
     champs.update(overrides)
     return Vente(**champs)
@@ -189,14 +191,14 @@ CAS_DU_SUJET_MANDATS = pytest.mark.xfail(
 @pytest.mark.parametrize(("ventes", "mandats", "note_ventes", "note_mandats"), VOLUMES_DU_SUJET)
 def test_critere_ventes(ventes: int, mandats: int, note_ventes: int, note_mandats: int):
     # La note des ventes ne change pas (ADR-048, point 3) : les lignes du sujet valent toujours.
-    notes = noter_criteres(vente_bruno(ventes_12_mois=ventes, mandats_12_mois=mandats), PARAMS.performance)
+    notes = noter_criteres(vente_bruno(ventes_12_mois=ventes, mandats_12_mois=mandats, mandats_vendus_12_mois=ventes), PARAMS.performance)
     assert notes["ventes"] == note_ventes
 
 
 @CAS_DU_SUJET_MANDATS
 @pytest.mark.parametrize(("ventes", "mandats", "note_ventes", "note_mandats"), VOLUMES_DU_SUJET)
 def test_criteres_de_volume_cas_du_sujet(ventes: int, mandats: int, note_ventes: int, note_mandats: int):
-    notes = noter_criteres(vente_bruno(ventes_12_mois=ventes, mandats_12_mois=mandats), PARAMS.performance)
+    notes = noter_criteres(vente_bruno(ventes_12_mois=ventes, mandats_12_mois=mandats, mandats_vendus_12_mois=ventes), PARAMS.performance)
     assert (notes["ventes"], notes["mandats"]) == (note_ventes, note_mandats)
 
 
@@ -205,7 +207,7 @@ def test_criteres_de_volume_cas_du_sujet(ventes: int, mandats: int, note_ventes:
 def mandats_avec_reglage(ventes: int, mandats: int, reglage: str = "1.0000") -> D:
     """Note « mandats » pour ces volumes, avec ce réglage de la note max."""
     p = replace(PARAMS.performance, taux_reussite_mandats_note_max=D(reglage))
-    return noter_criteres(vente_bruno(ventes_12_mois=ventes, mandats_12_mois=mandats), p)["mandats"]
+    return noter_criteres(vente_bruno(ventes_12_mois=ventes, mandats_12_mois=mandats, mandats_vendus_12_mois=ventes), p)["mandats"]
 
 
 def test_critere_mandats_4_ventes_pour_5_mandats_a_100_pour_cent_vaut_80_points():

@@ -168,11 +168,14 @@ les biens : `post_as_hunter` dans `test_constraints_db.py`).
 | [`integration/test_demande_avant_compte.py`](tests/integration/test_demande_avant_compte.py) | formulaire neuf → user **inactif** (mot de passe factice), fiche client et demande `'confirmed'` ; connexion refusée ; même email en majuscules → même compte (P2) ; email d'un client connu → sa fiche **n'est pas réécrite** ; email d'un chasseur → ignoré et logué (l'id, pas l'email) ; **même réponse** `202` pour tous ; adresse manquante → `422` ; refus de la base au milieu → `409` et **0 ligne** écrite ; `PUT /users/{id}` active le compte ; clé d'API exigée, pas de jeton (P5) |
 | [`integration/test_anonymisation.py`](tests/integration/test_anonymisation.py) | `POST /users/{id}/anonymize` : client sans mandat → **tout** anonyme, compte désactivé, connexion refusée ; nom gardé **10 ans** après la fin du dernier mandat **signé** de la chaîne (un renouvellement pas encore signé n'efface pas la fin d'avant) ou le paiement (seul, pour un chasseur dont les mandats sont finis depuis longtemps) (versé, ou pas encore : à partir d'aujourd'hui), reste anonyme tout de suite ; commentaire du client et motif des critères vidés ; rappelée après le délai → nom « Anonyme » ; non-`Admin` → `403` ; `DELETE /clients/1` → `405` (ADR-049) |
 | [`test_remuneration.py`](tests/test_remuneration.py) | les **55 cas** de [`10_calcul_remuneration_chasseur.feature`](../user-stories/10_calcul_remuneration_chasseur.feature), lignes d'exemples recopiées telles quelles |
+| [`integration/test_calcul_paiement.py`](tests/integration/test_calcul_paiement.py) | comptages purs : chaîne de renouvellements comptée une fois, première issue (vente, clôture, échéance), vente refusée, vente en cours exclue, fenêtre, visites `'client'` seules (ADR-048) ; `POST /sales/{id}/payment` → montant = `calculer_remuneration` sur les mêmes nombres, 2e appel → `409`, vente inconnue → `404`, hors dispositif → paiement `'refused'` ; note `'payment'` du journal absente tant que le paiement n'est pas `'paid'`, écrite au passage (ADR-035) |
 
 **Calcul de la rémunération** : [`services/remuneration.py`](src/app/services/remuneration.py)
 est le code de référence **du sujet**, extrait tel quel de `REGLES-CALCUL-REMUNERATION.md`
-§14.2-14.3 (seule la docstring est ajoutée). Fonction pure : le branchement sur
-`commission_scale`, `parameters_fees` et `payment` reste à écrire.
+§14.2-14.3, à un écart près : le critère « mandats » noté par le taux de transformation
+(ADR-048, voir sa docstring). Fonction pure, branchée sur la base par
+[`services/payment_calculation_service.py`](src/app/services/payment_calculation_service.py)
+(fiche API12).
 
 **Pour écrire un test** :
 - la fixture `client` ([`tests/conftest.py`](tests/conftest.py)) donne un `TestClient`
@@ -319,6 +322,13 @@ et l'anonymisation. Soit **85 opérations** (compté dans `/openapi.json` le 12/
   Prénom et nom attendent **10 ans** après la fin du dernier mandat de la chaîne, ou après
   le paiement ; la réponse dit jusqu'à quand (`names_kept_until`). Rappelée après ce jour,
   la route finit le travail : pas de tâche planifiée (V2).
+* 💶 **Calculer le paiement d'une vente** (fiche API12) : `POST /sales/{id}/payment`,
+  rôles qui écrivent. Compte en base les visites `'client'` de la chaîne du mandat, les
+  ventes et les mandats du chasseur sur la fenêtre (ADR-048), charge le paramétrage à la
+  date de l'acte, appelle `calculer_remuneration` et crée le paiement `'announced'` — ou
+  `'refused'` avec son motif (ADR-024). Vente inconnue → `404` ; déjà payée ou paramétrage
+  manquant → `409`. Le `PUT /payments/{id}` qui le passe à `'paid'` écrit la note
+  `'payment'` du journal (ADR-035).
 * 🔑 **Toutes les routes exigent aussi l'en-tête `X-API-Key`** (fiche API3),
   `/auth/login` compris : clé absente ou inconnue → `401`. La clé dit quel programme
   appelle, le jeton quelle personne agit : il faut les deux.

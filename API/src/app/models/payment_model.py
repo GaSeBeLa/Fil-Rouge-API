@@ -40,8 +40,9 @@ from .input_check import is_input
 #
 # Les noms de clés sont fixés ici et recopiés dans ADR-033 (Conséquences) :
 # anglais, comme un schéma de données (ADR-002) ; les 5 notes portent les
-# noms des colonnes de poids de hunter_rate_parameters. Le service de
-# rémunération (API12) traduira les noms de remuneration.py vers ceux-ci.
+# noms des colonnes de poids de hunter_rate_parameters.
+# `PaymentCalculationService` (API12) traduit les noms de remuneration.py
+# vers ceux-ci.
 
 _Note = Annotated[float, PydanticField(ge=0, le=100)]
 _Count = Annotated[int, PydanticField(ge=0)]
@@ -64,7 +65,10 @@ class CalculationDetails(BaseModel):
     Ce que `payment.calculation_details` garde d'un calcul (ADR-033) : les 5
     notes et les 4 entrées que rien d'autre ne fige (Décision 2). Les trois
     termes lus sur le mandat (Conséquences) sont facultatifs : le mandat
-    reste modifiable, le service les ajoutera au branchement (API12).
+    reste modifiable ; `PaymentCalculationService` les écrit (API12).
+    `mandates_12_months` et `sold_mandates_12_months` sont les deux termes
+    du taux des mandats (ADR-048, point 7 et Traçabilité) ; le second est
+    facultatif, pour les paiements posés avant API12.
     Toute autre clé est refusée : une faute de frappe ne passe pas.
     """
 
@@ -75,6 +79,7 @@ class CalculationDetails(BaseModel):
     seniority_years: _Count
     sales_12_months: _Count
     mandates_12_months: _Count
+    sold_mandates_12_months: Optional[_Count] = None
     mandate_signature_date: Optional[date] = None
     mandate_ends_at: Optional[date] = None
     is_exclusive: Optional[bool] = None
