@@ -8,25 +8,36 @@ test_contact_vendeur.py — Le contact du vendeur d'un bien (ADR-054).
   téléphone hors du format d'ADR-007, une ligne sans aucun renseignement.
 - `is_private` est obligatoire, et gardé avec un nom d'agence (questions 1, 2).
 - Le rôle PostgreSQL `fil_rouge_reader` ne lit pas la table (question 5).
+- Effacement (question 4) : anonyme 3 ans après la dernière activité du
+  bien, par POST /estate-contacts/anonymize-expired, Admin seul.
 
 Comptes du seed 02 : chasseurs 1 et 2, manager 25.
 """
 
+from datetime import date, timedelta
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
-from sqlalchemy.orm import Session  # mère de sqlmodel.Session, la fixture db_session
+from sqlmodel import Session
 
+from src.app.models import EstateContact
+from src.app.repositories.estate_contact_repository import EstateContactRepository
+from src.app.services.anonymization_service import ANONYMOUS_NAME, plus_years
+from src.app.services.estate_contact_service import EstateContactService
 from src.app.utils.roles import ADMIN, CLIENT, HUNTER, MANAGER, READER
 
 from ..conftest import acting_as
-from .test_constraints_db import ESTATE, HUNTER_ID, post_as_hunter
+from .test_constraints_db import ESTATE, HUNTER_ID, post_as_hunter, selected_estate
 
 OTHER_HUNTER_ID = 2
 MANAGER_ID = 25
+
+# Un contact créé aujourd'hui : 3 ans plus tard, à 2 jours près (minuit UTC).
+IN_THREE_YEARS = plus_years(date.today(), 3)
+DAYS_2 = timedelta(days=2)
 
 CONTACT: dict[str, Any] = {
     "is_private": False,
@@ -147,3 +158,69 @@ def test_reader_role_cannot_read_contacts(db_session: Session):
     connection.execute(text("SET LOCAL ROLE fil_rouge_reader"))
     with pytest.raises(ProgrammingError, match="permission denied"):
         connection.execute(text("SELECT phone_number FROM estate_contact"))
+
+
+# --- Effacement à 3 ans (ADR-054, question 4) -----------------------------------
+
+
+def contact_on_new_estate(db_client: TestClient) -> int:
+    created = post_contact(db_client, {**CONTACT, "id_estate": new_estate(db_client)})
+    assert created.status_code == 201, created.text
+    return created.json()["id"]
+
+
+def stored(db_session: Session, contact_id: int) -> EstateContact:
+    contact = db_session.get(EstateContact, contact_id)
+    assert contact is not None
+    return contact
+
+
+def test_contact_is_kept_before_three_years(db_client: TestClient, db_session: Session):
+    contact_id = contact_on_new_estate(db_client)
+    report = EstateContactService(EstateContactRepository()).anonymize_expired(db_session, IN_THREE_YEARS - DAYS_2)
+    assert report.anonymized == 0
+    assert stored(db_session, contact_id).phone_number == "+33612345678"
+
+
+def test_contact_is_anonymized_after_three_years(db_client: TestClient, db_session: Session):
+    contact_id = contact_on_new_estate(db_client)
+    service = EstateContactService(EstateContactRepository())
+    report = service.anonymize_expired(db_session, IN_THREE_YEARS + DAYS_2)
+    assert report.anonymized == 1
+    contact = stored(db_session, contact_id)
+    assert (contact.contact_name, contact.agency_name, contact.phone_number, contact.email) == (
+        ANONYMOUS_NAME, None, None, None,
+    )
+    assert contact.is_private is False and contact.id_author == HUNTER_ID  # gardés
+    # Rejouée : rien de nouveau.
+    assert service.anonymize_expired(db_session, IN_THREE_YEARS + DAYS_2).anonymized == 0
+
+
+def test_later_activity_delays_anonymization(db_client: TestClient, db_session: Session):
+    # Une sélection du bien un an plus tard repousse les 3 ans d'autant.
+    estate_id = selected_estate(db_client)
+    contact = post_contact(db_client, {**CONTACT, "id_estate": estate_id})
+    assert contact.status_code == 201, contact.text
+    db_session.connection().execute(
+        text("UPDATE estate_searchrequest SET created_at = created_at + interval '1 year' WHERE id_estate = :e"),
+        {"e": estate_id},
+    )
+    service = EstateContactService(EstateContactRepository())
+    assert service.anonymize_expired(db_session, IN_THREE_YEARS + DAYS_2).anonymized == 0
+    assert service.anonymize_expired(db_session, plus_years(IN_THREE_YEARS, 1) + DAYS_2).anonymized == 1
+
+
+@pytest.mark.parametrize("role", [HUNTER, MANAGER, CLIENT, READER])
+def test_only_admin_runs_the_anonymization(db_client: TestClient, role: str):
+    with acting_as(role, HUNTER_ID):
+        response = db_client.post("/estate-contacts/anonymize-expired")
+    assert response.status_code == 403
+
+
+def test_admin_runs_the_anonymization(db_client: TestClient):
+    contact_id = contact_on_new_estate(db_client)
+    response = db_client.post("/estate-contacts/anonymize-expired")
+    assert response.status_code == 200, response.text
+    assert response.json()["cutoff"] == plus_years(date.today(), -3).isoformat()
+    # Contact du jour : gardé.
+    assert db_client.get(f"/estate-contacts/{contact_id}").json()["contact_name"] == "Mme Martin"
