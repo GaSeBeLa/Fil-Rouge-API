@@ -28,18 +28,24 @@ ADR-035 — la note du journal. Quand un PUT fait passer le paiement à
 transaction (`PaymentCalculationService.journal_note`, fiche API12) : un
 refus de la base annule les deux. Jamais avant : un paiement annoncé ou
 planifié n'a pas de note.
+
+« Le sien » (ADR-027, annexe § 4 ; fiche DRO4, table pilote) : un Hunter
+ne voit que ses paiements (H10) ; celui d'un autre chasseur rend 404. Le
+Manager les voit tous jusqu'à DRO7 (« ceux de ses chasseurs », Q-ACC-02).
 ============================================================================
 """
 
 from typing import Optional
 
-from sqlmodel import Session
+from sqlalchemy import ColumnElement
+from sqlmodel import Session, col
 
 from ..models import Payment, User
 from ..repositories.hunter_performance_repository import HunterPerformanceRepository
 from ..repositories.hunter_rate_parameters_repository import HunterRateParametersRepository
 from ..repositories.payment_repository import PaymentRepository
 from ..utils.exceptions import ConflictError
+from ..utils.roles import HUNTER, Principal
 from .base_service import BaseService
 from .parametrage_service import modulation
 from .payment_calculation_service import PaymentCalculationService
@@ -74,6 +80,12 @@ class PaymentService(BaseService[Payment]):
         # ADR-035 : sans eux, le passage à 'paid' n'écrit pas de note (tests unitaires).
         self.journal = journal
         self.performances = performances
+
+    def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
+        """Un Hunter : ses paiements seulement (annexe § 4, H10)."""
+        if viewer.role == HUNTER:
+            return col(Payment.id_hunter) == viewer.user.id
+        return None
 
     def create(self, session: Session, item: Payment, actor: Optional[User] = None) -> Payment:
         """Crée un paiement : seulement 'announced' ou 'refused', et au taux final juste."""

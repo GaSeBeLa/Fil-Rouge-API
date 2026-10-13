@@ -1,6 +1,6 @@
 """
-base_service.py — Logique applicative générique, partagée par les 18
-services.
+base_service.py — Logique applicative générique, partagée par les services
+de table.
 
 ============================================================================
 COMMENT LIRE CE FICHIER
@@ -20,16 +20,30 @@ d'erreur associé à cette table.
 Ignoré ici ; un service s'en sert quand la ligne nomme son auteur (estate,
 ADR-047) ou quand le droit dépend de la ligne (review_media, ADR-051).
 Appelé sans compte (script, test), create() reçoit None.
+
+« Le sien » (ADR-027, point 2 ; fiche DRO4) : le second contrôle, après le
+rôle. Le routeur passe le compte connecté (`viewer`) à list_all, get_by_id
+et replace_visible. visible_rows, le crochet, rend la condition SQL des
+lignes que ce compte voit ; par défaut, toutes. Une table le surcharge
+(payment_service.py). Une ligne hors du crochet est introuvable : 404, en
+lecture comme en modification, comme une ligne qui n'existe pas. L'Admin
+voit tout : le crochet n'est pas appelé pour lui. Sans `viewer` (contrôle
+interne, script, test), rien n'est filtré.
 ============================================================================
 """
 
-from typing import Generic, List, Optional, TypeVar
+from typing import TYPE_CHECKING, Generic, List, Optional, TypeVar
 
+from sqlalchemy import ColumnElement
 from sqlmodel import Session, SQLModel
 
 from ..models import User
 from ..utils.exceptions import NotFoundError
 from ..repositories.base_repository import BaseRepository
+
+if TYPE_CHECKING:
+    # Pour le typage seulement : utils/roles.py importe déjà les services.
+    from ..utils.roles import Principal
 
 ModelType = TypeVar("ModelType", bound=SQLModel)
 
@@ -39,11 +53,15 @@ class BaseService(Generic[ModelType]):
         self.repository = repository
         self.not_found_detail = not_found_detail
 
-    def list_all(self, session: Session) -> List[ModelType]:
-        return self.repository.list_all(session)
+    def visible_rows(self, viewer: "Principal") -> Optional[ColumnElement[bool]]:
+        """Le crochet « le sien » : la condition SQL des lignes que `viewer` voit, None pour toutes."""
+        return None
 
-    def get_by_id(self, session: Session, item_id: int) -> ModelType:
-        item = self.repository.get_by_id(session, item_id)
+    def list_all(self, session: Session, viewer: Optional["Principal"] = None) -> List[ModelType]:
+        return self.repository.list_all(session, self._where(viewer))
+
+    def get_by_id(self, session: Session, item_id: int, viewer: Optional["Principal"] = None) -> ModelType:
+        item = self.repository.get_by_id(session, item_id, self._where(viewer))
         if item is None:
             raise NotFoundError(self.not_found_detail)
         return item
@@ -55,6 +73,16 @@ class BaseService(Generic[ModelType]):
         existing = self.get_by_id(session, item_id)
         return self.repository.replace(session, existing, data)
 
+    def replace_visible(self, session: Session, item_id: int, data: ModelType, viewer: "Principal") -> ModelType:
+        """Le PUT de l'API : la ligne d'un autre lève NotFoundError (404), puis replace() et ses règles."""
+        self.get_by_id(session, item_id, viewer)
+        return self.replace(session, item_id, data)
+
     def delete(self, session: Session, item_id: int) -> ModelType:
         existing = self.get_by_id(session, item_id)
         return self.repository.delete(session, existing)
+
+    def _where(self, viewer: Optional["Principal"]) -> Optional[ColumnElement[bool]]:
+        if viewer is None or viewer.is_admin:
+            return None
+        return self.visible_rows(viewer)

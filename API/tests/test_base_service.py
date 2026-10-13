@@ -1,5 +1,5 @@
 """
-test_base_service.py — Tests unitaires de BaseService, socle des 18 services.
+test_base_service.py — Tests unitaires de BaseService, socle des services de table.
 
 ============================================================================
 COMMENT LIRE CE FICHIER
@@ -9,19 +9,35 @@ base. La session n'est jamais utilisée par le service lui-même (il la
 transmet au repository), un MagicMock suffit donc aussi.
 
 Ce qu'on prouve : un id inexistant lève NotFoundError avec le message propre
-à la table, et AVANT toute écriture ; le reste est délégué tel quel.
+à la table, et AVANT toute écriture ; le reste est délégué tel quel. « Le
+sien » (fiche DRO4) : la condition du crochet part au repository, sauf pour
+l'Admin ; une ligne hors du crochet n'est pas modifiée.
 ============================================================================
 """
 
+from typing import Optional, cast
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy import ColumnElement
 
 from src.app.repositories.base_repository import BaseRepository
 from src.app.services.base_service import BaseService
 from src.app.utils.exceptions import NotFoundError
+from src.app.utils.roles import ADMIN, HUNTER, Principal
+
+from .conftest import principal_as
 
 DETAIL = "Chose introuvable"
+# Une condition SQL factice : le service la transmet sans la lire.
+CONDITION = cast("ColumnElement[bool]", object())
+
+
+class OnlyMine(BaseService):
+    """Une table qui filtre « le sien » : son crochet rend CONDITION."""
+
+    def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
+        return CONDITION
 
 
 @pytest.fixture
@@ -42,14 +58,14 @@ def session() -> MagicMock:
 def test_list_all_delegates_to_repository(service: BaseService, repository: MagicMock, session: MagicMock):
     repository.list_all.return_value = ["a", "b"]
     assert service.list_all(session) == ["a", "b"]
-    repository.list_all.assert_called_once_with(session)
+    repository.list_all.assert_called_once_with(session, None)
 
 
 def test_get_by_id_returns_item_when_found(service: BaseService, repository: MagicMock, session: MagicMock):
     item = object()
     repository.get_by_id.return_value = item
     assert service.get_by_id(session, 7) is item
-    repository.get_by_id.assert_called_once_with(session, 7)
+    repository.get_by_id.assert_called_once_with(session, 7, None)
 
 
 def test_get_by_id_raises_not_found_with_table_detail(service: BaseService, repository: MagicMock, session: MagicMock):
@@ -57,6 +73,27 @@ def test_get_by_id_raises_not_found_with_table_detail(service: BaseService, repo
     with pytest.raises(NotFoundError) as exc:
         service.get_by_id(session, 999)
     assert str(exc.value) == DETAIL
+
+
+@pytest.mark.parametrize(("role", "expected"), [(HUNTER, CONDITION), (ADMIN, None)])
+def test_hook_condition_goes_to_the_repository_except_for_admin(
+    repository: MagicMock, session: MagicMock, role: str, expected: Optional[ColumnElement[bool]]
+):
+    service = OnlyMine(repository, not_found_detail=DETAIL)
+    viewer = principal_as(role)()
+    service.list_all(session, viewer)
+    service.get_by_id(session, 7, viewer)
+    repository.list_all.assert_called_once_with(session, expected)
+    repository.get_by_id.assert_called_once_with(session, 7, expected)
+
+
+def test_replace_visible_refuses_a_hidden_row_before_writing(repository: MagicMock, session: MagicMock):
+    # La ligne n'existe que sans filtre : replace_visible doit passer la condition du crochet.
+    repository.get_by_id.side_effect = lambda session, item_id, where=None: None if where is CONDITION else object()
+    service = OnlyMine(repository, not_found_detail=DETAIL)
+    with pytest.raises(NotFoundError):
+        service.replace_visible(session, 3, object(), principal_as(HUNTER)())  # pyright: ignore[reportArgumentType] — idem
+    repository.replace.assert_not_called()
 
 
 def test_create_delegates_to_repository(service: BaseService, repository: MagicMock, session: MagicMock):

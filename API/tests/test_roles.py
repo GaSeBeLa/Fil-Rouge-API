@@ -92,7 +92,7 @@ def test_reader_cannot_write(test_app: FastAPI, service: MagicMock):
     assert client.post("/things", json={"name": "b"}).status_code == 403
     assert client.put("/things/1", json={"name": "b"}).status_code == 403
     service.create.assert_not_called()
-    service.replace.assert_not_called()
+    service.replace_visible.assert_not_called()
 
 
 def test_admin_can_create(test_app: FastAPI):

@@ -38,8 +38,13 @@ donc ses rôles, lus dans l'annexe d'ADR-027
 (`md/adr/adr-027-annexe-matrice-detaillee.md`) au niveau du rôle.
 `read_roles` ouvre les deux GET ; `write_roles` ouvre le PUT, et le POST
 quand `create_roles` est absent ; `create_roles` ouvre le seul POST. `()`
-ferme le geste à tous. « Le sien » (sa propre ligne) n'est pas encore
-filtré : fiches DRO4 à DRO8.
+ferme le geste à tous.
+
+« Le sien » (ADR-027, point 2 ; fiche DRO4) : les deux GET et le PUT passent
+le compte connecté au service (`list_all`, `get_by_id`, `replace_visible`),
+qui ne rend que les lignes de son crochet `visible_rows` (base_service.py).
+Une ligne hors du crochet rend 404, comme une ligne absente. Tables qui
+filtrent : payment (DRO4) ; les autres suivent en DRO5 à DRO8.
 
 Le compte connecté (fiche API6) : le POST le passe au service,
 `service.create(..., actor=<compte>)`, qui s'en sert pour remplir l'auteur
@@ -124,8 +129,8 @@ def build_crud_router(
 ) -> APIRouter:
     router = APIRouter(prefix=prefix, tags=[tag], dependencies=[Depends(require_api_key)])
 
-    can_read = [Depends(require_roles(*read_roles))]
-    can_write = [Depends(require_roles(*write_roles))]
+    can_read = require_roles(*read_roles)
+    can_write = require_roles(*write_roles)
     can_create = require_roles(*(write_roles if create_roles is None else create_roles))
 
     out_model = read_model or response_model
@@ -142,32 +147,32 @@ def build_crud_router(
     @router.get(
         "",
         response_model=List[out_model],
-        dependencies=can_read,
         summary="Lister toutes les lignes",
         description=_describe(
-            "Rend toutes les lignes de la table, en une fois (pas de pagination).",
+            "Rend les lignes de la table, en une fois (pas de pagination). Sur une table qui "
+            "réserve chaque ligne à son titulaire (« le sien »), seulement les vôtres.",
             read_roles,
             "- `200` : la liste, vide s'il n'y a rien ;\n- `403` : votre rôle ne peut pas lire cette table.",
         ),
     )
-    def list_items(session: Session = Depends(get_session)):
-        return service.list_all(session)
+    def list_items(session: Session = Depends(get_session), viewer: Principal = Depends(can_read)):
+        return service.list_all(session, viewer)
 
     @router.get(
         "/{item_id}",
         response_model=out_model,
-        dependencies=can_read,
         summary="Lire une ligne par son id",
         description=_describe(
             "Rend la ligne dont l'`id` est donné dans l'URL.",
             read_roles,
             "- `200` : la ligne ;\n- `403` : votre rôle ne peut pas lire cette table ;\n"
-            "- `404` : aucune ligne n'a cet `id` ;\n- `422` : l'`id` n'est pas un nombre entier.",
+            "- `404` : aucune ligne que vous pouvez voir n'a cet `id` ;\n"
+            "- `422` : l'`id` n'est pas un nombre entier.",
         ),
     )
-    def get_item(item_id: int, session: Session = Depends(get_session)):
+    def get_item(item_id: int, session: Session = Depends(get_session), viewer: Principal = Depends(can_read)):
         try:
-            return service.get_by_id(session, item_id)
+            return service.get_by_id(session, item_id, viewer)
         except NotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -201,21 +206,25 @@ def build_crud_router(
     @router.put(
         "/{item_id}",
         response_model=out_model,
-        dependencies=can_write,
         summary="Modifier une ligne",
         description=_describe(
             f"Remplace la ligne dont l'`id` est donné dans l'URL. {put_rule}",
             write_roles,
             "- `200` : la ligne modifiée ;\n"
             "- `403` : votre rôle ne peut pas modifier cette table ;\n"
-            "- `404` : aucune ligne n'a cet `id` ;\n"
+            "- `404` : aucune ligne que vous pouvez voir n'a cet `id` ;\n"
             "- `409` : la base ou une règle métier refuse la modification ; le message dit laquelle ;\n"
             "- `422` : le corps est mal formé.",
         ),
     )
-    def update_item(item_id: int, data: in_update_model, session: Session = Depends(get_session)):
+    def update_item(
+        item_id: int,
+        data: in_update_model,
+        session: Session = Depends(get_session),
+        viewer: Principal = Depends(can_write),
+    ):
         try:
-            return service.replace(session, item_id, _validated(in_update_model, data))
+            return service.replace_visible(session, item_id, _validated(in_update_model, data), viewer)
         except NotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ConflictError as exc:

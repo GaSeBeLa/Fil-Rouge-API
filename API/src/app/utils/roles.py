@@ -51,6 +51,11 @@ class Principal(NamedTuple):
     user: User
     role: str
 
+    @property
+    def is_admin(self) -> bool:
+        """L'Admin voit toutes les lignes des tables qu'il lit (ADR-027, fiche DRO4)."""
+        return self.role == ADMIN
+
 
 def get_principal(
     user: User = Depends(get_current_user),

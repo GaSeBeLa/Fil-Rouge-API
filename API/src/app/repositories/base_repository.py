@@ -1,5 +1,5 @@
 """
-base_repository.py — CRUD générique, partagé par les 18 repositories.
+base_repository.py — CRUD générique, partagé par les repositories de table.
 
 ============================================================================
 COMMENT LIRE CE FICHIER
@@ -15,11 +15,16 @@ Chaque repository de table hérite de BaseRepository[SonModèle] et n'a rien
 à réécrire pour les 5 opérations de base. Il peut ensuite ajouter ses
 propres méthodes (ex: UserRepository.get_by_email) sans toucher à cette
 classe.
+
+`where` (fiche DRO4) : list_all et get_by_id acceptent la condition SQL
+des lignes visibles, que le service tire de son crochet « le sien ». Le
+filtre se fait dans la requête, jamais en Python après coup.
 ============================================================================
 """
 
 from typing import Generic, List, Optional, Sequence, Type, TypeVar
 
+from sqlalchemy import ColumnElement
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, select
 
@@ -35,11 +40,21 @@ class BaseRepository(Generic[ModelType]):
     def __init__(self, model: Type[ModelType]):
         self.model = model
 
-    def list_all(self, session: Session) -> List[ModelType]:
-        return session.exec(select(self.model)).all()
+    def list_all(self, session: Session, where: Optional[ColumnElement[bool]] = None) -> List[ModelType]:
+        """Toutes les lignes, ou seulement celles qui passent `where`."""
+        statement = select(self.model)
+        if where is not None:
+            statement = statement.where(where)
+        return list(session.exec(statement).all())
 
-    def get_by_id(self, session: Session, item_id: int) -> Optional[ModelType]:
-        return session.get(self.model, item_id)
+    def get_by_id(
+        self, session: Session, item_id: int, where: Optional[ColumnElement[bool]] = None
+    ) -> Optional[ModelType]:
+        """La ligne `item_id`, ou None ; None aussi si elle ne passe pas `where`."""
+        if where is None:
+            return session.get(self.model, item_id)
+        # Toutes les tables ont leur clé primaire dans `id` (models/).
+        return session.exec(select(self.model).where(getattr(self.model, "id") == item_id, where)).first()
 
     def exists_with(self, session: Session, field: str, value: object) -> bool:
         """Vrai si au moins une ligne a `field == value` (ex. une vente qui cite une grille)."""

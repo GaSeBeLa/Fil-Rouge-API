@@ -108,7 +108,7 @@ def test_post_conflict_returns_409(api: TestClient, service: MagicMock):
     [(NotFoundError(NOT_FOUND), 404), (ConflictError(CONFLICT), 409)],
 )
 def test_put_translates_errors(api: TestClient, service: MagicMock, error: Exception, expected_status: int):
-    service.replace.side_effect = error
+    service.replace_visible.side_effect = error
     response = api.put("/things/1", json={"name": "b"})
     assert response.status_code == expected_status
     assert response.json() == {"detail": str(error)}
@@ -119,3 +119,21 @@ def test_delete_route_is_gone(api: TestClient, service: MagicMock):
     response = api.delete("/things/1")
     assert response.status_code == 405
     service.delete.assert_not_called()
+
+
+def test_routes_pass_the_account_to_the_service(api: TestClient, service: MagicMock):
+    # « Le sien » (DRO4) : les deux GET et le PUT donnent le compte connecté au service.
+    service.list_all.return_value = []
+    service.get_by_id.return_value = Thing(id=1, name="a")
+    service.replace_visible.return_value = Thing(id=1, name="b")
+
+    statuses = [api.get("/things").status_code, api.get("/things/1").status_code]
+    statuses.append(api.put("/things/1", json={"name": "b"}).status_code)
+
+    assert statuses == [200, 200, 200]
+    viewers = [
+        service.list_all.call_args.args[1],
+        service.get_by_id.call_args.args[2],
+        service.replace_visible.call_args.args[3],
+    ]
+    assert [viewer.role for viewer in viewers] == [ADMIN] * 3

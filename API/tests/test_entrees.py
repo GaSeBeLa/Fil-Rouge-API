@@ -33,8 +33,8 @@ def api() -> TestClient:
     def echo_service() -> MagicMock:
         service = MagicMock(spec=BaseService)
         service.create.side_effect = lambda session, item, actor=None: item
-        service.replace.side_effect = lambda session, item_id, data: data
-        service.get_by_id.side_effect = lambda session, item_id: stored.get(item_id)
+        service.replace_visible.side_effect = lambda session, item_id, data, viewer: data
+        service.get_by_id.side_effect = lambda session, item_id, viewer=None: stored.get(item_id)
         return service
 
     # Lignes « déjà en base » : la réponse d'un GET ne rejuge pas les règles.

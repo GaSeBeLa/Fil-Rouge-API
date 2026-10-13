@@ -198,6 +198,8 @@ Puis **770 passed, 8 skipped, 6 xfailed** (fiche DRO2, 2026-10-13) : l'argent r�
 l'annexe le donne ; 80 tests de droits de plus (tables d'argent, calcul réservé à l'Admin).
 Puis **774 passed, 8 skipped, 7 xfailed** (fiche DRO3, 2026-10-13) : les routes à part ;
 4 tests de plus, et 1 `xfail` strict qui montre la limite du formulaire (Limites connues).
+Puis **784 passed, 8 skipped, 7 xfailed** (fiche DRO4, 2026-10-13) : le mécanisme « le
+sien », 6 tests dans `test_le_sien.py`, 4 tests unitaires du routeur et du service.
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -214,13 +216,14 @@ par le service (`write_payment`) : un refus y est un `ConflictError`, le `409` d
 | [`test_health.py`](tests/test_health.py) | `/` répond |
 | [`test_security.py`](tests/test_security.py) | hachage argon2 : jamais de clair, sel aléatoire, comptes migrés refusés sans exception, `needs_rehash` |
 | [`test_user_service.py`](tests/test_user_service.py) | le mot de passe n'atteint jamais le repository en clair ; mise à jour partielle |
-| [`test_base_service.py`](tests/test_base_service.py) | id inexistant → `NotFoundError` **avant** toute écriture |
+| [`test_base_service.py`](tests/test_base_service.py) | id inexistant → `NotFoundError` **avant** toute écriture ; la condition du crochet « le sien » part au repository, sauf pour l'Admin (DRO4) |
 | [`test_base_repository.py`](tests/test_base_repository.py) | `id` ignoré au `POST` ; `IntegrityError` → rollback + `ConflictError` |
 | [`test_user_models.py`](tests/test_user_models.py) | mot de passe ≥ 12 caractères ; `UserPublic` sans `password` |
-| [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 pour les 18 ressources ; `DELETE` → `405` (ADR-049) |
+| [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 sur un routeur factice ; `DELETE` → `405` (ADR-049) ; les deux `GET` et le `PUT` passent le compte au service (DRO4) |
 | [`integration/test_auth.py`](tests/integration/test_auth.py) | connexion : jeton rendu ; mauvais mot de passe, compte inactif, jeton expiré ou forgé → `401` ; compte désactivé **après** l'émission du jeton → `401` (relu en base) |
 | [`test_roles.py`](tests/test_roles.py), [`integration/test_roles_db.py`](tests/integration/test_roles_db.py) | sans jeton → `401` ; `Reader` lit (`200`) mais n'écrit pas (`403`) ; `Admin` crée (`201`) ; un routeur sans rôles déclarés → `403` pour les 5 rôles (DRO1) ; `/hunter-performances` et `/roles` fermés en écriture ; `/` et `/auth/login` ouverts |
 | [`integration/test_droits_par_role.py`](tests/integration/test_droits_par_role.py) | la grille de l'annexe d'ADR-027, recopiée à la main : chaque case fermée → `403` en lecture (liste et ligne), création, modification ; chaque case ouverte ≠ `403` ; au moins un refus par table (DRO1) ; tables d'argent, et `POST /sales/{id}/payment` réservé à l'Admin (DRO2) ; chaque route hors CRUD nommée avec le test qui la juge, `/` ne rend qu'un statut, `/auth/login` qu'un jeton (`sub`, `iat`, `exp`), `/auth/me` le seul compte du jeton, même avec un id dans l'URL (DRO3) |
+| [`integration/test_le_sien.py`](tests/integration/test_le_sien.py) | « le sien » sur `/payments` (DRO4) : un Hunter liste ses paiements seulement, `404` sur celui d'un autre chasseur (même réponse qu'un id absent), refus au service en modification ; l'Admin voit tout |
 | [`test_api_keys.py`](tests/test_api_keys.py) | sans clé ou clé inconnue → `401` ; bonne clé et bon jeton → `200` ; bonne clé sans jeton → `401` ; `/` sans clé ; démarrage refusé sans clé ou clé trop courte |
 | [`test_entrees.py`](tests/test_entrees.py) | `422` avant la base : email mal formé (P2), plus de chambres que de pièces (P16), réglages du taux incohérents — poids ≠ 1, plancher > plafond, paliers mal formés (P29), détail du calcul mal formé (P32) |
 | [`integration/test_versions_paiement.py`](tests/integration/test_versions_paiement.py) | grille d'honoraires, ligne de barème, réglages du taux : citée → `PUT` `409`, non citée → `200` (ADR-030, ADR-034) ; statut du paiement : pas à pas → `200` ; saut, retour en arrière, refus après `'announced'`, paiement `'paid'` modifié ou supprimé, `POST` au-delà de `'announced'` → `409` (ADR-038) ; taux final faux → `409` (P33) ; `DELETE` → `405` (ADR-049) |
@@ -389,7 +392,11 @@ ensuite créer d'autres comptes avec `POST /users`, pour essayer les autres rôl
   déclare (`read_roles`, `write_roles`, `create_roles` de `build_crud_router`) ; les
   autres → `403`. Les rôles viennent de l'annexe d'ADR-027
   (`md/adr/adr-027-annexe-matrice-detaillee.md`, dépôt Fil-Rouge), **au niveau du
-  rôle** : « le sien » (sa propre ligne) n'est pas encore filtré (fiches DRO4 à DRO8).
+  rôle**. « Le sien » (ADR-027, point 2 ; fiche DRO4) : les deux `GET` et le `PUT`
+  passent le compte au service, dont le crochet `visible_rows` filtre les lignes **dans
+  la requête SQL** ; la ligne d'un autre rend `404`, comme une ligne absente. L'Admin
+  voit tout. Branché sur `/payments` (un Hunter, ses paiements seulement) ; les autres
+  tables suivent (fiches DRO5 à DRO8).
 
   | Table | Lire | Créer | Modifier |
   |---|---|---|---|
@@ -577,9 +584,10 @@ encore référencé échoue toujours, même en SQL direct (l'API, elle, ne suppr
 
 ## Limites connues
 
-* Droits : chaque table déclare ses rôles (fiche DRO1), mais « le sien » n'est pas
-  filtré : un Client lit et modifie encore les lignes des autres clients sur les tables
-  qui lui sont ouvertes (fiches DRO4 à DRO8).
+* Droits : chaque table déclare ses rôles (fiche DRO1), mais « le sien » n'est filtré
+  que sur `/payments` (fiche DRO4) : un Client lit et modifie encore les lignes des autres
+  clients sur les tables qui lui sont ouvertes (fiches DRO5 à DRO8). Le Manager lit encore
+  tous les paiements, pas seulement ceux de ses chasseurs (Q-ACC-02, fiche DRO7).
 * Formulaire du site : un format refusé par la base (téléphone, code postal) rend `409`
   pour un email neuf, `202` pour un email connu ; l'email se devine. Test `xfail` strict
   dans `test_droits_par_role.py` (fiche DRO3).

@@ -6,7 +6,7 @@ COMMENT LIRE CE FICHIER
 ============================================================================
 MATRIX recopie l'annexe d'ADR-027 (`md/adr/adr-027-annexe-matrice-detaillee.md`,
 dépôt Fil-Rouge) au niveau du rôle : un rôle a un geste s'il l'a sur au moins
-une ligne (« le sien » sera filtré en DRO4 à DRO8). Elle est écrite ici à
+une ligne (« le sien » se juge à part : test_le_sien.py). Elle est écrite ici à
 la main, pas importée des routeurs : le test juge le code, il ne le relit pas.
 
 - test_refused_role_gets_403 : chaque case fermée rend 403, en lecture (liste
