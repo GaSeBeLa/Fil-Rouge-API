@@ -213,6 +213,18 @@ def scale_line_id(lines: Iterable[CommissionScale], hunter_id: int, on: date, pr
 
 
 class PaymentCalculationService:
+    """Le pont entre la base et le calcul de rémunération.
+
+    Deux usages :
+
+    - `build_payment` : appelé par `POST /sales/{id}/payment`, il rend le
+      paiement calculé d'une vente, pas encore enregistré ;
+    - `journal_note` : appelé par `PaymentService` quand un paiement passe à
+      'paid', il rend la note 'payment' du journal du chasseur (ADR-035).
+
+    Il lit la base, mais n'y écrit jamais : l'écriture reste à `PaymentService`.
+    """
+
     def __init__(
         self,
         sales: SaleRepository,

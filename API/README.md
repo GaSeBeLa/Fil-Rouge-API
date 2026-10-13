@@ -210,8 +210,9 @@ bash docker/create_test_db.sh
 1. ✅ tests unitaires purs — la logique, sans base ;
 2. ✅ base de test isolée — les contraintes PostgreSQL (FK, `CHECK`, `UNIQUE`) ;
 3. ✅ calculette de rémunération — les 55 cas du sujet ;
-4. ➡️ brancher la calculette sur la base (lire le barème, écrire le paiement),
-   testé sur la base de test — après arbitrage de `X01` par le groupe.
+4. ✅ calculette branchée sur la base (fiche API12) : `POST /sales/{id}/payment`
+   lit le barème et écrit le paiement, testé sur la base de test
+   ([`integration/test_calcul_paiement.py`](tests/integration/test_calcul_paiement.py)).
 
 ## Architecture
 
@@ -337,6 +338,59 @@ et l'anonymisation. Soit **85 opérations** (compté dans `/openapi.json` le 12/
   aucune donnée. `POST /auth/login` et `POST /search-requests/submit` : la clé, pas de jeton.
 * Swagger : bouton **Authorize**, deux champs — `APIKeyHeader` (la clé) et
   `HTTPBearer` (le jeton seul, sans `Bearer`).
+
+### Le paiement d'une vente, pas à pas
+
+Pour qui découvre le projet. Quand une maison est vendue, le chasseur touche une
+**commission**. L'API la **calcule seule** : personne ne tape de montant.
+
+**Les étapes d'un paiement** (ADR-038), toujours dans cet ordre, sans en sauter :
+
+```
+POST /sales/{id}/payment  ──►  announced  ──►  scheduled  ──►  paid
+                                   │
+                                   └──►  refused   (pas de droit à commission)
+```
+
+| Statut | Ce que ça veut dire | Qui le pose |
+|---|---|---|
+| `announced` | le montant est calculé, le chasseur est prévenu | `POST /sales/{id}/payment` |
+| `refused` | le chasseur n'a pas droit à la commission ; le motif est dans `refusal_reason` (ADR-024) | `POST /sales/{id}/payment`, ou un `PUT` depuis `announced` |
+| `scheduled` | la date de versement est fixée (`scheduled_for`) | `PUT /payments/{id}` |
+| `paid` | l'argent est versé (`paid_at`) ; le paiement **ne bouge plus** | `PUT /payments/{id}` |
+
+**L'essayer dans le Swagger** (http://localhost:8000/docs) :
+
+1. **Authorize** : la clé d'API et le jeton de `POST /auth/login` (voir plus haut).
+2. `POST /sales/{id}/payment` avec l'`id` d'une vente : rien à mettre dans le corps.
+   La réponse est le paiement créé : `amount` (le montant en euros), les taux
+   (`base_rate`, `seniority_rate`, `performance_rate`, `final_rate`) et
+   `calculation_details` (le détail du calcul, pour pouvoir l'expliquer).
+3. Rappeler la même route sur la même vente répond `409` : **une vente, un paiement**.
+4. `PUT /payments/{id}` : renvoyer **tout** le paiement, avec `status` à `scheduled`
+   et une date dans `scheduled_for`.
+5. `PUT /payments/{id}` encore : `status` à `paid` et la date du jour dans `paid_at`.
+   À ce moment, l'API écrit aussi la **note du chasseur** dans son journal
+   (`hunter_performance`, ADR-035).
+
+**Les erreurs les plus fréquentes** :
+
+- `404` : la vente n'existe pas ;
+- `409` au `POST` : la vente a déjà un paiement, ou il manque un paramètre (barème,
+  honoraires, réglages du taux) à la date de l'acte ;
+- `409` au `PUT` : un saut d'étape (`announced` → `paid`), un retour en arrière,
+  un paiement déjà `paid`, ou une date oubliée (`scheduled_for`, `paid_at`) ;
+- `422` : le corps envoyé est mal formé (un champ manque, un type est faux).
+
+**Où lire le code**, du plus simple au plus détaillé :
+
+| Fichier | Son rôle |
+|---|---|
+| [`routes/sale_router.py`](src/app/routes/sale_router.py) | la route `POST /sales/{id}/payment` |
+| [`services/payment_service.py`](src/app/services/payment_service.py) | les règles d'écriture : l'ordre des statuts, le taux final, la note du journal |
+| [`services/payment_calculation_service.py`](src/app/services/payment_calculation_service.py) | compte les visites, ventes et mandats en base, puis appelle le calcul |
+| [`services/parametrage_service.py`](src/app/services/parametrage_service.py) | lit les paramètres (barème, honoraires, réglages du taux) |
+| [`services/remuneration.py`](src/app/services/remuneration.py) | le calcul lui-même, donné par le sujet : ne touche jamais à la base |
 
 ### Ce qu'un test doit attendre
 

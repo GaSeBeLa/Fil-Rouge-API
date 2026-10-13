@@ -80,6 +80,7 @@ def _honoraires(fees: list[ParametersFees]) -> tuple[ParametresHonoraires, ...]:
 
 
 def _bareme(scale: list[CommissionScale]) -> tuple[LigneBareme, ...]:
+    """Lignes de `commission_scale` -> barème, triées par date, ligne commune avant ligne du chasseur."""
     return tuple(
         LigneBareme(
             date_debut=line.valid_from,
@@ -94,6 +95,11 @@ def _bareme(scale: list[CommissionScale]) -> tuple[LigneBareme, ...]:
 
 
 def performance(r: HunterRateParameters) -> ParametresPerformance:
+    """Une ligne de `hunter_rate_parameters` -> les réglages du score de performance.
+
+    Publique : `PaymentCalculationService.journal_note` s'en sert aussi, pour
+    noter le chasseur avec les réglages en vigueur au jour du paiement.
+    """
     return ParametresPerformance(
         poids_delai=r.weight_delay,
         poids_exclusivite=r.weight_exclusivity,
@@ -112,6 +118,7 @@ def performance(r: HunterRateParameters) -> ParametresPerformance:
 
 
 def modulation(r: HunterRateParameters) -> ParametresModulation:
+    """Une ligne de `hunter_rate_parameters` -> les réglages qui ajustent le taux (ancienneté, score, bornes)."""
     return ParametresModulation(
         taux_par_annee=r.seniority_rate_per_year,
         plafond_anciennete=r.seniority_cap,
@@ -124,6 +131,8 @@ def modulation(r: HunterRateParameters) -> ParametresModulation:
 
 
 class ParametrageService:
+    """Lit les trois tables de paramètres ; ne calcule rien, n'écrit rien (voir l'en-tête)."""
+
     def __init__(
         self,
         fees_repository: ParametersFeesRepository,

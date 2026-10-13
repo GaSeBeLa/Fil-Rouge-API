@@ -21,17 +21,42 @@ router = build_crud_router(
 )
 
 
-# Fiche API12 : le paiement d'une vente se calcule depuis la base, jamais
-# saisi à la main. Compte les visites, ventes et mandats, charge le
-# paramétrage à la date de l'acte, appelle calculer_remuneration, puis crée
-# le paiement 'announced' (ou 'refused') par PaymentService : ADR-038 et
-# P33 s'appliquent. Vente déjà payée -> 409 (un paiement par vente).
-@router.post("/{item_id}/payment", response_model=Payment, status_code=201)
+# Fiche API12. La docstring ci-dessous est affichée telle quelle dans le
+# Swagger (/docs) : elle s'adresse à qui appelle la route. Le paiement passe
+# ensuite par PaymentService.create, donc ADR-038 et P33 s'appliquent aussi.
+@router.post(
+    "/{item_id}/payment",
+    response_model=Payment,
+    status_code=201,
+    summary="Calculer le paiement d'une vente",
+)
 def create_sale_payment(
     item_id: int,
     session: Session = Depends(get_session),
     principal: Principal = Depends(require_roles(*WRITER_ROLES)),
 ) -> Payment:
+    """Calcule la commission du chasseur pour cette vente, puis l'enregistre.
+
+    **On n'envoie aucun montant** : l'API le calcule elle-même, depuis la base.
+
+    Ce qu'elle fait, dans l'ordre :
+
+    1. Elle compte les visites, les ventes et les mandats du chasseur (ADR-048).
+    2. Elle charge les paramètres en vigueur à la date de l'acte (barème, honoraires, réglages).
+    3. Elle appelle `calculer_remuneration`, le calcul donné par le sujet.
+    4. Elle crée le paiement au statut `announced`.
+       Si le chasseur n'y a pas droit, le paiement est créé `refused`,
+       avec son motif dans `refusal_reason` (ADR-024).
+
+    Réponses :
+
+    - `201` : le paiement créé, avec le détail du calcul ;
+    - `404` : la vente n'existe pas ;
+    - `409` : la vente a déjà un paiement, ou un paramètre manque.
+
+    Une vente n'a qu'un paiement. La suite se fait par `PUT /payments/{id}` :
+    `announced` → `scheduled` → `paid` (ADR-038).
+    """
     try:
         payment = calculation.build_payment(session, item_id)
         return payment_service.create(session, payment, actor=principal.user)

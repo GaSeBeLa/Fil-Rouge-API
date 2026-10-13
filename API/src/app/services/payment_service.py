@@ -60,6 +60,8 @@ NEXT_STATUSES: dict[str, frozenset[str]] = {
 
 
 class PaymentService(BaseService[Payment]):
+    """Le CRUD des paiements, avec les contrôles de l'en-tête (ADR-038, P33, ADR-035)."""
+
     def __init__(
         self,
         repository: PaymentRepository,
@@ -74,6 +76,7 @@ class PaymentService(BaseService[Payment]):
         self.performances = performances
 
     def create(self, session: Session, item: Payment, actor: Optional[User] = None) -> Payment:
+        """Crée un paiement : seulement 'announced' ou 'refused', et au taux final juste."""
         if item.status not in CREATE_STATUSES:
             raise ConflictError(
                 f"Un paiement se crée 'announced' ou 'refused', pas '{item.status}' : "
@@ -83,6 +86,7 @@ class PaymentService(BaseService[Payment]):
         return super().create(session, item, actor)
 
     def replace(self, session: Session, item_id: int, data: Payment) -> Payment:
+        """Fait avancer un paiement d'un pas ; au passage à 'paid', prépare la note du journal."""
         existing = self.get_by_id(session, item_id)
         if data.status not in NEXT_STATUSES.get(existing.status, frozenset()):
             raise ConflictError(
@@ -96,6 +100,7 @@ class PaymentService(BaseService[Payment]):
         return self.repository.replace(session, existing, data)
 
     def delete(self, session: Session, item_id: int) -> Payment:
+        """Efface un paiement, sauf s'il est 'paid' : un versement fait reste une trace."""
         existing = self.get_by_id(session, item_id)
         if existing.status == PAID:
             raise ConflictError("Un paiement payé ne s'efface pas : c'est la trace d'un versement (ADR-038).")
