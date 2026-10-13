@@ -10,10 +10,11 @@ La dépendance get_session est remplacée (dependency_overrides) : aucune
 session PostgreSQL n'est jamais ouverte.
 
 Ce qu'on prouve : la traduction des erreurs "métier" en codes HTTP, qui
-vaut pour les 18 ressources de l'API.
+vaut pour les 21 ressources de l'API.
 
 - NotFoundError -> 404, avec le message du service
 - ConflictError -> 409, avec le message du service
+- ForbiddenError -> 403 au PUT (un champ que le rôle ne change pas, DRO5)
 - POST réussi -> 201
 - id non entier -> 422 (FastAPI), sans appeler le service
 ============================================================================
@@ -30,7 +31,7 @@ from sqlmodel import SQLModel
 from src.app.conf.database import get_session
 from src.app.routes.crud_router import build_crud_router
 from src.app.services.base_service import BaseService
-from src.app.utils.exceptions import ConflictError, NotFoundError
+from src.app.utils.exceptions import ConflictError, ForbiddenError, NotFoundError
 from src.app.utils.roles import ADMIN, get_principal
 
 from .conftest import TEST_HEADERS, principal_as
@@ -90,14 +91,14 @@ def test_get_non_integer_id_returns_422_without_calling_service(api: TestClient,
 
 
 def test_post_returns_201(api: TestClient, service: MagicMock):
-    service.create.return_value = Thing(id=1, name="a")
+    service.create_as.return_value = Thing(id=1, name="a")
     response = api.post("/things", json={"name": "a"})
     assert response.status_code == 201
     assert response.json() == {"id": 1, "name": "a"}
 
 
 def test_post_conflict_returns_409(api: TestClient, service: MagicMock):
-    service.create.side_effect = ConflictError(CONFLICT)
+    service.create_as.side_effect = ConflictError(CONFLICT)
     response = api.post("/things", json={"name": "a"})
     assert response.status_code == 409
     assert response.json() == {"detail": CONFLICT}
@@ -105,7 +106,7 @@ def test_post_conflict_returns_409(api: TestClient, service: MagicMock):
 
 @pytest.mark.parametrize(
     ("error", "expected_status"),
-    [(NotFoundError(NOT_FOUND), 404), (ConflictError(CONFLICT), 409)],
+    [(NotFoundError(NOT_FOUND), 404), (ConflictError(CONFLICT), 409), (ForbiddenError("Champ réservé."), 403)],
 )
 def test_put_translates_errors(api: TestClient, service: MagicMock, error: Exception, expected_status: int):
     service.replace_visible.side_effect = error
@@ -122,18 +123,22 @@ def test_delete_route_is_gone(api: TestClient, service: MagicMock):
 
 
 def test_routes_pass_the_account_to_the_service(api: TestClient, service: MagicMock):
-    # « Le sien » (DRO4) : les deux GET et le PUT donnent le compte connecté au service.
+    # « Le sien » (DRO4, DRO5) : les deux GET, le POST et le PUT donnent le
+    # compte connecté au service.
     service.list_all.return_value = []
     service.get_by_id.return_value = Thing(id=1, name="a")
+    service.create_as.return_value = Thing(id=2, name="b")
     service.replace_visible.return_value = Thing(id=1, name="b")
 
     statuses = [api.get("/things").status_code, api.get("/things/1").status_code]
+    statuses.append(api.post("/things", json={"name": "b"}).status_code)
     statuses.append(api.put("/things/1", json={"name": "b"}).status_code)
 
-    assert statuses == [200, 200, 200]
+    assert statuses == [200, 200, 201, 200]
     viewers = [
         service.list_all.call_args.args[1],
         service.get_by_id.call_args.args[2],
+        service.create_as.call_args.args[2],
         service.replace_visible.call_args.args[3],
     ]
-    assert [viewer.role for viewer in viewers] == [ADMIN] * 3
+    assert [viewer.role for viewer in viewers] == [ADMIN] * 4

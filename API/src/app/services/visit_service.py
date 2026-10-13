@@ -11,18 +11,24 @@ lève ConflictError (409). Elles valent au POST comme au PUT :
 - P23 (ADR-053, « la règle des visites ») : une visite `'client'` porte sur
   un bien proposé sur ce mandat (`estate_proposed`). Les visites `'hunter'`
   ne sont pas contrôlées.
+
+« Le sien » (ADR-027, annexe § 3 ; fiche DRO5) : un Client voit les
+visites de ses mandats.
 """
 
 from typing import Optional
 
-from sqlmodel import Session
+from sqlalchemy import ColumnElement
+from sqlmodel import Session, col
 
 from ..models import User, Visit
 from ..repositories.estate_proposed_repository import EstateProposedRepository
 from ..repositories.mandate_repository import MandateRepository
 from ..repositories.visit_repository import VisitRepository
 from ..utils.exceptions import ConflictError
+from ..utils.roles import CLIENT, Principal
 from .base_service import BaseService
+from .client_rows import mandates_of
 
 CLIENT_VISIT = "client"
 
@@ -32,6 +38,11 @@ class VisitService(BaseService[Visit]):
         super().__init__(repository, not_found_detail="Visite introuvable")
         self.mandates = mandates
         self.proposals = proposals
+
+    def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
+        if viewer.role == CLIENT:
+            return col(Visit.id_mandate).in_(mandates_of(viewer.user.id))
+        return None
 
     def _check_visit(self, session: Session, item: Visit) -> None:
         mandate = self.mandates.get_by_id(session, item.id_mandate)

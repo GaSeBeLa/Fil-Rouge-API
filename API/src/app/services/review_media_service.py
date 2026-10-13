@@ -13,23 +13,34 @@ et c'est l'auteur de la note qui répond de ses médias.
 
 Le POST est réservé à Hunter par le routeur (`create_roles`,
 routes/review_media_router.py).
+
+« Le sien » (ADR-027, annexe § 3 ; fiche DRO5) : un Client voit les médias
+de l'avis posé sur ses demandes (P5).
 """
 
 from typing import Optional
 
-from sqlmodel import Session
+from sqlalchemy import ColumnElement
+from sqlmodel import Session, col
 
 from ..models import ReviewMedia, User
 from ..repositories.estate_search_request_repository import EstateSearchRequestRepository
 from ..repositories.review_media_repository import ReviewMediaRepository
 from ..utils.exceptions import ConflictError, ForbiddenError
+from ..utils.roles import CLIENT, Principal
 from .base_service import BaseService
+from .client_rows import reviews_of
 
 
 class ReviewMediaService(BaseService[ReviewMedia]):
     def __init__(self, repository: ReviewMediaRepository, reviews: EstateSearchRequestRepository):
         super().__init__(repository, not_found_detail="Média introuvable")
         self.reviews = reviews
+
+    def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
+        if viewer.role == CLIENT:
+            return col(ReviewMedia.id_estate_searchrequest).in_(reviews_of(viewer.user.id))
+        return None
 
     def create(self, session: Session, item: ReviewMedia, actor: Optional[User] = None) -> ReviewMedia:
         review = self.reviews.get_by_id(session, item.id_estate_searchrequest)

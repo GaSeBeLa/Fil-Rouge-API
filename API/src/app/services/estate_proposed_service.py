@@ -13,18 +13,25 @@ refus lève ConflictError (409) :
 Un PUT qui change le bien ou le mandat est une nouvelle proposition : il
 repasse les deux règles. Un PUT qui garde les deux (statut, montant,
 commentaire) ne les rejuge pas.
+
+« Le sien » (ADR-027, annexe § 3 ; fiche DRO5) : un Client voit les biens
+proposés sur ses mandats, et ne modifie (commenter, prioriser, offrir ;
+H6, H8) que ceux-là : `id_mandate` reste un de ses mandats.
 """
 
 from typing import Optional
 
-from sqlmodel import Session
+from sqlalchemy import ColumnElement
+from sqlmodel import Session, col
 
 from ..models import EstateProposed, User
 from ..repositories.estate_proposed_repository import EstateProposedRepository
 from ..repositories.estate_search_request_repository import EstateSearchRequestRepository
 from ..repositories.mandate_repository import MandateRepository
 from ..utils.exceptions import ConflictError
+from ..utils.roles import CLIENT, Principal
 from .base_service import BaseService
+from .client_rows import mandates_of, owns_mandate
 
 ACTIVE = "active"
 
@@ -39,6 +46,14 @@ class EstateProposedService(BaseService[EstateProposed]):
         super().__init__(repository, not_found_detail="Proposition de bien introuvable")
         self.mandates = mandates
         self.selections = selections
+
+    def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
+        if viewer.role == CLIENT:
+            return col(EstateProposed.id_mandate).in_(mandates_of(viewer.user.id))
+        return None
+
+    def owns(self, session: Session, item: EstateProposed, viewer: Principal) -> bool:
+        return viewer.role != CLIENT or owns_mandate(session, viewer.user.id, item.id_mandate)
 
     def _check_proposal(self, session: Session, item: EstateProposed) -> None:
         mandate = self.mandates.get_by_id(session, item.id_mandate)

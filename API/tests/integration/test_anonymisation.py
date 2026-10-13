@@ -86,7 +86,7 @@ def test_client_without_mandate_is_fully_anonymized(db_client: TestClient, db_se
     email = "ada.api10@exemple.fr"
     account = {"email": email, "password": USER_PASSWORD, "id_role": 1, "is_activated": True}
     user_id = db_client.post("/users", json=account).json()["id"]
-    with acting_as(CLIENT):  # lui seul crée sa fiche (ADR-027, annexe § 1)
+    with acting_as(CLIENT, user_id):  # lui seul crée sa fiche (ADR-027, annexe § 1)
         created = db_client.post("/clients", json={**CLIENT_RECORD, "id_user": user_id})
     assert created.status_code == 201, created.text
     assert _login(db_client, email, USER_PASSWORD) == 200  # actif avant

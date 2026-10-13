@@ -39,7 +39,7 @@ SCORE = {"score": "62.5", "scored_at": "2026-03-02T10:00:00Z", "trigger_type": "
 def service() -> MagicMock:
     mock = MagicMock(spec=BaseService)
     mock.list_all.return_value = [Thing(id=1, name="a")]
-    mock.create.return_value = Thing(id=2, name="b")
+    mock.create_as.return_value = Thing(id=2, name="b")
     return mock
 
 
@@ -91,7 +91,7 @@ def test_reader_cannot_write(test_app: FastAPI, service: MagicMock):
 
     assert client.post("/things", json={"name": "b"}).status_code == 403
     assert client.put("/things/1", json={"name": "b"}).status_code == 403
-    service.create.assert_not_called()
+    service.create_as.assert_not_called()
     service.replace_visible.assert_not_called()
 
 
@@ -112,7 +112,7 @@ def test_router_without_roles_is_closed_to_all(test_app: FastAPI, service: Magic
     assert client.post("/closed", json={"name": "b"}).status_code == 403
     assert client.put("/closed/1", json={"name": "b"}).status_code == 403
     service.list_all.assert_not_called()
-    service.create.assert_not_called()
+    service.create_as.assert_not_called()
 
 
 def test_hunter_performance_closed_to_writes_even_for_admin(test_app: FastAPI):
@@ -124,14 +124,22 @@ def test_hunter_performance_closed_to_writes_even_for_admin(test_app: FastAPI):
 
 
 @pytest.mark.parametrize("role", [CLIENT, HUNTER, MANAGER, READER])
-def test_only_admin_writes_users(test_app: FastAPI, role: str):
-    # Sinon un Client changeait le mot de passe d'un Admin, puis se
-    # connectait à sa place (relecture de la série API).
-    client = client_as(test_app, role)
+def test_only_admin_creates_users(test_app: FastAPI, role: str):
+    # Sinon un compte choisissait son id_role, donc se créait Admin.
     body = {"email": "x@exemple.fr", "password": "un-mot-de-passe-assez-long", "id_role": 1}
 
-    assert client.post("/users", json=body).status_code == 403
-    assert client.put("/users/1", json={"password": "un-autre-mot-de-passe"}).status_code == 403
+    assert client_as(test_app, role).post("/users", json=body).status_code == 403
+
+
+@pytest.mark.parametrize("role", [HUNTER, MANAGER, READER])
+def test_only_admin_and_client_update_users(test_app: FastAPI, role: str):
+    # Sinon un compte changeait le mot de passe d'un Admin, puis se
+    # connectait à sa place (relecture de la série API). Le Client modifie
+    # son seul compte (DRO5, tests/integration/test_le_sien.py) ; Hunter et
+    # Manager attendent DRO6 et DRO7.
+    response = client_as(test_app, role).put("/users/1", json={"password": "un-autre-mot-de-passe"})
+
+    assert response.status_code == 403
 
 
 @pytest.mark.parametrize("role", [ADMIN, CLIENT, HUNTER, MANAGER, READER])

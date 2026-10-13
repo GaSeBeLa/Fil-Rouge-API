@@ -21,11 +21,15 @@ mandat reste tel quel.
 Non codé ici : une vente datée hors de la validité du mandat (même TODO,
 avec la réserve D3 : un acte après la fin peut ouvrir droit à
 rémunération).
+
+« Le sien » (ADR-027, annexe § 4 ; fiche DRO5) : un Client voit la vente
+de son mandat (P8, P9).
 """
 
 from typing import Optional
 
-from sqlmodel import Session
+from sqlalchemy import ColumnElement
+from sqlmodel import Session, col
 
 from ..models import Mandate, Sale, User
 from ..repositories.estate_proposed_repository import EstateProposedRepository
@@ -33,7 +37,9 @@ from ..repositories.mandate_repository import MandateRepository
 from ..repositories.parameters_fees_repository import ParametersFeesRepository
 from ..repositories.sale_repository import SaleRepository
 from ..utils.exceptions import ConflictError
+from ..utils.roles import CLIENT, Principal
 from .base_service import BaseService
+from .client_rows import mandates_of
 
 HUNTER_SALE = "hunter"
 ACCEPTED_OFFER = "accepted"
@@ -52,6 +58,11 @@ class SaleService(BaseService[Sale]):
         self.mandates = mandates
         self.offers = offers
         self.grids = grids
+
+    def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
+        if viewer.role == CLIENT:
+            return col(Sale.id_mandate).in_(mandates_of(viewer.user.id))
+        return None
 
     def _check_sale(self, session: Session, item: Sale) -> Mandate:
         mandate = self.mandates.get_by_id(session, item.id_mandate)

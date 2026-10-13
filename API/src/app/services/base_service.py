@@ -25,10 +25,18 @@ Appelé sans compte (script, test), create() reçoit None.
 rôle. Le routeur passe le compte connecté (`viewer`) à list_all, get_by_id
 et replace_visible. visible_rows, le crochet, rend la condition SQL des
 lignes que ce compte voit ; par défaut, toutes. Une table le surcharge
-(payment_service.py). Une ligne hors du crochet est introuvable : 404, en
+(payment_service.py ; les 13 tables du Client, fiche DRO5, par les chemins
+de client_rows.py). Une ligne hors du crochet est introuvable : 404, en
 lecture comme en modification, comme une ligne qui n'existe pas. L'Admin
 voit tout : le crochet n'est pas appelé pour lui. Sans `viewer` (contrôle
 interne, script, test), rien n'est filtré.
+
+En écriture (fiche DRO5) : le POST passe par create_as, le PUT par
+replace_visible. Les deux demandent au crochet `owns` si la ligne, telle
+qu'elle sera écrite, reste à ce compte ; sinon ConflictError (409), comme
+une référence à une ligne qui n'existe pas. Par défaut, oui. Les tables où
+le Client écrit le surchargent : client, search_request, criteria, mandate,
+estate_proposed. Le compte (user) se garde à part : user_service.py.
 ============================================================================
 """
 
@@ -38,7 +46,7 @@ from sqlalchemy import ColumnElement
 from sqlmodel import Session, SQLModel
 
 from ..models import User
-from ..utils.exceptions import NotFoundError
+from ..utils.exceptions import ConflictError, NotFoundError
 from ..repositories.base_repository import BaseRepository
 
 if TYPE_CHECKING:
@@ -57,6 +65,10 @@ class BaseService(Generic[ModelType]):
         """Le crochet « le sien » : la condition SQL des lignes que `viewer` voit, None pour toutes."""
         return None
 
+    def owns(self, session: Session, item: ModelType, viewer: "Principal") -> bool:
+        """Le crochet d'écriture : vrai si `item`, tel qu'il sera écrit, est à `viewer`."""
+        return True
+
     def list_all(self, session: Session, viewer: Optional["Principal"] = None) -> List[ModelType]:
         return self.repository.list_all(session, self._where(viewer))
 
@@ -69,18 +81,33 @@ class BaseService(Generic[ModelType]):
     def create(self, session: Session, item: ModelType, actor: Optional[User] = None) -> ModelType:
         return self.repository.create(session, item)
 
+    def create_as(self, session: Session, item: ModelType, viewer: "Principal") -> ModelType:
+        """Le POST de l'API : une ligne qui ne serait pas à `viewer` lève ConflictError (409)."""
+        self._check_owner(session, item, viewer)
+        return self.create(session, item, actor=viewer.user)
+
     def replace(self, session: Session, item_id: int, data: ModelType) -> ModelType:
         existing = self.get_by_id(session, item_id)
         return self.repository.replace(session, existing, data)
 
     def replace_visible(self, session: Session, item_id: int, data: ModelType, viewer: "Principal") -> ModelType:
-        """Le PUT de l'API : la ligne d'un autre lève NotFoundError (404), puis replace() et ses règles."""
+        """
+        Le PUT de l'API : la ligne d'un autre lève NotFoundError (404) ; une
+        ligne qui cesserait d'être à `viewer`, ConflictError (409) ; puis
+        replace() et ses règles.
+        """
         self.get_by_id(session, item_id, viewer)
+        self._check_owner(session, data, viewer)
         return self.replace(session, item_id, data)
 
     def delete(self, session: Session, item_id: int) -> ModelType:
         existing = self.get_by_id(session, item_id)
         return self.repository.delete(session, existing)
+
+    def _check_owner(self, session: Session, item: ModelType, viewer: "Principal") -> None:
+        if viewer.is_admin or self.owns(session, item, viewer):
+            return
+        raise ConflictError("Écriture refusée : la ligne doit rester à vous (ADR-027, « le sien »).")
 
     def _where(self, viewer: Optional["Principal"]) -> Optional[ColumnElement[bool]]:
         if viewer is None or viewer.is_admin:

@@ -130,8 +130,11 @@ def write_payment(db_session: SQLModelSession, payload: dict[str, Any]) -> Payme
 
 
 def post_as_client(db_client: TestClient, endpoint: str, payload: dict[str, Any]) -> Response:
-    """POST sous un compte Client : lui seul crée sa fiche client (ADR-027, annexe § 1)."""
-    with acting_as(CLIENT):
+    """
+    POST sous le compte Client nommé par `id_user` : lui seul crée sa fiche
+    client (ADR-027, annexe § 1), et pour lui seul (DRO5).
+    """
+    with acting_as(CLIENT, payload.get("id_user", 0)):
         return db_client.post(endpoint, json=payload)
 
 
@@ -147,8 +150,10 @@ CREATOR: dict[str, str] = {
 
 
 def post_as_creator(db_client: TestClient, endpoint: str, payload: dict[str, Any]) -> Response:
-    """POST sous le rôle qui crée cette table (CREATOR)."""
+    """POST sous le rôle qui crée cette table (CREATOR) ; un Client, pour lui-même (DRO5)."""
     role = CREATOR[endpoint]
+    if role == CLIENT:
+        return post_as_client(db_client, endpoint, payload)
     with acting_as(role, HUNTER_ID if role == HUNTER else 0):
         return db_client.post(endpoint, json=payload)
 
@@ -534,6 +539,7 @@ def test_review_media_without_review_returns_409(db_client: TestClient):
 # 2026-03-25, fin le 2026-09-25. On ne propose que sur un mandat actif (P20).
 ACTIVE_MANDATE = 15
 ACTIVE_REQUEST = 15
+ACTIVE_MANDATE_CLIENT = 21  # son client : lui seul modifie ses propositions (DRO5)
 
 
 def selected_estate(db_client: TestClient, search_request: int = ACTIVE_REQUEST, reference: str = "TEST-0001") -> int:

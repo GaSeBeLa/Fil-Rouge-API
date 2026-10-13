@@ -1,11 +1,20 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from sqlmodel import Session
+from sqlalchemy import ColumnElement
+from sqlmodel import Session, col
 
 from ..models import User, UserCreate, UserUpdate
 from ..repositories.user_repository import UserRepository
+from ..utils.exceptions import ForbiddenError
 from ..utils.security import hash_password, needs_rehash, spend_password_check, verify_password
 from .base_service import BaseService
+
+if TYPE_CHECKING:
+    # Pour le typage seulement : utils/roles.py importe current_user.py, qui importe ce module.
+    from ..utils.roles import Principal
+
+# ADR-027, annexe § 1 : « R U le sien, sauf rôle et activation ».
+ADMIN_ONLY_FIELDS = ("id_role", "is_activated")
 
 
 class UserService(BaseService[User]):
@@ -13,6 +22,10 @@ class UserService(BaseService[User]):
     Seul endroit du projet qui transforme un mot de passe en clair en
     empreinte. Si un mot de passe en clair atteint la base, c'est qu'un
     chemin d'écriture contourne cette classe.
+
+    « Le sien » (ADR-027, annexe § 1 ; fiche DRO5) : un Client voit son
+    compte et le modifie, sauf ADMIN_ONLY_FIELDS (403). Le Hunter et le
+    Manager suivent en DRO6 et DRO7.
     """
 
     def __init__(self, repository: UserRepository):
@@ -70,3 +83,29 @@ class UserService(BaseService[User]):
             setattr(existing, field, value)
 
         return self.repository.save(session, existing)
+
+    def visible_rows(self, viewer: "Principal") -> Optional[ColumnElement[bool]]:
+        from ..utils.roles import CLIENT  # à l'appel : même cycle d'import que Principal
+
+        if viewer.role == CLIENT:
+            return col(User.id) == viewer.user.id
+        return None
+
+    # Le PUT de /users reçoit un UserUpdate partiel, pas un User : même écart que replace().
+    def replace_visible(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self, session: Session, item_id: int, data: UserUpdate, viewer: "Principal"
+    ) -> User:
+        """
+        Le PUT : le compte d'un autre lève NotFoundError (404) ; hors Admin,
+        changer son rôle ou son activation lève ForbiddenError (403). Un
+        compte n'a pas de ligne parente : rien à demander au crochet `owns`.
+        """
+        existing = self.get_by_id(session, item_id, viewer)
+        if not viewer.is_admin:
+            changes = data.model_dump(exclude_unset=True)
+            changed = [
+                field for field in ADMIN_ONLY_FIELDS if field in changes and changes[field] != getattr(existing, field)
+            ]
+            if changed:
+                raise ForbiddenError(f"Seul l'Admin change {', '.join(changed)} (ADR-027, annexe § 1).")
+        return self.replace(session, item_id, data)

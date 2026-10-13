@@ -44,11 +44,15 @@ ferme le geste à tous.
 le compte connecté au service (`list_all`, `get_by_id`, `replace_visible`),
 qui ne rend que les lignes de son crochet `visible_rows` (base_service.py).
 Une ligne hors du crochet rend 404, comme une ligne absente. Tables qui
-filtrent : payment (DRO4) ; les autres suivent en DRO5 à DRO8.
+filtrent : payment pour le Hunter (DRO4) ; les tables du Client (DRO5,
+services/client_rows.py) ; les autres suivent en DRO6 à DRO8.
 
-Le compte connecté (fiche API6) : le POST le passe au service,
-`service.create(..., actor=<compte>)`, qui s'en sert pour remplir l'auteur
-d'une ligne ou juger un droit qui dépend de la ligne (ForbiddenError -> 403).
+Le compte connecté (fiches API6, DRO5) : le POST le passe au service,
+`service.create_as(..., <compte>)`. Le service vérifie que la ligne reste à
+ce compte (crochet `owns`, sinon 409), puis la crée en le nommant `actor` :
+il remplit l'auteur d'une ligne ou juge un droit qui dépend de la ligne
+(ForbiddenError -> 403). Le PUT rend aussi 403 sur un champ que le rôle ne
+change pas (le rôle d'un compte, user_service.py).
 
 Pas de DELETE (ADR-049, Décision 10, fiche API10) : aucune ligne ne se
 supprime par l'API ; un compte s'efface par POST /users/{id}/anonymize
@@ -197,7 +201,7 @@ def build_crud_router(
         principal: Principal = Depends(can_create),
     ):
         try:
-            return service.create(session, _validated(response_model, item), actor=principal.user)
+            return service.create_as(session, _validated(response_model, item), principal)
         except ConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except ForbiddenError as exc:
@@ -211,7 +215,7 @@ def build_crud_router(
             f"Remplace la ligne dont l'`id` est donné dans l'URL. {put_rule}",
             write_roles,
             "- `200` : la ligne modifiée ;\n"
-            "- `403` : votre rôle ne peut pas modifier cette table ;\n"
+            "- `403` : votre rôle ne peut pas modifier cette table, ou ce champ ;\n"
             "- `404` : aucune ligne que vous pouvez voir n'a cet `id` ;\n"
             "- `409` : la base ou une règle métier refuse la modification ; le message dit laquelle ;\n"
             "- `422` : le corps est mal formé.",
@@ -229,5 +233,7 @@ def build_crud_router(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ForbiddenError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     return router

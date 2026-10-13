@@ -200,6 +200,8 @@ Puis **774 passed, 8 skipped, 7 xfailed** (fiche DRO3, 2026-10-13) : les routes 
 4 tests de plus, et 1 `xfail` strict qui montre la limite du formulaire (Limites connues).
 Puis **784 passed, 8 skipped, 7 xfailed** (fiche DRO4, 2026-10-13) : le mécanisme « le
 sien », 6 tests dans `test_le_sien.py`, 4 tests unitaires du routeur et du service.
+Puis **826 passed, 8 skipped, 7 xfailed** (fiche DRO5, 2026-10-13) : le Client limité à
+ses lignes, 35 tests dans `test_le_sien.py` (13 tables, deux clients), 7 unitaires.
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -216,14 +218,14 @@ par le service (`write_payment`) : un refus y est un `ConflictError`, le `409` d
 | [`test_health.py`](tests/test_health.py) | `/` répond |
 | [`test_security.py`](tests/test_security.py) | hachage argon2 : jamais de clair, sel aléatoire, comptes migrés refusés sans exception, `needs_rehash` |
 | [`test_user_service.py`](tests/test_user_service.py) | le mot de passe n'atteint jamais le repository en clair ; mise à jour partielle |
-| [`test_base_service.py`](tests/test_base_service.py) | id inexistant → `NotFoundError` **avant** toute écriture ; la condition du crochet « le sien » part au repository, sauf pour l'Admin (DRO4) |
+| [`test_base_service.py`](tests/test_base_service.py) | id inexistant → `NotFoundError` **avant** toute écriture ; la condition du crochet « le sien » part au repository, sauf pour l'Admin (DRO4) ; une ligne que le crochet `owns` refuse n'est ni créée ni modifiée, sauf par l'Admin (DRO5) |
 | [`test_base_repository.py`](tests/test_base_repository.py) | `id` ignoré au `POST` ; `IntegrityError` → rollback + `ConflictError` |
 | [`test_user_models.py`](tests/test_user_models.py) | mot de passe ≥ 12 caractères ; `UserPublic` sans `password` |
-| [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 sur un routeur factice ; `DELETE` → `405` (ADR-049) ; les deux `GET` et le `PUT` passent le compte au service (DRO4) |
+| [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 sur un routeur factice ; `DELETE` → `405` (ADR-049) ; les deux `GET`, le `POST` et le `PUT` passent le compte au service (DRO4, DRO5) ; `ForbiddenError` au `PUT` → `403` |
 | [`integration/test_auth.py`](tests/integration/test_auth.py) | connexion : jeton rendu ; mauvais mot de passe, compte inactif, jeton expiré ou forgé → `401` ; compte désactivé **après** l'émission du jeton → `401` (relu en base) |
-| [`test_roles.py`](tests/test_roles.py), [`integration/test_roles_db.py`](tests/integration/test_roles_db.py) | sans jeton → `401` ; `Reader` lit (`200`) mais n'écrit pas (`403`) ; `Admin` crée (`201`) ; un routeur sans rôles déclarés → `403` pour les 5 rôles (DRO1) ; `/hunter-performances` et `/roles` fermés en écriture ; `/` et `/auth/login` ouverts |
+| [`test_roles.py`](tests/test_roles.py), [`integration/test_roles_db.py`](tests/integration/test_roles_db.py) | sans jeton → `401` ; `Reader` lit (`200`) mais n'écrit pas (`403`) ; `Admin` crée (`201`) ; un routeur sans rôles déclarés → `403` pour les 5 rôles (DRO1) ; `/hunter-performances` et `/roles` fermés en écriture ; `/users` créé par l'Admin seul, modifié par l'Admin et le Client (DRO5) ; `/` et `/auth/login` ouverts |
 | [`integration/test_droits_par_role.py`](tests/integration/test_droits_par_role.py) | la grille de l'annexe d'ADR-027, recopiée à la main : chaque case fermée → `403` en lecture (liste et ligne), création, modification ; chaque case ouverte ≠ `403` ; au moins un refus par table (DRO1) ; tables d'argent, et `POST /sales/{id}/payment` réservé à l'Admin (DRO2) ; chaque route hors CRUD nommée avec le test qui la juge, `/` ne rend qu'un statut, `/auth/login` qu'un jeton (`sub`, `iat`, `exp`), `/auth/me` le seul compte du jeton, même avec un id dans l'URL (DRO3) |
-| [`integration/test_le_sien.py`](tests/integration/test_le_sien.py) | « le sien » sur `/payments` (DRO4) : un Hunter liste ses paiements seulement, `404` sur celui d'un autre chasseur (même réponse qu'un id absent), refus au service en modification ; l'Admin voit tout |
+| [`integration/test_le_sien.py`](tests/integration/test_le_sien.py) | « le sien » sur `/payments` (DRO4) : un Hunter liste ses paiements seulement, `404` sur celui d'un autre chasseur (même réponse qu'un id absent), refus au service en modification ; l'Admin voit tout. Le Client (DRO5) : deux clients du seed, une ligne chacun dans les 13 tables de sa colonne ; chacun liste les siennes, `404` sur celles de l'autre ; `PUT` du mandat d'un autre → `404` ; son mandat passé à un autre client, une fiche client ou une demande pour un autre compte, des critères sur la demande d'un autre, sa proposition déplacée sur le mandat d'un autre → `409` ; son rôle ou son activation → `403` |
 | [`test_api_keys.py`](tests/test_api_keys.py) | sans clé ou clé inconnue → `401` ; bonne clé et bon jeton → `200` ; bonne clé sans jeton → `401` ; `/` sans clé ; démarrage refusé sans clé ou clé trop courte |
 | [`test_entrees.py`](tests/test_entrees.py) | `422` avant la base : email mal formé (P2), plus de chambres que de pièces (P16), réglages du taux incohérents — poids ≠ 1, plancher > plafond, paliers mal formés (P29), détail du calcul mal formé (P32) |
 | [`integration/test_versions_paiement.py`](tests/integration/test_versions_paiement.py) | grille d'honoraires, ligne de barème, réglages du taux : citée → `PUT` `409`, non citée → `200` (ADR-030, ADR-034) ; statut du paiement : pas à pas → `200` ; saut, retour en arrière, refus après `'announced'`, paiement `'paid'` modifié ou supprimé → `409` (ADR-038) ; paiement créé au-delà de `'announced'`, ou au taux final faux → refusé par le service, `ConflictError` (ADR-038, P33 ; `POST /payments` est fermé à tous, fiche DRO2) ; `DELETE` → `405` (ADR-049) |
@@ -395,13 +397,19 @@ ensuite créer d'autres comptes avec `POST /users`, pour essayer les autres rôl
   rôle**. « Le sien » (ADR-027, point 2 ; fiche DRO4) : les deux `GET` et le `PUT`
   passent le compte au service, dont le crochet `visible_rows` filtre les lignes **dans
   la requête SQL** ; la ligne d'un autre rend `404`, comme une ligne absente. L'Admin
-  voit tout. Branché sur `/payments` (un Hunter, ses paiements seulement) ; les autres
-  tables suivent (fiches DRO5 à DRO8).
+  voit tout. Branché sur `/payments` (un Hunter, ses paiements seulement) et, pour le
+  Client, sur les 13 tables de sa colonne (fiche DRO5) : son compte, sa fiche, son
+  chasseur, ses demandes et leurs critères, ses mandats, les biens proposés pour lui
+  (Q-ACC-05) et leurs photos, l'avis sur sa demande et ses médias, ses visites, sa
+  vente. Les chemins, par les clés du schéma : `services/client_rows.py`. En écriture
+  (`POST`, `PUT`), le crochet `owns` refuse une ligne qui ne serait pas à lui → `409`
+  (ex. un mandat passé à un autre client) ; changer son rôle ou son activation → `403`.
+  Hunter et Manager suivent (fiches DRO6 à DRO8).
 
   | Table | Lire | Créer | Modifier |
   |---|---|---|---|
   | `/roles` | Admin, Reader | personne | personne |
-  | `/users` | tous | Admin | Admin |
+  | `/users` | tous | Admin | Admin, Client (son compte, sans rôle ni activation) |
   | `/clients` | Admin, Client, Hunter, Reader | Client | Admin, Client |
   | `/hunters` | tous | Admin | Admin |
   | `/real-estate-managers` | Admin, Hunter, Manager, Reader | Admin | Admin |
@@ -587,10 +595,13 @@ encore référencé échoue toujours, même en SQL direct (l'API, elle, ne suppr
 
 ## Limites connues
 
-* Droits : chaque table déclare ses rôles (fiche DRO1), mais « le sien » n'est filtré
-  que sur `/payments` (fiche DRO4) : un Client lit et modifie encore les lignes des autres
-  clients sur les tables qui lui sont ouvertes (fiches DRO5 à DRO8). Le Manager lit encore
-  tous les paiements, pas seulement ceux de ses chasseurs (Q-ACC-02, fiche DRO7).
+* Droits : « le sien » est filtré pour le Client (fiche DRO5) et sur `/payments` pour le
+  Hunter (fiche DRO4) ; un Hunter ou un Manager lit encore les lignes des autres sur les
+  tables qui lui sont ouvertes (fiches DRO6 à DRO8). Le Manager lit encore tous les
+  paiements, pas seulement ceux de ses chasseurs (Q-ACC-02, fiche DRO7).
+* Le Client modifie son mandat et ses biens proposés **champ par champ sans limite** :
+  l'annexe ne lui donne que signer (P3), commenter, prioriser, faire une offre (H6, H8).
+  Seule l'appartenance est gardée (fiche DRO5).
 * Formulaire du site : un format refusé par la base (téléphone, code postal) rend `409`
   pour un email neuf, `202` pour un email connu ; l'email se devine. Test `xfail` strict
   dans `test_droits_par_role.py` (fiche DRO3).

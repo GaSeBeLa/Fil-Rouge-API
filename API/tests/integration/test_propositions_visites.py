@@ -25,6 +25,7 @@ from src.app.utils.roles import CLIENT, HUNTER
 from ..conftest import acting_as
 from .test_constraints_db import (
     ACTIVE_MANDATE,
+    ACTIVE_MANDATE_CLIENT,
     ACTIVE_REQUEST,
     HUNTER_ID,
     MANDATE,
@@ -84,7 +85,7 @@ def test_updating_a_proposal_in_place_is_accepted(db_client: TestClient):
     created = post_as_hunter(db_client, "/estate-proposed", payload).json()
 
     changed = {**payload, "comment_client": "À visiter vite."}
-    with acting_as(CLIENT):  # le client commente une proposition (H6)
+    with acting_as(CLIENT, ACTIVE_MANDATE_CLIENT):  # le client du mandat commente (H6)
         response = db_client.put(f"/estate-proposed/{created['id']}", json=changed)
     assert response.status_code == 200, response.text
 

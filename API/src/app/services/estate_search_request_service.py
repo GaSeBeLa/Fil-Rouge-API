@@ -11,20 +11,31 @@ demande, et la note du chasseur qui l'y a mis (ADR-051).
 
 Le POST est réservé à Hunter par le routeur (`create_roles`,
 routes/estate_search_request_router.py).
+
+« Le sien » (ADR-027, annexe § 3 ; fiche DRO5) : un Client voit l'avis
+posé sur ses demandes (P5).
 """
 
 from typing import Optional
 
-from sqlmodel import Session
+from sqlalchemy import ColumnElement
+from sqlmodel import Session, col
 
 from ..models import EstateSearchRequest, User
 from ..repositories.estate_search_request_repository import EstateSearchRequestRepository
+from ..utils.roles import CLIENT, Principal
 from .base_service import BaseService
+from .client_rows import requests_of
 
 
 class EstateSearchRequestService(BaseService[EstateSearchRequest]):
     def __init__(self, repository: EstateSearchRequestRepository):
         super().__init__(repository, not_found_detail="Média introuvable")
+
+    def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
+        if viewer.role == CLIENT:
+            return col(EstateSearchRequest.id_search_request).in_(requests_of(viewer.user.id))
+        return None
 
     def create(
         self, session: Session, item: EstateSearchRequest, actor: Optional[User] = None

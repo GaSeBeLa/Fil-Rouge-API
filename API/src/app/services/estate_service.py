@@ -9,20 +9,31 @@ estate_service.py — Un bien, et qui l'a saisi (ADR-047, fiche API6).
 
 Le POST est réservé à Hunter et Manager par le routeur (`create_roles`,
 routes/estate_router.py).
+
+« Le sien » (ADR-027, annexe § 3 ; fiche DRO5) : un Client voit les biens
+proposés pour lui (Q-ACC-05), pas tout le catalogue.
 """
 
 from typing import Optional
 
-from sqlmodel import Session
+from sqlalchemy import ColumnElement
+from sqlmodel import Session, col
 
 from ..models import Estate, User
 from ..repositories.estate_repository import EstateRepository
+from ..utils.roles import CLIENT, Principal
 from .base_service import BaseService
+from .client_rows import estates_proposed_to
 
 
 class EstateService(BaseService[Estate]):
     def __init__(self, repository: EstateRepository):
         super().__init__(repository, not_found_detail="Bien introuvable")
+
+    def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
+        if viewer.role == CLIENT:
+            return col(Estate.id).in_(estates_proposed_to(viewer.user.id))
+        return None
 
     def create(self, session: Session, item: Estate, actor: Optional[User] = None) -> Estate:
         item.id_author = actor.id if actor is not None else None

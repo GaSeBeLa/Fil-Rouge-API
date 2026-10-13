@@ -11,7 +11,9 @@ transmet au repository), un MagicMock suffit donc aussi.
 Ce qu'on prouve : un id inexistant lève NotFoundError avec le message propre
 à la table, et AVANT toute écriture ; le reste est délégué tel quel. « Le
 sien » (fiche DRO4) : la condition du crochet part au repository, sauf pour
-l'Admin ; une ligne hors du crochet n'est pas modifiée.
+l'Admin ; une ligne hors du crochet n'est pas modifiée. En écriture (fiche
+DRO5) : une ligne que le crochet `owns` refuse n'est ni créée ni modifiée,
+sauf par l'Admin.
 ============================================================================
 """
 
@@ -23,8 +25,8 @@ from sqlalchemy import ColumnElement
 
 from src.app.repositories.base_repository import BaseRepository
 from src.app.services.base_service import BaseService
-from src.app.utils.exceptions import NotFoundError
-from src.app.utils.roles import ADMIN, HUNTER, Principal
+from src.app.utils.exceptions import ConflictError, NotFoundError
+from src.app.utils.roles import ADMIN, CLIENT, HUNTER, Principal
 
 from .conftest import principal_as
 
@@ -38,6 +40,13 @@ class OnlyMine(BaseService):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         return CONDITION
+
+
+class NotMine(BaseService):
+    """Une table dont le crochet d'écriture refuse tout : la ligne ne serait pas au compte."""
+
+    def owns(self, session: object, item: object, viewer: Principal) -> bool:
+        return False
 
 
 @pytest.fixture
@@ -93,6 +102,29 @@ def test_replace_visible_refuses_a_hidden_row_before_writing(repository: MagicMo
     service = OnlyMine(repository, not_found_detail=DETAIL)
     with pytest.raises(NotFoundError):
         service.replace_visible(session, 3, object(), principal_as(HUNTER)())  # pyright: ignore[reportArgumentType] — idem
+    repository.replace.assert_not_called()
+
+
+def test_create_as_refuses_a_row_that_would_not_be_his(repository: MagicMock, session: MagicMock):
+    service = NotMine(repository, not_found_detail=DETAIL)
+    with pytest.raises(ConflictError):
+        service.create_as(session, object(), principal_as(CLIENT)())  # pyright: ignore[reportArgumentType] — idem
+    repository.create.assert_not_called()
+
+
+def test_create_as_lets_the_admin_write_any_row(repository: MagicMock, session: MagicMock):
+    item = object()
+    service = NotMine(repository, not_found_detail=DETAIL)
+    service.create_as(session, item, principal_as(ADMIN)())  # pyright: ignore[reportArgumentType] — idem
+    repository.create.assert_called_once_with(session, item)
+
+
+def test_replace_visible_refuses_a_row_that_would_stop_being_his(repository: MagicMock, session: MagicMock):
+    # La ligne est visible ; c'est la nouvelle valeur qui ne serait plus à lui.
+    repository.get_by_id.return_value = object()
+    service = NotMine(repository, not_found_detail=DETAIL)
+    with pytest.raises(ConflictError):
+        service.replace_visible(session, 3, object(), principal_as(CLIENT)())  # pyright: ignore[reportArgumentType] — idem
     repository.replace.assert_not_called()
 
 

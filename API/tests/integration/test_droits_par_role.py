@@ -46,10 +46,11 @@ READ, CREATE, UPDATE = "lire", "créer", "modifier"
 
 # préfixe -> (qui lit, qui crée, qui modifie), d'après l'annexe d'ADR-027.
 MATRIX: dict[str, tuple[Sequence[str], Sequence[str], Sequence[str]]] = {
-    # § 1, les comptes. Le « U le sien » attend DRO5 à DRO7 : Admin seul.
-    # Le client crée son compte par POST /search-requests/submit (Q-ACC-12).
+    # § 1, les comptes. « U le sien » : le Client depuis DRO5 ; Hunter et
+    # Manager attendent DRO6, DRO7. Le client crée son compte par POST
+    # /search-requests/submit (Q-ACC-12).
     "/roles": ((A, R), (), ()),
-    "/users": (ALL_ROLES, (A,), (A,)),
+    "/users": (ALL_ROLES, (A,), (A, C)),
     "/clients": ((A, C, H, R), (C,), (A, C)),
     "/hunters": (ALL_ROLES, (A,), (A,)),
     "/real-estate-managers": ((A, H, M, R), (A,), (A,)),
