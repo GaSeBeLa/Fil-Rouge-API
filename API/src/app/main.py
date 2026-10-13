@@ -80,6 +80,10 @@ API du service de chasse immobilière (projet fil rouge EISI Data-IA).
 2. `POST /auth/login` avec votre email et votre mot de passe : copier `access_token`.
 3. **Authorize** → `HTTPBearer` : coller le jeton seul, sans le mot `Bearer`.
 
+Pas encore de compte ? Depuis `docker/`, une seule fois :
+`docker compose exec api python -m src.app.scripts.create_admin`
+(détails : `API/README.md`, « Avoir un compte et un jeton »).
+
 Chaque table a les mêmes routes : lister, lire par `id`, créer, modifier.
 Aucune ne supprime : un `DELETE` répond `405` (ADR-049).
 Le guide complet est dans `API/README.md`.

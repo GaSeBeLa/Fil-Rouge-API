@@ -276,6 +276,39 @@ a aussi sa phrase d'explication. Les routes communes tirent leur texte de
 | `/estate-search-requests` `/pictures` `/visits` `/sales` `/payments` |
 | `/commission-scales` `/parameters-fees` `/hunter-rate-parameters` `/hunter-performances` `/review-media` |
 
+### Avoir un compte et un jeton — à faire une fois
+
+Pour appeler l'API, il faut un **jeton**, et pour avoir un jeton, un **compte actif**.
+Or la base de dev n'en a **aucun** : les comptes repris ont un faux mot de passe.
+Et seul un `Admin` peut créer un compte par l'API. Le script
+[`scripts/create_admin.py`](src/app/scripts/create_admin.py) crée donc le premier
+compte `Admin`, directement dans **votre** base locale.
+
+**1. Créer son compte Admin** (une seule fois par base), depuis `docker/`, le
+conteneur `api` lancé :
+
+```bash
+docker compose exec api python -m src.app.scripts.create_admin
+```
+
+- Il demande l'email, puis le mot de passe deux fois, sans l'afficher.
+- Mot de passe : **12 caractères** au moins. Il n'est gardé qu'haché (Argon2).
+- Email déjà pris, email invalide, mot de passe trop court : le script le dit, et
+  rien n'est créé.
+- ⚠️ Sous **Git Bash**, si docker répond « the input device is not a TTY », mettre
+  `winpty` devant la commande, ou la lancer depuis **PowerShell**.
+- ⚠️ `docker compose down -v` efface la base, et le compte avec : relancer le script.
+
+**2. Prendre un jeton** dans le Swagger (http://localhost:8000/docs) :
+
+1. **Authorize** → `APIKeyHeader` : la clé `API_KEY_INTERNAL` de `docker/.env`.
+2. `POST /auth/login` avec votre email et votre mot de passe → copier `access_token`.
+3. **Authorize** → `HTTPBearer` : coller le jeton **seul**, sans le mot `Bearer`.
+
+Le jeton dure **60 minutes** : ensuite, refaire l'étape 2. En `Admin`, vous pouvez
+ensuite créer d'autres comptes avec `POST /users`, pour essayer les autres rôles
+(`Client`, `Hunter`, `Manager`, `Reader`).
+
 ### Connexion — `/auth` (ADR-052)
 
 | Route | Ce qu'elle fait |
