@@ -226,7 +226,7 @@ par le service (`write_payment`) : un refus y est un `ConflictError`, le `409` d
 | [`integration/test_le_sien.py`](tests/integration/test_le_sien.py) | « le sien » sur `/payments` (DRO4) : un Hunter liste ses paiements seulement, `404` sur celui d'un autre chasseur (même réponse qu'un id absent), refus au service en modification ; l'Admin voit tout |
 | [`test_api_keys.py`](tests/test_api_keys.py) | sans clé ou clé inconnue → `401` ; bonne clé et bon jeton → `200` ; bonne clé sans jeton → `401` ; `/` sans clé ; démarrage refusé sans clé ou clé trop courte |
 | [`test_entrees.py`](tests/test_entrees.py) | `422` avant la base : email mal formé (P2), plus de chambres que de pièces (P16), réglages du taux incohérents — poids ≠ 1, plancher > plafond, paliers mal formés (P29), détail du calcul mal formé (P32) |
-| [`integration/test_versions_paiement.py`](tests/integration/test_versions_paiement.py) | grille d'honoraires, ligne de barème, réglages du taux : citée → `PUT` `409`, non citée → `200` (ADR-030, ADR-034) ; statut du paiement : pas à pas → `200` ; saut, retour en arrière, refus après `'announced'`, paiement `'paid'` modifié ou supprimé, `POST` au-delà de `'announced'` → `409` (ADR-038) ; taux final faux → `409` (P33) ; `DELETE` → `405` (ADR-049) |
+| [`integration/test_versions_paiement.py`](tests/integration/test_versions_paiement.py) | grille d'honoraires, ligne de barème, réglages du taux : citée → `PUT` `409`, non citée → `200` (ADR-030, ADR-034) ; statut du paiement : pas à pas → `200` ; saut, retour en arrière, refus après `'announced'`, paiement `'paid'` modifié ou supprimé → `409` (ADR-038) ; paiement créé au-delà de `'announced'`, ou au taux final faux → refusé par le service, `ConflictError` (ADR-038, P33 ; `POST /payments` est fermé à tous, fiche DRO2) ; `DELETE` → `405` (ADR-049) |
 | [`integration/test_auteurs.py`](tests/integration/test_auteurs.py) | `POST /estates` en Hunter ou Manager → `id_author` = le compte du jeton, la valeur envoyée ignorée ; Client, Admin, Reader → `403` ; un `PUT` garde l'auteur (ADR-047) ; `POST /review-media` par le chasseur de la note → `201`, un autre chasseur ou un autre rôle → `403` (ADR-051) ; la note a pour auteur le chasseur du jeton, un `PUT` la garde, les autres rôles → `403` |
 | [`integration/test_contact_vendeur.py`](tests/integration/test_contact_vendeur.py) | `/estate-contacts` : Hunter, Manager, Admin lisent et écrivent ; Client et Reader → `403`, même en lecture ; `id_author` = le compte du jeton, gardé par un `PUT` ; second contact pour un bien, téléphone hors ADR-007, ligne sans aucun renseignement → `409` ; `is_private` obligatoire (`422`), gardé avec l'agence ; `fil_rouge_reader` ne lit pas la table ; `POST /estate-contacts/anonymize-expired` : gardé avant 3 ans, anonyme après, une activité plus tardive repousse, rejouée → 0, non-`Admin` → `403` (ADR-054) |
 | [`integration/test_propositions_visites.py`](tests/integration/test_propositions_visites.py) | proposition : bien hors de la sélection de la demande du mandat → `409` (P19), mandat non `'active'` → `409` (P20), un `PUT` qui change de bien repasse P19 ; visite `'client'` sur un bien jamais proposé → `409`, visite `'hunter'` libre (P23) ; visite après la fin du mandat → `409`, mandat annulé dans ses dates → `201` (P25) ; avant la signature, ou mandat non signé → `409` (ADR-044) |
@@ -511,7 +511,9 @@ POST /sales/{id}/payment  ──►  announced  ──►  scheduled  ──► 
 
 **L'essayer dans le Swagger** (http://localhost:8000/docs) :
 
-1. **Authorize** : la clé d'API et le jeton de `POST /auth/login` (voir plus haut).
+1. **Authorize** : la clé d'API et le jeton de `POST /auth/login` (voir plus haut),
+   pris sur un compte **Admin** : le calcul et les `PUT /payments/{id}` lui sont
+   réservés (fiche DRO2).
 2. `POST /sales/{id}/payment` avec l'`id` d'une vente : rien à mettre dans le corps.
    La réponse est le paiement créé : `amount` (le montant en euros), les taux
    (`base_rate`, `seniority_rate`, `performance_rate`, `final_rate`) et
@@ -525,6 +527,7 @@ POST /sales/{id}/payment  ──►  announced  ──►  scheduled  ──► 
 
 **Les erreurs les plus fréquentes** :
 
+- `403` : le jeton n'est pas celui d'un Admin ;
 - `404` : la vente n'existe pas ;
 - `409` au `POST` : la vente a déjà un paiement, ou il manque un paramètre (barème,
   honoraires, réglages du taux) à la date de l'acte ;
