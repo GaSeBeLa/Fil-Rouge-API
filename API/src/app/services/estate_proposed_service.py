@@ -17,6 +17,9 @@ commentaire) ne les rejuge pas.
 « Le sien » (ADR-027, annexe § 3 ; fiche DRO5) : un Client voit les biens
 proposés sur ses mandats, et ne modifie (commenter, prioriser, offrir ;
 H6, H8) que ceux-là : `id_mandate` reste un de ses mandats.
+
+Le Hunter (fiche DRO6) voit ses propositions, et n'en écrit qu'à son nom
+(H5, H9) ; la clé (id_mandate, id_hunter) garde le mandat au même chasseur.
 """
 
 from typing import Optional
@@ -29,7 +32,7 @@ from ..repositories.estate_proposed_repository import EstateProposedRepository
 from ..repositories.estate_search_request_repository import EstateSearchRequestRepository
 from ..repositories.mandate_repository import MandateRepository
 from ..utils.exceptions import ConflictError
-from ..utils.roles import CLIENT, Principal
+from ..utils.roles import CLIENT, HUNTER, Principal
 from .base_service import BaseService
 from .client_rows import mandates_of, owns_mandate
 
@@ -50,10 +53,17 @@ class EstateProposedService(BaseService[EstateProposed]):
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
             return col(EstateProposed.id_mandate).in_(mandates_of(viewer.user.id))
+        if viewer.role == HUNTER:
+            return col(EstateProposed.id_hunter) == viewer.user.id
         return None
 
     def owns(self, session: Session, item: EstateProposed, viewer: Principal) -> bool:
-        return viewer.role != CLIENT or owns_mandate(session, viewer.user.id, item.id_mandate)
+        if viewer.role == CLIENT:
+            return owns_mandate(session, viewer.user.id, item.id_mandate)
+        if viewer.role == HUNTER:
+            # La clé (id_mandate, id_hunter) garde le mandat au même chasseur.
+            return item.id_hunter == viewer.user.id
+        return True
 
     def _check_proposal(self, session: Session, item: EstateProposed) -> None:
         mandate = self.mandates.get_by_id(session, item.id_mandate)

@@ -23,7 +23,7 @@ avec la réserve D3 : un acte après la fin peut ouvrir droit à
 rémunération).
 
 « Le sien » (ADR-027, annexe § 4 ; fiche DRO5) : un Client voit la vente
-de son mandat (P8, P9).
+de son mandat (P8, P9) ; le Hunter (fiche DRO6), les ventes de ses mandats.
 """
 
 from typing import Optional
@@ -37,9 +37,10 @@ from ..repositories.mandate_repository import MandateRepository
 from ..repositories.parameters_fees_repository import ParametersFeesRepository
 from ..repositories.sale_repository import SaleRepository
 from ..utils.exceptions import ConflictError
-from ..utils.roles import CLIENT, Principal
+from ..utils.roles import CLIENT, HUNTER, Principal
 from .base_service import BaseService
 from .client_rows import mandates_of
+from .hunter_rows import mandates_handled_by
 
 HUNTER_SALE = "hunter"
 ACCEPTED_OFFER = "accepted"
@@ -62,6 +63,8 @@ class SaleService(BaseService[Sale]):
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
             return col(Sale.id_mandate).in_(mandates_of(viewer.user.id))
+        if viewer.role == HUNTER:
+            return col(Sale.id_mandate).in_(mandates_handled_by(viewer.user.id))
         return None
 
     def _check_sale(self, session: Session, item: Sale) -> Mandate:

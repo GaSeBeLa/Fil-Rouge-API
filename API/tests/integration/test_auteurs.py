@@ -97,7 +97,8 @@ def test_review_author_is_the_token_account(db_client: TestClient):
 
 def test_put_cannot_take_over_a_review(db_client: TestClient):
     # Relecture de la série : un autre chasseur changeait id_hunter par un PUT,
-    # puis ajoutait ses médias à la note du chasseur 1.
+    # puis ajoutait ses médias à la note du chasseur 1. Depuis DRO6, la note
+    # d'un autre lui est introuvable (404, « le sien »).
     media = media_on_new_review(db_client)
     review_id = media["id_estate_searchrequest"]
     review = db_client.get(f"/estate-search-requests/{review_id}").json()
@@ -105,8 +106,8 @@ def test_put_cannot_take_over_a_review(db_client: TestClient):
         taken = db_client.put(f"/estate-search-requests/{review_id}", json={**review, "id_hunter": OTHER_HUNTER_ID})
         added = db_client.post("/review-media", json=media)
 
-    assert taken.status_code == 200, taken.text
-    assert taken.json()["id_hunter"] == HUNTER_ID
+    assert taken.status_code == 404, taken.text
+    assert db_client.get(f"/estate-search-requests/{review_id}").json() == review
     assert added.status_code == 403
 
 

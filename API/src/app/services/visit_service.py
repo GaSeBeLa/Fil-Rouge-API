@@ -13,7 +13,8 @@ lève ConflictError (409). Elles valent au POST comme au PUT :
   ne sont pas contrôlées.
 
 « Le sien » (ADR-027, annexe § 3 ; fiche DRO5) : un Client voit les
-visites de ses mandats.
+visites de ses mandats. Le Hunter (fiche DRO6) aussi, et n'en crée que sur
+un de ses mandats (Q-ACC-13).
 """
 
 from typing import Optional
@@ -26,9 +27,10 @@ from ..repositories.estate_proposed_repository import EstateProposedRepository
 from ..repositories.mandate_repository import MandateRepository
 from ..repositories.visit_repository import VisitRepository
 from ..utils.exceptions import ConflictError
-from ..utils.roles import CLIENT, Principal
+from ..utils.roles import CLIENT, HUNTER, Principal
 from .base_service import BaseService
 from .client_rows import mandates_of
+from .hunter_rows import handles_mandate, mandates_handled_by
 
 CLIENT_VISIT = "client"
 
@@ -42,7 +44,12 @@ class VisitService(BaseService[Visit]):
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
             return col(Visit.id_mandate).in_(mandates_of(viewer.user.id))
+        if viewer.role == HUNTER:
+            return col(Visit.id_mandate).in_(mandates_handled_by(viewer.user.id))
         return None
+
+    def owns(self, session: Session, item: Visit, viewer: Principal) -> bool:
+        return viewer.role != HUNTER or handles_mandate(session, viewer.user.id, item.id_mandate)
 
     def _check_visit(self, session: Session, item: Visit) -> None:
         mandate = self.mandates.get_by_id(session, item.id_mandate)

@@ -11,6 +11,12 @@ telle quelle.
 « Le sien » (ADR-027, annexe § 2 ; fiche DRO5) : un Client voit ses
 mandats, et ne modifie (signer, P3) que les siens : `id_client` reste son
 compte. La clé (id_search_request, id_client) garde la demande au même client.
+
+Le Hunter (fiche DRO6) voit ses mandats ; il n'en crée (H4) et n'en
+modifie qu'à son nom, sur une de ses demandes : sinon un mandat sur la
+demande d'un autre lui ouvrait le client de cet autre (H3). Renouveler le
+mandat d'un autre chasseur reste fermé tant que Jeff n'a pas tranché la
+réaffectation d'un mandat (Q-JEF-30).
 """
 
 from typing import Optional
@@ -21,8 +27,9 @@ from sqlmodel import Session, col
 from ..models import Mandate, User
 from ..repositories.mandate_repository import MandateRepository
 from ..repositories.search_request_repository import SearchRequestRepository
-from ..utils.roles import CLIENT, Principal
+from ..utils.roles import CLIENT, HUNTER, Principal
 from .base_service import BaseService
+from .hunter_rows import handles_request
 
 LAUNCHED = "launched"
 
@@ -35,10 +42,16 @@ class MandateService(BaseService[Mandate]):
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
             return col(Mandate.id_client) == viewer.user.id
+        if viewer.role == HUNTER:
+            return col(Mandate.id_hunter) == viewer.user.id
         return None
 
     def owns(self, session: Session, item: Mandate, viewer: Principal) -> bool:
-        return viewer.role != CLIENT or item.id_client == viewer.user.id
+        if viewer.role == CLIENT:
+            return item.id_client == viewer.user.id
+        if viewer.role == HUNTER:
+            return item.id_hunter == viewer.user.id and handles_request(session, viewer.user.id, item.id_search_request)
+        return True
 
     def _launch_request(self, session: Session, mandate: Mandate) -> None:
         request = self.requests.get_by_id(session, mandate.id_search_request)

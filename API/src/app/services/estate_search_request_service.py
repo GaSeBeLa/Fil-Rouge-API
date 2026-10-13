@@ -14,6 +14,9 @@ routes/estate_search_request_router.py).
 
 « Le sien » (ADR-027, annexe § 3 ; fiche DRO5) : un Client voit l'avis
 posé sur ses demandes (P5).
+
+Le Hunter (fiche DRO6) voit ses notes (H7), et n'en écrit que sur une de
+ses demandes : ailleurs, ConflictError (409).
 """
 
 from typing import Optional
@@ -23,9 +26,10 @@ from sqlmodel import Session, col
 
 from ..models import EstateSearchRequest, User
 from ..repositories.estate_search_request_repository import EstateSearchRequestRepository
-from ..utils.roles import CLIENT, Principal
+from ..utils.roles import CLIENT, HUNTER, Principal
 from .base_service import BaseService
 from .client_rows import requests_of
+from .hunter_rows import handles_request
 
 
 class EstateSearchRequestService(BaseService[EstateSearchRequest]):
@@ -35,7 +39,13 @@ class EstateSearchRequestService(BaseService[EstateSearchRequest]):
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
             return col(EstateSearchRequest.id_search_request).in_(requests_of(viewer.user.id))
+        if viewer.role == HUNTER:
+            return col(EstateSearchRequest.id_hunter) == viewer.user.id
         return None
+
+    def owns(self, session: Session, item: EstateSearchRequest, viewer: Principal) -> bool:
+        # id_hunter n'est pas regardé : create et replace le fixent (ADR-051).
+        return viewer.role != HUNTER or handles_request(session, viewer.user.id, item.id_search_request)
 
     def create(
         self, session: Session, item: EstateSearchRequest, actor: Optional[User] = None

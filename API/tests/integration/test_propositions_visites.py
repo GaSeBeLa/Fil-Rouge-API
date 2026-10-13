@@ -33,7 +33,7 @@ from .test_constraints_db import (
     selected_estate,
 )
 
-CANCELED_MANDATE = 16
+CANCELED_MANDATE, CANCELED_MANDATE_HUNTER = 16, 6
 
 
 def proposal(estate_id: int, mandate: int = ACTIVE_MANDATE) -> dict[str, Any]:
@@ -141,7 +141,8 @@ def test_visit_after_the_mandate_end_returns_409(db_client: TestClient):
 def test_visit_on_a_canceled_mandate_within_its_dates_is_accepted(db_client: TestClient):
     # P25 : le statut n'est pas regardé ; visite du chasseur, P23 ne s'applique pas.
     payload = visit(selected_estate(db_client), "2026-05-01", "hunter", CANCELED_MANDATE)
-    response = post_as_hunter(db_client, "/visits", payload)
+    with acting_as(HUNTER, CANCELED_MANDATE_HUNTER):  # une visite sur un de ses mandats (DRO6)
+        response = db_client.post("/visits", json=payload)
     assert response.status_code == 201, response.text
 
 

@@ -45,7 +45,8 @@ le compte connecté au service (`list_all`, `get_by_id`, `replace_visible`),
 qui ne rend que les lignes de son crochet `visible_rows` (base_service.py).
 Une ligne hors du crochet rend 404, comme une ligne absente. Tables qui
 filtrent : payment pour le Hunter (DRO4) ; les tables du Client (DRO5,
-services/client_rows.py) ; les autres suivent en DRO6 à DRO8.
+services/client_rows.py) et du Hunter (DRO6, services/hunter_rows.py) ;
+celles du Manager suivent en DRO7, DRO8.
 
 Le compte connecté (fiches API6, DRO5) : le POST le passe au service,
 `service.create_as(..., <compte>)`. Le service vérifie que la ligne reste à

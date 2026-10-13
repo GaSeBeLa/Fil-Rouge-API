@@ -16,6 +16,10 @@ routes/review_media_router.py).
 
 « Le sien » (ADR-027, annexe § 3 ; fiche DRO5) : un Client voit les médias
 de l'avis posé sur ses demandes (P5).
+
+Le Hunter (fiche DRO6) voit les médias de ses notes. Le PUT suit la même
+règle que le POST : déplacer un média sur la note d'un autre lève
+ForbiddenError (403, ADR-051).
 """
 
 from typing import Optional
@@ -27,9 +31,10 @@ from ..models import ReviewMedia, User
 from ..repositories.estate_search_request_repository import EstateSearchRequestRepository
 from ..repositories.review_media_repository import ReviewMediaRepository
 from ..utils.exceptions import ConflictError, ForbiddenError
-from ..utils.roles import CLIENT, Principal
+from ..utils.roles import CLIENT, HUNTER, Principal
 from .base_service import BaseService
 from .client_rows import reviews_of
+from .hunter_rows import reviews_by
 
 
 class ReviewMediaService(BaseService[ReviewMedia]):
@@ -40,12 +45,22 @@ class ReviewMediaService(BaseService[ReviewMedia]):
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
             return col(ReviewMedia.id_estate_searchrequest).in_(reviews_of(viewer.user.id))
+        if viewer.role == HUNTER:
+            return col(ReviewMedia.id_estate_searchrequest).in_(reviews_by(viewer.user.id))
         return None
 
     def create(self, session: Session, item: ReviewMedia, actor: Optional[User] = None) -> ReviewMedia:
+        self._check_author(session, item, actor)
+        return super().create(session, item, actor)
+
+    def replace_visible(self, session: Session, item_id: int, data: ReviewMedia, viewer: Principal) -> ReviewMedia:
+        self.get_by_id(session, item_id, viewer)  # le média d'un autre : 404 d'abord, rien n'est avoué
+        self._check_author(session, data, viewer.user)
+        return super().replace_visible(session, item_id, data, viewer)
+
+    def _check_author(self, session: Session, item: ReviewMedia, actor: Optional[User]) -> None:
         review = self.reviews.get_by_id(session, item.id_estate_searchrequest)
         if review is None:
             raise ConflictError("Note d'avis introuvable (id_estate_searchrequest).")
         if actor is None or actor.id != review.id_hunter:
             raise ForbiddenError("Seul le chasseur qui a écrit la note y ajoute un média (ADR-051).")
-        return super().create(session, item, actor)

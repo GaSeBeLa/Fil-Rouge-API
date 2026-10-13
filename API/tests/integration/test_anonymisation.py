@@ -17,13 +17,16 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from src.app.models import Client, Criteria, EstateProposed, Hunter, User
+from src.app.models import Client, Criteria, EstateProposed, Hunter, Mandate, User
+from src.app.repositories.mandate_repository import MandateRepository
+from src.app.repositories.search_request_repository import SearchRequestRepository
 from src.app.services.anonymization_service import (
     ANONYMIZED_PASSWORD,
     AnonymizationService,
     names_kept_until,
     plus_years,
 )
+from src.app.services.mandate_service import MandateService
 from src.app.utils.roles import CLIENT, HUNTER, MANAGER, READER
 
 from ..conftest import acting_as
@@ -149,7 +152,7 @@ def test_client_comment_is_cleared_and_name_waits_for_the_mandate(
 # --- Le nom attend la fin du plus long délai (Décision 5) ------------------------
 
 
-def _hunter_with_an_old_mandate(db_client: TestClient) -> tuple[int, int]:
+def _hunter_with_an_old_mandate(db_client: TestClient, db_session: Session) -> tuple[int, int]:
     """
     Un chasseur neuf, dont le seul mandat (demande 1, client 7) a fini le
     2024-07-01, et une vente 'client_alone' sur ce mandat : son id, et celui
@@ -174,14 +177,18 @@ def _hunter_with_an_old_mandate(db_client: TestClient) -> tuple[int, int]:
         "ends_at": "2024-07-01",
         "id_hunter": hunter_id,
     }
-    assert (created := post_as_hunter(db_client, "/mandates", mandate)).status_code == 201, created.text
+    # La demande 1 est au chasseur 1 : l'API refuse ce mandat au chasseur neuf
+    # (« le sien », DRO6) ; écrit par le service, sans compte.
+    old_mandate = MandateService(MandateRepository(), SearchRequestRepository()).create(
+        db_session, Mandate.model_validate(mandate)
+    )
     grid = {"effective_from": "2024-01-01", "fixed_amount": 3000, "rate": "0.0250"}
     sale = {
         "signature_date": "2024-06-01",
         "purchase_amount": 354712,
         "fees_amount": "11867.80",
         "sale_origin": "client_alone",
-        "id_mandate": created.json()["id"],
+        "id_mandate": old_mandate.id,
         "id_estate": post_as_hunter(db_client, "/estates", {**ESTATE, "reference": "TEST-API10-1"}).json()["id"],
         "id_parameters_fees": db_client.post("/parameters-fees", json=grid).json()["id"],
     }
@@ -192,7 +199,7 @@ def _hunter_with_an_old_mandate(db_client: TestClient) -> tuple[int, int]:
 def test_hunter_paid_two_years_ago_keeps_name_rest_anonymized(
     db_client: TestClient, db_session: Session
 ) -> None:
-    hunter_id, sale_id = _hunter_with_an_old_mandate(db_client)
+    hunter_id, sale_id = _hunter_with_an_old_mandate(db_client, db_session)
     paid = date.today() - timedelta(days=730)  # après la fin du mandat (2024-07-01)
     _paid_on(db_client, db_session, paid, id_sale=sale_id, id_hunter=hunter_id)
 
@@ -239,9 +246,11 @@ def test_payment_not_yet_paid_holds_the_name_from_today(db_client: TestClient, d
     assert body["names_kept_until"] == str(plus_years(date.today(), 10))
 
 
-def test_renewal_by_another_hunter_extends_the_delay(db_client: TestClient) -> None:
+def test_renewal_by_another_hunter_extends_the_delay(db_client: TestClient, db_session: Session) -> None:
     # Mandat 15 (chasseur 1) renouvelé par le chasseur 2 : la base ne compare
-    # pas le chasseur (Q-MAN-08). La fin de la chaîne compte pour le chasseur 1.
+    # pas le chasseur. La fin de la chaîne compte pour le chasseur 1. L'API ne
+    # l'ouvre pas au chasseur 2 (« le sien », DRO6 ; Q-JEF-30) : écrit par le
+    # service, sans compte.
     renewal = {
         **MANDATE,
         "reference": "TEST-M-RENOUV",
@@ -252,7 +261,8 @@ def test_renewal_by_another_hunter_extends_the_delay(db_client: TestClient) -> N
         "id_search_request": ACTIVE_REQUEST,
         "id_mandate_parent": ACTIVE_MANDATE,
     }
-    assert (created := post_as_hunter(db_client, "/mandates", renewal)).status_code == 201, created.text
+    service = MandateService(MandateRepository(), SearchRequestRepository())
+    assert service.create(db_session, Mandate.model_validate(renewal)).id is not None
 
     body = _anonymize(db_client, HUNTER_ID).json()
 
