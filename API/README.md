@@ -73,8 +73,11 @@ Le modèle explique chaque ligne. À retenir :
 
 - `POSTGRES_DB` : garder `fil_rouge_immobilier`, l'API et les scripts l'attendent.
 - `POSTGRES_PASSWORD` : jamais vide ; `MINIO_ROOT_PASSWORD` : 8 caractères au moins.
-- `JWT_SECRET`, `API_KEY_INTERNAL`, `API_KEY_APP_BACKEND` : obligatoires, sinon
-  l'API refuse de démarrer. Une valeur par clé, générée par `openssl rand -hex 32`.
+- `JWT_SECRET` : obligatoire, sinon l'API refuse de démarrer (`utils/security.py`).
+- `API_KEY_INTERNAL` : la clé à coller dans le Swagger. Au moins une clé
+  `API_KEY_<NOM>` doit avoir une valeur ; une clé laissée vide donne seulement un
+  avertissement dans les logs (`utils/api_keys.py`).
+- Chaque secret et chaque clé fait 32 caractères au moins : `openssl rand -hex 32`.
 - `POSTGRES_READER_PASSWORD` : facultatif.
 
 **Après un nouveau clone, le `.env` manque aussi** : git ne le suit jamais, le
@@ -84,14 +87,19 @@ modèle. Piège : `docker compose up -d` affiche alors une série de
 clés d'API, MinIO), **mais la base peut quand même dire `Healthy`**.
 `docker-compose.yml` fixe le nom du projet (`name: fil_rouge_immobilier`) : Docker
 reprend le volume de base déjà créé par un autre clone. Rien ne marche pour
-autant, l'API n'a ni secret ni clé. Une fois le `.env` en place, repartir de
-zéro depuis `docker/` (⚠️ efface la base de dev locale) :
+autant, l'API n'a ni secret ni clé. Une fois le `.env` en place, depuis `docker/` :
+
+- `.env` **recopié de l'ancien clone** : mêmes mots de passe que le volume
+  existant, `docker compose up -d` suffit.
+- `.env` **refait depuis le modèle**, avec d'autres mots de passe : le volume
+  garde ceux de sa création, il faut repartir de zéro (⚠️ efface la base de dev
+  locale) :
 
 ```bash
 docker compose down -v && docker compose up -d
 ```
 
-puis, depuis la racine du dépôt : `bash docker/create_test_db.sh`.
+Dans les deux cas, puis depuis la racine du dépôt : `bash docker/create_test_db.sh`.
 
 L'API est un service du `docker-compose` du projet. Depuis `docker/` :
 
