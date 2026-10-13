@@ -1,5 +1,5 @@
 """
-crud_router.py — Fabrique d'APIRouter générique, partagée par les 18
+crud_router.py — Fabrique d'APIRouter générique, partagée par les 21
 routers de table.
 
 ============================================================================
@@ -8,7 +8,7 @@ COMMENT LIRE CE FICHIER
 Les 4 routes (GET liste, GET/{id}, POST, PUT/{id}) sont
 strictement identiques d'une table à l'autre — seuls le service appelé, le
 préfixe d'URL, le tag Swagger et le modèle de réponse changent. Plutôt que
-de dupliquer ces 4 fonctions dans les 18 fichiers routers/<table>_router.py
+de dupliquer ces 4 fonctions dans les 21 fichiers routers/<table>_router.py
 (comme c'était le cas dans l'ancien main.py), on les construit une fois ici
 et chaque fichier de router se contente d'appeler build_crud_router avec
 son propre service.
@@ -38,7 +38,8 @@ POST et PUT pour une table : `()` les ferme à tous (hunter_performance,
 ADR-035) ; users : `Admin` seul. La
 matrice complète des droits (ADR-027) n'est pas codée. `create_roles`
 restreint le seul POST (estate : Hunter et Manager, ADR-047) ; absent, le
-POST suit `write_roles`.
+POST suit `write_roles`. `read_roles` restreint les deux GET (estate_contact :
+ni Client ni Reader, ADR-054) ; absent, tout compte connecté lit.
 
 Le compte connecté (fiche API6) : le POST le passe au service,
 `service.create(..., actor=<compte>)`, qui s'en sert pour remplir l'auteur
@@ -53,7 +54,7 @@ entier, elle est vérifiée avant le jeton ; absente ou inconnue -> 401.
 
 Doc Swagger : chaque route reçoit un `summary` (son titre dans /docs) et une
 `description` écrite pour un débutant. Les rôles cités sont lus dans
-`write_roles` / `create_roles` : la doc suit le code, sans copie à tenir.
+`read_roles` / `write_roles` / `create_roles` : la doc suit le code, sans copie à tenir.
 ============================================================================
 """
 
@@ -116,12 +117,13 @@ def build_crud_router(
     response_model: Type[SQLModel],
     read_model: Optional[Type[SQLModel]] = None,
     update_model: Optional[Type[SQLModel]] = None,
+    read_roles: Sequence[str] = ALL_ROLES,
     write_roles: Sequence[str] = WRITER_ROLES,
     create_roles: Optional[Sequence[str]] = None,
 ) -> APIRouter:
     router = APIRouter(prefix=prefix, tags=[tag], dependencies=[Depends(require_api_key)])
 
-    can_read = [Depends(require_roles(*ALL_ROLES))]
+    can_read = [Depends(require_roles(*read_roles))]
     can_write = [Depends(require_roles(*write_roles))]
     can_create = require_roles(*(write_roles if create_roles is None else create_roles))
 
@@ -143,8 +145,8 @@ def build_crud_router(
         summary="Lister toutes les lignes",
         description=_describe(
             "Rend toutes les lignes de la table, en une fois (pas de pagination).",
-            ALL_ROLES,
-            "- `200` : la liste, vide s'il n'y a rien.",
+            read_roles,
+            "- `200` : la liste, vide s'il n'y a rien ;\n- `403` : votre rôle ne peut pas lire cette table.",
         ),
     )
     def list_items(session: Session = Depends(get_session)):
@@ -157,8 +159,9 @@ def build_crud_router(
         summary="Lire une ligne par son id",
         description=_describe(
             "Rend la ligne dont l'`id` est donné dans l'URL.",
-            ALL_ROLES,
-            "- `200` : la ligne ;\n- `404` : aucune ligne n'a cet `id` ;\n- `422` : l'`id` n'est pas un nombre entier.",
+            read_roles,
+            "- `200` : la ligne ;\n- `403` : votre rôle ne peut pas lire cette table ;\n"
+            "- `404` : aucune ligne n'a cet `id` ;\n- `422` : l'`id` n'est pas un nombre entier.",
         ),
     )
     def get_item(item_id: int, session: Session = Depends(get_session)):

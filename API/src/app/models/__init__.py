@@ -1,5 +1,5 @@
 """
-models — Définitions SQLModel des 19 tables du projet, une classe par
+models — Définitions SQLModel des 21 tables du projet, une classe par
 fichier dans ce dossier (`hunter_rate_parameters` depuis LOT6, Q-REM-05 ;
 nommée `remuneration_parameters` jusqu'au 2026-10-08, G2).
 
@@ -42,6 +42,7 @@ from .search_request_model import SearchRequest
 from .criteria_model import Criteria
 from .mandate_model import Mandate
 from .estate_model import Estate
+from .estate_contact_model import EstateContact
 from .estate_proposed_model import EstateProposed
 from .estate_search_request_model import EstateSearchRequest
 from .review_media_model import ReviewMedia
@@ -67,6 +68,7 @@ __all__ = [
     "Criteria",
     "Mandate",
     "Estate",
+    "EstateContact",
     "EstateProposed",
     "EstateSearchRequest",
     "ReviewMedia",

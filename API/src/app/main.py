@@ -21,7 +21,7 @@ séparées, dans l'ordre où une requête les traverse :
 Chacune de ces trois couches hérite d'une classe de base générique
 (routes/crud_router.py, services/base_service.py,
 repositories/base_repository.py) qui porte le comportement CRUD commun aux
-19 tables — évite de le dupliquer 11 fois, comme le faisaient déjà
+21 tables — évite de le dupliquer 11 fois, comme le faisaient déjà
 list_all/get_one_or_404/create_one/... dans l'ancienne version de ce
 fichier.
 
@@ -47,6 +47,7 @@ from .routes import (
     auth_router,
     client_router,
     criteria_router,
+    estate_contact_router,
     estate_proposed_router,
     estate_router,
     estate_search_request_router,
@@ -102,6 +103,7 @@ OPENAPI_TAGS = [
     {"name": "criteria", "description": "Les critères d'une demande (budget, surface…). Chaque révision garde la précédente."},
     {"name": "mandate", "description": "Les mandats : le contrat qui lie un client et un chasseur."},
     {"name": "estate", "description": "Les biens immobiliers (annonces)."},
+    {"name": "estate_contact", "description": "Le contact du vendeur d'un bien. Le client ne le voit pas (ADR-054)."},
     {"name": "estate_searchrequest", "description": "Les biens retenus par le chasseur pour une demande, avec son avis."},
     {"name": "review_media", "description": "Les fichiers audio ou vidéo joints à l'avis du chasseur."},
     {"name": "picture", "description": "Les photos d'un bien."},
@@ -157,6 +159,8 @@ app.include_router(search_request_router.router)
 app.include_router(criteria_router.router)
 app.include_router(mandate_router.router)
 app.include_router(estate_router.router)
+# ADR-054 : contact du vendeur, réservé à Admin, Hunter et Manager.
+app.include_router(estate_contact_router.router)
 app.include_router(estate_proposed_router.router)
 app.include_router(estate_search_request_router.router)
 app.include_router(review_media_router.router)

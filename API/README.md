@@ -1,7 +1,7 @@
 
 # API — Fil Rouge Immobilier
 
-API REST (FastAPI + SQLModel) exposant les 20 tables du schéma PostgreSQL
+API REST (FastAPI + SQLModel) exposant les 21 tables du schéma PostgreSQL
 `fil_rouge_immobilier` (voir [`../docker/init-v3/01_create_fil_rouge_immobilier.sql`](../docker/init-v3/01_create_fil_rouge_immobilier.sql)).
 
 ## Stack
@@ -186,6 +186,8 @@ Puis **398 passed, 7 skipped** (relecture, ADR-051) : la note d'un bien a pour a
 chasseur du jeton ; un `PUT` ne la donne plus à un autre ; Admin, Manager, Client → `403`.
 Puis **399 passed, 7 skipped** (relecture) : `POST /search-requests/submit` répond pareil
 à tous (`202`, sans id) ; un email de non-client est ignoré et logué.
+Puis **433 passed, 8 skipped, 6 xfailed** (ADR-054, 2026-10-13) : 14 tests du contact du
+vendeur (`estate_contact`).
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -208,6 +210,7 @@ les biens : `post_as_hunter` dans `test_constraints_db.py`).
 | [`test_entrees.py`](tests/test_entrees.py) | `422` avant la base : email mal formé (P2), plus de chambres que de pièces (P16), réglages du taux incohérents — poids ≠ 1, plancher > plafond, paliers mal formés (P29), détail du calcul mal formé (P32) |
 | [`integration/test_versions_paiement.py`](tests/integration/test_versions_paiement.py) | grille d'honoraires, ligne de barème, réglages du taux : citée → `PUT` `409`, non citée → `200` (ADR-030, ADR-034) ; statut du paiement : pas à pas → `200` ; saut, retour en arrière, refus après `'announced'`, paiement `'paid'` modifié ou supprimé, `POST` au-delà de `'announced'` → `409` (ADR-038) ; taux final faux → `409` (P33) ; `DELETE` → `405` (ADR-049) |
 | [`integration/test_auteurs.py`](tests/integration/test_auteurs.py) | `POST /estates` en Hunter ou Manager → `id_author` = le compte du jeton, la valeur envoyée ignorée ; Client, Admin, Reader → `403` ; un `PUT` garde l'auteur (ADR-047) ; `POST /review-media` par le chasseur de la note → `201`, un autre chasseur ou un autre rôle → `403` (ADR-051) ; la note a pour auteur le chasseur du jeton, un `PUT` la garde, les autres rôles → `403` |
+| [`integration/test_contact_vendeur.py`](tests/integration/test_contact_vendeur.py) | `/estate-contacts` : Hunter, Manager, Admin lisent et écrivent ; Client et Reader → `403`, même en lecture ; `id_author` = le compte du jeton, gardé par un `PUT` ; second contact pour un bien, téléphone hors ADR-007, ligne sans aucun renseignement → `409` ; type de vendeur vide accepté (ADR-054) |
 | [`integration/test_propositions_visites.py`](tests/integration/test_propositions_visites.py) | proposition : bien hors de la sélection de la demande du mandat → `409` (P19), mandat non `'active'` → `409` (P20), un `PUT` qui change de bien repasse P19 ; visite `'client'` sur un bien jamais proposé → `409`, visite `'hunter'` libre (P23) ; visite après la fin du mandat → `409`, mandat annulé dans ses dates → `201` (P25) ; avant la signature, ou mandat non signé → `409` (ADR-044) |
 | [`integration/test_signature_vente.py`](tests/integration/test_signature_vente.py) | mandat signé (créé signé ou par `PUT`) → demande `'launched'`, mandat refusé → demande inchangée (ADR-044) ; vente sur mandat non signé → `409` (Q-MAN-06) ; vente `'hunter'` sans offre `'accepted'` → `409`, `'client_alone'` libre (P27) ; vente → mandat `'completed'`, vente refusée → mandat inchangé (P28) ; grille qui n'est pas celle en vigueur à la date de l'acte → `409` (ADR-030) |
 | [`integration/test_demande_avant_compte.py`](tests/integration/test_demande_avant_compte.py) | formulaire neuf → user **inactif** (mot de passe factice), fiche client et demande `'confirmed'` ; connexion refusée ; même email en majuscules → même compte (P2) ; email d'un client connu → sa fiche **n'est pas réécrite** ; email d'un chasseur → ignoré et logué (l'id, pas l'email) ; **même réponse** `202` pour tous ; adresse manquante → `422` ; refus de la base au milieu → `409` et **0 ligne** écrite ; `PUT /users/{id}` active le compte ; clé d'API exigée, pas de jeton (P5) |
@@ -272,7 +275,7 @@ Chaque table suit une architecture en 3 couches (Router → Service → Reposito
 
 Ces trois couches héritent chacune d'une classe générique (`routes/crud_router.py`,
 `services/base_service.py`, `repositories/base_repository.py`) qui porte le
-comportement CRUD commun aux 20 tables.
+comportement CRUD commun aux 21 tables.
 
 ## Arborescence
 
@@ -301,11 +304,11 @@ API/
 
 ## Endpoints
 
-Les 20 tables ont les **mêmes 4 routes**, construites par
+Les 21 tables ont les **mêmes 4 routes**, construites par
 [`routes/crud_router.py`](src/app/routes/crud_router.py) : `GET` (liste),
 `GET /{id}`, `POST`, `PUT /{id}`. **Plus de `DELETE`** (ADR-049, fiche API10) : un
 `DELETE` rend `405`. Plus `GET /` (health-check), `/auth`, la demande avant le compte
-et l'anonymisation, et le calcul du paiement d'une vente. Soit **86 opérations** (compté
+et l'anonymisation, et le calcul du paiement d'une vente. Soit **90 opérations** (compté
 dans `/openapi.json` le 13/10/2026).
 
 Dans le Swagger, **chaque opération a un titre et une description** : ce qu'elle fait,
@@ -320,6 +323,7 @@ a aussi sa phrase d'explication. Les routes communes tirent leur texte de
 | `/search-requests` `/criteria` `/mandates` `/estates` `/estate-proposed` |
 | `/estate-search-requests` `/pictures` `/visits` `/sales` `/payments` |
 | `/commission-scales` `/parameters-fees` `/hunter-rate-parameters` `/hunter-performances` `/review-media` |
+| `/estate-contacts` |
 
 ### Avoir un compte et un jeton — à faire une fois
 
@@ -377,6 +381,10 @@ ensuite créer d'autres comptes avec `POST /users`, pour essayer les autres rôl
   ADR-051) : un autre compte → `403`. La note elle-même : `POST /estate-search-requests`
   réservé à **Hunter**, `id_hunter` = le compte du jeton, gardé par un `PUT`
   (relecture de la série API6 → API10).
+* 📇 **Contact du vendeur** (ADR-054) : `/estate-contacts`, 0 ou 1 par bien, **lu et
+  écrit** par **Admin**, **Hunter** et **Manager** seulement ; **Client** et **Reader** → `403`,
+  même en lecture (données personnelles d'un tiers). `id_author` = le compte du jeton,
+  gardé par un `PUT`.
 * 🏠 **Propositions et visites** (fiche API7, règles entre tables dans les services,
   ADR-040) : on ne propose qu'un bien de la **sélection** de la demande du mandat
   (P19), sur un mandat **`'active'`** (P20). Une visite tombe **entre la signature et

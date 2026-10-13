@@ -1,9 +1,10 @@
 -- ============================================================================
 -- 01_create_fil_rouge_immobilier.sql
--- Schéma cible "Fil_Rouge_Immobilier" — 19 tables
+-- Schéma cible "Fil_Rouge_Immobilier" — 21 tables
 -- Généré depuis « MPD 03 4.drawio.xml » (2026-09-22) ; 19e table,
 -- remuneration_parameters, ajoutée le 2026-10-07 (LOT6, Q-REM-05),
--- renommée hunter_rate_parameters le 2026-10-08 (G2)
+-- renommée hunter_rate_parameters le 2026-10-08 (G2) ; 20e, review_media,
+-- le 2026-10-08 ; 21e, estate_contact, le 2026-10-13 (ADR-054)
 --
 -- VERSION FUSIONNÉE des deux scripts écrits en parallèle par le groupe.
 -- Testé sur PostgreSQL 16 : création complète sur base vierge, sans erreur.
@@ -725,6 +726,40 @@ CREATE TABLE picture (
     id_estate  INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT
 );
 
+-- Contact du vendeur d'un bien : 0 ou 1 par bien (ADR-054, décision du
+-- groupe le 2026-10-13, option B). Le CSV des annonces en donne nom,
+-- téléphone, email et agence ; ils étaient perdus à l'import, faute de
+-- colonne. Table à part : ce sont des données personnelles d'un tiers, qui
+-- s'effacent sans toucher au bien, et que le client ne lit jamais.
+-- Pas de ligne : contact inconnu, le chasseur doit le trouver.
+CREATE TABLE estate_contact (
+    id           INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    created_at   TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
+    -- Vide (NULL) : inconnu. Le CSV ne dit « particulier » que 406 fois, et
+    -- 166 de ces annonces ont aussi une agence : on ne devine pas.
+    seller_type  VARCHAR(10) CHECK (seller_type IN ('private', 'agency')),
+    agency_name  VARCHAR(100)
+                 CHECK (agency_name = btrim(agency_name) AND agency_name <> ''),
+    contact_name VARCHAR(100)
+                 CHECK (contact_name = btrim(contact_name) AND contact_name <> ''),
+    -- Même format que client.phone_number (ADR-007) : le 06… du CSV est
+    -- repris en +336….
+    phone_number VARCHAR(20)
+                 CHECK (phone_number ~ '^\+[1-9]([ -]?[0-9]){1,14}$'),
+    -- Même forme que "user".email (P2, ADR-053).
+    email        VARCHAR(150)
+                 CHECK (email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'),
+    id_estate    INTEGER NOT NULL UNIQUE REFERENCES estate(id) ON DELETE RESTRICT,
+    -- Auteur d'un contact saisi à la main, chasseur ou manager ; vide :
+    -- contact importé. Même forme que estate.id_author (Q-ACC-09).
+    id_author    INTEGER REFERENCES "user"(id) ON DELETE RESTRICT,
+
+    -- Une ligne sans aucun renseignement ne dit rien : pas de ligne.
+    CONSTRAINT ck_estate_contact_not_empty
+        CHECK (agency_name IS NOT NULL OR contact_name IS NOT NULL
+            OR phone_number IS NOT NULL OR email IS NOT NULL)
+);
+
 
 -- ============================================================================
 -- 6. SÉLECTION ET PROPOSITION DE BIENS
@@ -1243,16 +1278,11 @@ COMMENT ON COLUMN real_estate_manager.id IS
 COMMIT;
 
 -- ============================================================================
--- FIN — 19 tables, 258 colonnes (mesuré via information_schema le
--- 2026-10-07, après LOT9), 1 extension.
+-- FIN — 21 tables, 270 colonnes (mesuré via information_schema le
+-- 2026-10-13, après ADR-054), 1 extension.
 --
--- Pour activer ce schéma dans docker/docker-compose.yml, remplacer
---     ./init:/docker-entrypoint-initdb.d
--- par
---     ./init-v2:/docker-entrypoint-initdb.d
--- puis « docker compose down -v » : les scripts d'init ne rejouent que sur un
--- volume vide.
---
--- ⚠️ 02_migration.sql et 03_populate_estate.sql visent l'ANCIEN schéma en K€.
--- Ils ne sont pas repris ici et doivent être adaptés (lire « price_eur »).
+-- docker/docker-compose.yml monte ./init-v3 sur /docker-entrypoint-initdb.d.
+-- Les scripts d'init ne rejouent que sur un volume vide : après un
+-- changement ici, « docker compose down -v » (efface la base de dev locale),
+-- ou la migration correspondante de migrations/v2-vers-v3/.
 -- ============================================================================

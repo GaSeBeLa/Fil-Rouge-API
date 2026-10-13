@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 02_migration.sql — Migration Fil_Rouge_Depart -> Fil_Rouge_Immobilier
--- ADAPTÉ au schéma 19 tables (MPD 03, plus hunter_rate_parameters depuis
--- LOT6, ex-remuneration_parameters) et à la convention EUROS.
+-- ADAPTÉ au schéma v3 (MPD 03, plus hunter_rate_parameters depuis LOT6,
+-- ex-remuneration_parameters ; 21 tables au 2026-10-13) et à la convention EUROS.
 -- Testé : s'exécute sans erreur à la suite de 01_create_fil_rouge_immobilier.sql.
 -- ============================================================================
 --
