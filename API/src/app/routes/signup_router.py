@@ -38,6 +38,11 @@ router = APIRouter(
 _service = SignupService(UserRepository(), ClientRepository(), RoleRepository(), SearchRequestRepository())
 
 
+# Clé d'API sans jeton, par nature : le visiteur n'a pas encore de compte,
+# il le crée avec sa demande (Q-ACC-12, P5). Même réponse pour tous, sans id :
+# rien d'un autre compte ne sort. Limite connue (signup_service.py) : un
+# format refusé par la base rend 409 pour un email neuf, 202 pour un email
+# connu ; test xfail dans test_droits_par_role.py. Revue en DRO3 : inchangée.
 @router.post(
     "/submit",
     response_model=SubmissionReceipt,

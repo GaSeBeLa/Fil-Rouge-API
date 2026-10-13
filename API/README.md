@@ -196,6 +196,8 @@ Puis **690 passed, 8 skipped, 6 xfailed** (fiche DRO1, 2026-10-13) : fermé par 
 `Admin` passent par le rôle qui crée.
 Puis **770 passed, 8 skipped, 6 xfailed** (fiche DRO2, 2026-10-13) : l'argent réservé à qui
 l'annexe le donne ; 80 tests de droits de plus (tables d'argent, calcul réservé à l'Admin).
+Puis **774 passed, 8 skipped, 7 xfailed** (fiche DRO3, 2026-10-13) : les routes à part ;
+4 tests de plus, et 1 `xfail` strict qui montre la limite du formulaire (Limites connues).
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -218,7 +220,7 @@ par le service (`write_payment`) : un refus y est un `ConflictError`, le `409` d
 | [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 pour les 18 ressources ; `DELETE` → `405` (ADR-049) |
 | [`integration/test_auth.py`](tests/integration/test_auth.py) | connexion : jeton rendu ; mauvais mot de passe, compte inactif, jeton expiré ou forgé → `401` ; compte désactivé **après** l'émission du jeton → `401` (relu en base) |
 | [`test_roles.py`](tests/test_roles.py), [`integration/test_roles_db.py`](tests/integration/test_roles_db.py) | sans jeton → `401` ; `Reader` lit (`200`) mais n'écrit pas (`403`) ; `Admin` crée (`201`) ; un routeur sans rôles déclarés → `403` pour les 5 rôles (DRO1) ; `/hunter-performances` et `/roles` fermés en écriture ; `/` et `/auth/login` ouverts |
-| [`integration/test_droits_par_role.py`](tests/integration/test_droits_par_role.py) | la grille de l'annexe d'ADR-027, recopiée à la main : chaque case fermée → `403` en lecture (liste et ligne), création, modification ; chaque case ouverte ≠ `403` ; au moins un refus par table (DRO1) ; tables d'argent, et `POST /sales/{id}/payment` réservé à l'Admin (DRO2) |
+| [`integration/test_droits_par_role.py`](tests/integration/test_droits_par_role.py) | la grille de l'annexe d'ADR-027, recopiée à la main : chaque case fermée → `403` en lecture (liste et ligne), création, modification ; chaque case ouverte ≠ `403` ; au moins un refus par table (DRO1) ; tables d'argent, et `POST /sales/{id}/payment` réservé à l'Admin (DRO2) ; chaque route hors CRUD nommée avec le test qui la juge, `/` ne rend qu'un statut, `/auth/login` qu'un jeton (`sub`, `iat`, `exp`), `/auth/me` le seul compte du jeton, même avec un id dans l'URL (DRO3) |
 | [`test_api_keys.py`](tests/test_api_keys.py) | sans clé ou clé inconnue → `401` ; bonne clé et bon jeton → `200` ; bonne clé sans jeton → `401` ; `/` sans clé ; démarrage refusé sans clé ou clé trop courte |
 | [`test_entrees.py`](tests/test_entrees.py) | `422` avant la base : email mal formé (P2), plus de chambres que de pièces (P16), réglages du taux incohérents — poids ≠ 1, plancher > plafond, paliers mal formés (P29), détail du calcul mal formé (P32) |
 | [`integration/test_versions_paiement.py`](tests/integration/test_versions_paiement.py) | grille d'honoraires, ligne de barème, réglages du taux : citée → `PUT` `409`, non citée → `200` (ADR-030, ADR-034) ; statut du paiement : pas à pas → `200` ; saut, retour en arrière, refus après `'announced'`, paiement `'paid'` modifié ou supprimé, `POST` au-delà de `'announced'` → `409` (ADR-038) ; taux final faux → `409` (P33) ; `DELETE` → `405` (ADR-049) |
@@ -416,6 +418,10 @@ ensuite créer d'autres comptes avec `POST /users`, pour essayer les autres rôl
   `POST /search-requests/submit`, sans jeton (Q-ACC-12). `POST /users` reste à
   `Admin` : ouvert au Client, il lui laisserait choisir `id_role`, donc se créer un Admin.
   La description « Qui peut » de chaque route, dans `/docs`, suit ces rôles seule.
+  Routes à part (fiche DRO3) : `GET /` ouverte à tous ; `POST /auth/login` et
+  `POST /search-requests/submit`, clé d'API sans jeton ; `GET /auth/me`, tout compte
+  connecté, son compte seul ; les deux anonymisations et le calcul du paiement,
+  `Admin` seul. Chacune dit pourquoi dans son commentaire.
 * ✍️ **Auteurs** (fiche API6) : `POST /estates` réservé à **Hunter** et **Manager**
   (ADR-047) ; `id_author` est rempli avec le compte du jeton, la valeur envoyée est
   ignorée, et un `PUT` ne la change pas ; vide = bien importé. `POST /review-media`
@@ -574,6 +580,9 @@ encore référencé échoue toujours, même en SQL direct (l'API, elle, ne suppr
 * Droits : chaque table déclare ses rôles (fiche DRO1), mais « le sien » n'est pas
   filtré : un Client lit et modifie encore les lignes des autres clients sur les tables
   qui lui sont ouvertes (fiches DRO4 à DRO8).
+* Formulaire du site : un format refusé par la base (téléphone, code postal) rend `409`
+  pour un email neuf, `202` pour un email connu ; l'email se devine. Test `xfail` strict
+  dans `test_droits_par_role.py` (fiche DRO3).
 * TODO — pas de verrou entre un contrôle et l'écriture qui le suit (versions figées,
   ordre du paiement) : deux `PUT` simultanés sur le même paiement lisent tous deux
   `'announced'`, et le dernier écrit gagne. Correctif : `SELECT … FOR UPDATE` dans le

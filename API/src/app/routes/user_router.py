@@ -37,8 +37,10 @@ _anonymizer = AnonymizationService()
 
 
 # ADR-049, Décision 3 : effacer un compte = le désactiver et le rendre
-# anonyme, jamais le supprimer (plus de DELETE). Admin seul. Rappelée après
-# `names_kept_until`, la route finit le travail (Décision 9).
+# anonyme, jamais le supprimer (plus de DELETE). Admin seul : le geste ne se
+# défait pas, et vise le compte de n'importe qui. Rappelée après
+# `names_kept_until`, la route finit le travail (Décision 9). Revue en DRO3 :
+# inchangée.
 @router.post(
     "/{item_id}/anonymize",
     response_model=AnonymizationReport,

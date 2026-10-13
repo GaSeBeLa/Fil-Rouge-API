@@ -136,6 +136,9 @@ async def validation_error_without_input(request: Request, exc: RequestValidatio
     return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
 
 
+# Ouverte à tous, ni clé d'API ni jeton : un outil de supervision demande
+# « es-tu debout ? » sans compte. Elle ne rend qu'un statut fixe, rien de la
+# base ni d'un compte. Revue en DRO3 : inchangée.
 @app.get("/", tags=["health"], summary="Vérifier que l'API répond")
 def health_check():
     """

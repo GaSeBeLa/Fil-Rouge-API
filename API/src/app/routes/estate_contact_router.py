@@ -29,7 +29,9 @@ router = build_crud_router(
 
 
 # ADR-054, question 4 : 3 ans après la dernière activité du bien. Admin seul,
-# lancée à la main, comme POST /users/{id}/anonymize (ADR-049).
+# lancée à la main, comme POST /users/{id}/anonymize (ADR-049) : le geste ne
+# se défait pas et touche les contacts de tous les biens. Revue en DRO3 :
+# inchangée.
 @router.post(
     "/anonymize-expired",
     response_model=ContactAnonymizationReport,

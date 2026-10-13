@@ -45,6 +45,10 @@ class TokenResponse(SQLModel):
     expires_in: int  # secondes
 
 
+# Clé d'API sans jeton, par nature : c'est elle qui délivre le jeton
+# (ADR-028, ADR-052). Elle ne rend que le jeton du compte dont on a donné le
+# mot de passe, et ce jeton ne porte que son id (`sub`) : ni email, ni rôle.
+# Tout échec rend le même 401. Revue en DRO3 : inchangée.
 @router.post("/login", response_model=TokenResponse, summary="Se connecter et recevoir un jeton")
 def login(body: LoginRequest, session: Session = Depends(get_session)) -> TokenResponse:
     """Échange un email et un mot de passe contre un **jeton** (JWT), valable 60 minutes.
@@ -73,6 +77,9 @@ def login(body: LoginRequest, session: Session = Depends(get_session)) -> TokenR
     )
 
 
+# Tout compte connecté, et son compte seul : l'id vient du jeton
+# (get_current_user), jamais de l'URL ni du corps ; UserPublic retire
+# `password`. Revue en DRO3 : inchangée.
 @router.get("/me", response_model=UserPublic, summary="Voir le compte connecté")
 def me(user: User = Depends(get_current_user)) -> User:
     """Rend le compte à qui appartient le jeton : pratique pour vérifier qui est connecté.
