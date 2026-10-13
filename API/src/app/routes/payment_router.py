@@ -11,6 +11,7 @@ from ..repositories.visit_repository import VisitRepository
 from ..services.parametrage_service import ParametrageService
 from ..services.payment_calculation_service import PaymentCalculationService
 from ..services.payment_service import PaymentService
+from ..utils.roles import ALL_ROLES, WRITER_ROLES
 from .crud_router import build_crud_router
 
 # Fiche API12 : le calcul branché sur la base. Partagé avec sale_router.py,
@@ -38,4 +39,8 @@ router = build_crud_router(
     prefix="/payments",
     tag="payment",
     response_model=Payment,
+    # DRO2 : les droits de l'argent se règlent à part ; ouvert comme
+    # avant le moindre privilège (DRO1).
+    read_roles=ALL_ROLES,
+    write_roles=WRITER_ROLES,
 )

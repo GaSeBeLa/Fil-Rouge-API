@@ -11,9 +11,9 @@ COMMENT LIRE CE FICHIER
   connecté n'est pas dans la liste. Sans jeton, get_current_user a déjà
   rendu 401 avant.
 
-Tant que la matrice d'ADR-027 attend le client, seules les règles des ADR
-acceptés s'appliquent : `Reader` lit sans écrire (ADR-028) ; tout le reste
-est ouvert à tout compte connecté.
+La matrice d'ADR-027 se déclare table par table, dans chaque routeur
+(`read_roles`, `write_roles`, `create_roles` de build_crud_router) : fermé
+par défaut (fiche DRO1). `Reader` lit sans écrire (ADR-028).
 ============================================================================
 """
 

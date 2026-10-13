@@ -85,7 +85,8 @@ def test_client_without_mandate_is_fully_anonymized(db_client: TestClient, db_se
     email = "ada.api10@exemple.fr"
     account = {"email": email, "password": USER_PASSWORD, "id_role": 1, "is_activated": True}
     user_id = db_client.post("/users", json=account).json()["id"]
-    created = db_client.post("/clients", json={**CLIENT_RECORD, "id_user": user_id})
+    with acting_as(CLIENT):  # lui seul crée sa fiche (ADR-027, annexe § 1)
+        created = db_client.post("/clients", json={**CLIENT_RECORD, "id_user": user_id})
     assert created.status_code == 201, created.text
     assert _login(db_client, email, USER_PASSWORD) == 200  # actif avant
 
@@ -118,9 +119,10 @@ def test_client_without_mandate_is_fully_anonymized(db_client: TestClient, db_se
 def test_client_comment_is_cleared_and_name_waits_for_the_mandate(
     db_client: TestClient, db_session: Session
 ) -> None:
-    offer = db_client.post(
+    offer = post_as_hunter(
+        db_client,
         "/estate-proposed",
-        json={
+        {
             "proposition_status": "proposed",
             "id_hunter": HUNTER_ID,
             "id_estate": selected_estate(db_client),
@@ -171,7 +173,7 @@ def _hunter_with_an_old_mandate(db_client: TestClient) -> tuple[int, int]:
         "ends_at": "2024-07-01",
         "id_hunter": hunter_id,
     }
-    assert (created := db_client.post("/mandates", json=mandate)).status_code == 201, created.text
+    assert (created := post_as_hunter(db_client, "/mandates", mandate)).status_code == 201, created.text
     grid = {"effective_from": "2024-01-01", "fixed_amount": 3000, "rate": "0.0250"}
     sale = {
         "signature_date": "2024-06-01",
@@ -249,7 +251,7 @@ def test_renewal_by_another_hunter_extends_the_delay(db_client: TestClient) -> N
         "id_search_request": ACTIVE_REQUEST,
         "id_mandate_parent": ACTIVE_MANDATE,
     }
-    assert (created := db_client.post("/mandates", json=renewal)).status_code == 201, created.text
+    assert (created := post_as_hunter(db_client, "/mandates", renewal)).status_code == 201, created.text
 
     body = _anonymize(db_client, HUNTER_ID).json()
 
@@ -269,7 +271,7 @@ def test_unsigned_renewal_keeps_the_signed_end(db_client: TestClient) -> None:
         "id_search_request": ACTIVE_REQUEST,
         "id_mandate_parent": ACTIVE_MANDATE,
     }
-    assert (created := db_client.post("/mandates", json=renewal)).status_code == 201, created.text
+    assert (created := post_as_hunter(db_client, "/mandates", renewal)).status_code == 201, created.text
 
     body = _anonymize(db_client, ACTIVE_MANDATE_CLIENT).json()
 

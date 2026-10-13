@@ -20,7 +20,7 @@ from src.app.conf.database import get_session
 from src.app.routes import hunter_performance_router, role_router, user_router
 from src.app.routes.crud_router import build_crud_router
 from src.app.services.base_service import BaseService
-from src.app.utils.roles import ADMIN, CLIENT, HUNTER, MANAGER, READER, get_principal
+from src.app.utils.roles import ADMIN, ALL_ROLES, CLIENT, HUNTER, MANAGER, READER, WRITER_ROLES, get_principal
 
 from .conftest import TEST_HEADERS, principal_as
 
@@ -46,7 +46,18 @@ def service() -> MagicMock:
 @pytest.fixture
 def test_app(service: MagicMock) -> FastAPI:
     app = FastAPI()
-    app.include_router(build_crud_router(service=service, prefix="/things", tag="things", response_model=Thing))
+    # Les droits d'avant DRO1, déclarés : tout compte lit, Reader n'écrit pas.
+    things = build_crud_router(
+        service=service,
+        prefix="/things",
+        tag="things",
+        response_model=Thing,
+        read_roles=ALL_ROLES,
+        write_roles=WRITER_ROLES,
+    )
+    app.include_router(things)
+    # Aucun rôle déclaré : fermé à tous (DRO1).
+    app.include_router(build_crud_router(service=service, prefix="/closed", tag="closed", response_model=Thing))
     app.include_router(hunter_performance_router.router)
     app.include_router(user_router.router)
     app.include_router(role_router.router)
@@ -91,6 +102,19 @@ def test_admin_can_create(test_app: FastAPI):
     assert response.json() == {"id": 2, "name": "b"}
 
 
+@pytest.mark.parametrize("role", [ADMIN, CLIENT, HUNTER, MANAGER, READER])
+def test_router_without_roles_is_closed_to_all(test_app: FastAPI, service: MagicMock, role: str):
+    # DRO1 : fermé par défaut ; une table ouvre ce que la cible lui donne.
+    client = client_as(test_app, role)
+
+    assert client.get("/closed").status_code == 403
+    assert client.get("/closed/1").status_code == 403
+    assert client.post("/closed", json={"name": "b"}).status_code == 403
+    assert client.put("/closed/1", json={"name": "b"}).status_code == 403
+    service.list_all.assert_not_called()
+    service.create.assert_not_called()
+
+
 def test_hunter_performance_closed_to_writes_even_for_admin(test_app: FastAPI):
     # ADR-035 : jamais saisie à la main ; PaymentService l'écrit au passage à 'paid' (API12).
     client = client_as(test_app, ADMIN)
@@ -110,10 +134,11 @@ def test_only_admin_writes_users(test_app: FastAPI, role: str):
     assert client.put("/users/1", json={"password": "un-autre-mot-de-passe"}).status_code == 403
 
 
-@pytest.mark.parametrize("role", [CLIENT, HUNTER, MANAGER, READER])
-def test_only_admin_writes_roles(test_app: FastAPI, role: str):
+@pytest.mark.parametrize("role", [ADMIN, CLIENT, HUNTER, MANAGER, READER])
+def test_nobody_writes_roles(test_app: FastAPI, role: str):
     # Sinon un Client supprimait le rôle Admin vide, puis renommait le sien
-    # en « Admin » : tous les Clients devenaient Admin.
+    # en « Admin » : tous les Clients devenaient Admin. Depuis DRO1, l'Admin
+    # non plus (ADR-027, annexe § 1) : les 5 rôles viennent du seed.
     client = client_as(test_app, role)
 
     assert client.post("/roles", json={"wording": "Admin"}).status_code == 403

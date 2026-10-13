@@ -9,7 +9,7 @@ from ..repositories.parameters_fees_repository import ParametersFeesRepository
 from ..repositories.sale_repository import SaleRepository
 from ..services.sale_service import SaleService
 from ..utils.exceptions import ConflictError, NotFoundError
-from ..utils.roles import WRITER_ROLES, Principal, require_roles
+from ..utils.roles import ALL_ROLES, WRITER_ROLES, Principal, require_roles
 from .crud_router import build_crud_router
 from .payment_router import calculation, payment_service
 
@@ -18,6 +18,10 @@ router = build_crud_router(
     prefix="/sales",
     tag="sale",
     response_model=Sale,
+    # DRO2 : les droits de l'argent se règlent à part ; ouvert comme
+    # avant le moindre privilège (DRO1).
+    read_roles=ALL_ROLES,
+    write_roles=WRITER_ROLES,
 )
 
 

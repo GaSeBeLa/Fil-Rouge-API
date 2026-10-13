@@ -1,6 +1,7 @@
 from ..models import HunterPerformance
 from ..repositories.hunter_performance_repository import HunterPerformanceRepository
 from ..services.hunter_performance_service import HunterPerformanceService
+from ..utils.roles import ADMIN, HUNTER, MANAGER, READER
 from .crud_router import build_crud_router
 
 router = build_crud_router(
@@ -8,6 +9,9 @@ router = build_crud_router(
     prefix="/hunter-performances",
     tag="hunter_performance",
     response_model=HunterPerformance,
+    # ADR-027, annexe § 4 : lue par le chasseur (H12), son manager,
+    # l'Admin et Reader ; le client n'y a pas accès.
+    read_roles=(ADMIN, HUNTER, MANAGER, READER),
     # ADR-035 : la performance d'un chasseur n'est jamais saisie à la main ;
     # POST et PUT fermés à tous ; la note 'payment' s'écrit quand un
     # paiement passe à 'paid' (PaymentService, fiche API12).

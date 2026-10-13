@@ -20,11 +20,15 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from src.app.utils.roles import CLIENT, HUNTER
+
+from ..conftest import acting_as
 from .test_constraints_db import (
     ACTIVE_MANDATE,
     ACTIVE_REQUEST,
     HUNTER_ID,
     MANDATE,
+    post_as_hunter,
     selected_estate,
 )
 
@@ -42,7 +46,7 @@ def visit(estate_id: int, visit_date: str, visitor_type: str = "client", mandate
 def proposed_estate(db_client: TestClient) -> int:
     """Un bien de la sélection, proposé sur le mandat 15."""
     estate_id = selected_estate(db_client)
-    response = db_client.post("/estate-proposed", json=proposal(estate_id))
+    response = post_as_hunter(db_client, "/estate-proposed", proposal(estate_id))
     assert response.status_code == 201, response.text
     return estate_id
 
@@ -51,7 +55,7 @@ def proposed_estate(db_client: TestClient) -> int:
 
 
 def test_selected_estate_can_be_proposed(db_client: TestClient):
-    response = db_client.post("/estate-proposed", json=proposal(selected_estate(db_client)))
+    response = post_as_hunter(db_client, "/estate-proposed", proposal(selected_estate(db_client)))
     assert response.status_code == 201, response.text
 
 
@@ -59,27 +63,29 @@ def test_estate_selected_for_another_request_cannot_be_proposed(db_client: TestC
     # Sélectionné pour la demande 3, proposé sur le mandat 15 (demande 15).
     estate_id = selected_estate(db_client, search_request=3)
 
-    response = db_client.post("/estate-proposed", json=proposal(estate_id))
+    response = post_as_hunter(db_client, "/estate-proposed", proposal(estate_id))
     assert response.status_code == 409
     assert "P19" in response.text
 
 
 def test_moving_a_proposal_to_an_unselected_estate_returns_409(db_client: TestClient):
     payload = proposal(selected_estate(db_client))
-    created = db_client.post("/estate-proposed", json=payload).json()
+    created = post_as_hunter(db_client, "/estate-proposed", payload).json()
     other = selected_estate(db_client, search_request=3, reference="TEST-0002")
 
-    response = db_client.put(f"/estate-proposed/{created['id']}", json={**payload, "id_estate": other})
+    with acting_as(HUNTER, HUNTER_ID):  # le chasseur modifie sa proposition (H5, H9)
+        response = db_client.put(f"/estate-proposed/{created['id']}", json={**payload, "id_estate": other})
     assert response.status_code == 409
     assert "P19" in response.text
 
 
 def test_updating_a_proposal_in_place_is_accepted(db_client: TestClient):
     payload = proposal(selected_estate(db_client))
-    created = db_client.post("/estate-proposed", json=payload).json()
+    created = post_as_hunter(db_client, "/estate-proposed", payload).json()
 
     changed = {**payload, "comment_client": "À visiter vite."}
-    response = db_client.put(f"/estate-proposed/{created['id']}", json=changed)
+    with acting_as(CLIENT):  # le client commente une proposition (H6)
+        response = db_client.put(f"/estate-proposed/{created['id']}", json=changed)
     assert response.status_code == 200, response.text
 
 
@@ -91,7 +97,7 @@ def test_proposal_on_a_closed_mandate_returns_409(db_client: TestClient, mandate
     # Le bien est dans la sélection de la demande : seule P20 refuse.
     estate_id = selected_estate(db_client, search_request=request_id)
 
-    response = db_client.post("/estate-proposed", json=proposal(estate_id, mandate))
+    response = post_as_hunter(db_client, "/estate-proposed", proposal(estate_id, mandate))
     assert response.status_code == 409
     assert "P20" in response.text
 
@@ -100,19 +106,19 @@ def test_proposal_on_a_closed_mandate_returns_409(db_client: TestClient, mandate
 
 
 def test_client_visit_on_a_proposed_estate_is_accepted(db_client: TestClient):
-    response = db_client.post("/visits", json=visit(proposed_estate(db_client), "2026-05-10"))
+    response = post_as_hunter(db_client, "/visits", visit(proposed_estate(db_client), "2026-05-10"))
     assert response.status_code == 201, response.text
 
 
 def test_client_visit_on_an_unproposed_estate_returns_409(db_client: TestClient):
     # Sélectionné, mais jamais proposé sur ce mandat.
-    response = db_client.post("/visits", json=visit(selected_estate(db_client), "2026-05-10"))
+    response = post_as_hunter(db_client, "/visits", visit(selected_estate(db_client), "2026-05-10"))
     assert response.status_code == 409
     assert "P23" in response.text
 
 
 def test_hunter_visit_on_an_unproposed_estate_is_accepted(db_client: TestClient):
-    response = db_client.post("/visits", json=visit(selected_estate(db_client), "2026-05-10", "hunter"))
+    response = post_as_hunter(db_client, "/visits", visit(selected_estate(db_client), "2026-05-10", "hunter"))
     assert response.status_code == 201, response.text
 
 
@@ -121,12 +127,12 @@ def test_hunter_visit_on_an_unproposed_estate_is_accepted(db_client: TestClient)
 
 @pytest.mark.parametrize("visit_date", ["2026-03-25", "2026-09-25"])
 def test_visit_on_the_mandate_bounds_is_accepted(db_client: TestClient, visit_date: str):
-    response = db_client.post("/visits", json=visit(proposed_estate(db_client), visit_date))
+    response = post_as_hunter(db_client, "/visits", visit(proposed_estate(db_client), visit_date))
     assert response.status_code == 201, response.text
 
 
 def test_visit_after_the_mandate_end_returns_409(db_client: TestClient):
-    response = db_client.post("/visits", json=visit(proposed_estate(db_client), "2026-09-26"))
+    response = post_as_hunter(db_client, "/visits", visit(proposed_estate(db_client), "2026-09-26"))
     assert response.status_code == 409
     assert "P25" in response.text
 
@@ -134,30 +140,30 @@ def test_visit_after_the_mandate_end_returns_409(db_client: TestClient):
 def test_visit_on_a_canceled_mandate_within_its_dates_is_accepted(db_client: TestClient):
     # P25 : le statut n'est pas regardé ; visite du chasseur, P23 ne s'applique pas.
     payload = visit(selected_estate(db_client), "2026-05-01", "hunter", CANCELED_MANDATE)
-    response = db_client.post("/visits", json=payload)
+    response = post_as_hunter(db_client, "/visits", payload)
     assert response.status_code == 201, response.text
 
 
 def test_visit_before_the_signature_returns_409(db_client: TestClient):
-    response = db_client.post("/visits", json=visit(proposed_estate(db_client), "2026-03-24"))
+    response = post_as_hunter(db_client, "/visits", visit(proposed_estate(db_client), "2026-03-24"))
     assert response.status_code == 409
     assert "ADR-044" in response.text
 
 
 def test_visit_on_an_unsigned_mandate_returns_409(db_client: TestClient):
     unsigned = {**MANDATE, "status": "pending_signature", "signature_date": None, "ends_at": None}
-    mandate = db_client.post("/mandates", json=unsigned)
+    mandate = post_as_hunter(db_client, "/mandates", unsigned)
     assert mandate.status_code == 201, mandate.text
 
     payload = visit(selected_estate(db_client), "2026-05-01", "hunter", mandate.json()["id"])
-    response = db_client.post("/visits", json=payload)
+    response = post_as_hunter(db_client, "/visits", payload)
     assert response.status_code == 409
     assert "ADR-044" in response.text
 
 
 def test_moving_a_visit_after_the_mandate_end_returns_409(db_client: TestClient):
     payload = visit(proposed_estate(db_client), "2026-05-10")
-    created = db_client.post("/visits", json=payload).json()
+    created = post_as_hunter(db_client, "/visits", payload).json()
 
     response = db_client.put(f"/visits/{created['id']}", json={**payload, "visit_date": "2026-09-30"})
     assert response.status_code == 409

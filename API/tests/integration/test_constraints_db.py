@@ -58,7 +58,7 @@ from src.app.models import HunterPerformance
 from src.app.repositories.hunter_performance_repository import HunterPerformanceRepository
 from src.app.services.hunter_performance_service import HunterPerformanceService
 from src.app.utils.exceptions import ConflictError
-from src.app.utils.roles import HUNTER
+from src.app.utils.roles import ADMIN, CLIENT, HUNTER
 
 from ..conftest import acting_as
 
@@ -103,6 +103,30 @@ HUNTER_ID = 1
 def post_as_hunter(db_client: TestClient, endpoint: str, payload: dict[str, Any]) -> Response:
     """POST sous le compte du chasseur 1 ; les autres requêtes restent en Admin."""
     with acting_as(HUNTER, HUNTER_ID):
+        return db_client.post(endpoint, json=payload)
+
+
+def post_as_client(db_client: TestClient, endpoint: str, payload: dict[str, Any]) -> Response:
+    """POST sous un compte Client : lui seul crée sa fiche client (ADR-027, annexe § 1)."""
+    with acting_as(CLIENT):
+        return db_client.post(endpoint, json=payload)
+
+
+# Qui crée quoi depuis DRO1 (ADR-027, annexe) : le compte de chaque POST
+# des tests qui parcourent plusieurs tables.
+CREATOR: dict[str, str] = {
+    "/clients": CLIENT,
+    "/hunters": ADMIN,
+    "/real-estate-managers": ADMIN,
+    "/estates": HUNTER,
+    "/criteria": HUNTER,
+}
+
+
+def post_as_creator(db_client: TestClient, endpoint: str, payload: dict[str, Any]) -> Response:
+    """POST sous le rôle qui crée cette table (CREATOR)."""
+    role = CREATOR[endpoint]
+    with acting_as(role, HUNTER_ID if role == HUNTER else 0):
         return db_client.post(endpoint, json=payload)
 
 
@@ -167,7 +191,7 @@ def test_client_without_address_field_returns_422(
 ):
     payload = client_payload(create_user("sans-adresse@exemple.fr"))
     del payload[field]
-    assert db_client.post("/clients", json=payload).status_code == 422
+    assert post_as_client(db_client, "/clients", payload).status_code == 422
 
 
 def test_client_without_address_is_refused_by_the_database(db_session: Session):
@@ -185,21 +209,21 @@ def test_client_anonymized_address_is_accepted(db_client: TestClient, create_use
     # Adresse neutre d'un client rendu anonyme (ADR-049, ADR-053) : elle doit
     # passer tous les CHECK de la base.
     neutral = {"address": "anonyme", "postal_code": "00000", "town": "anonyme", "country_iso": "FR"}
-    response = db_client.post("/clients", json=client_payload(create_user("anonyme@exemple.fr"), **neutral))
+    response = post_as_client(db_client, "/clients", client_payload(create_user("anonyme@exemple.fr"), **neutral))
     assert response.status_code == 201, response.text
 
 
 def test_client_married_and_pacs_returns_409(db_client: TestClient, create_user: Callable[[str], int]):
     payload = client_payload(create_user("pacs@exemple.fr"), is_married=True, is_civil_solidarity_pact=True)
-    assert db_client.post("/clients", json=payload).status_code == 409
+    assert post_as_client(db_client, "/clients", payload).status_code == 409
 
 
 def test_client_second_profile_for_same_user_returns_409(
     db_client: TestClient, create_user: Callable[[str], int]
 ):
     user_id = create_user("double@exemple.fr")
-    assert db_client.post("/clients", json=client_payload(user_id)).status_code == 201
-    assert db_client.post("/clients", json=client_payload(user_id)).status_code == 409  # UNIQUE(id_user)
+    assert post_as_client(db_client, "/clients", client_payload(user_id)).status_code == 201
+    assert post_as_client(db_client, "/clients", client_payload(user_id)).status_code == 409  # UNIQUE(id_user)
 
 
 # --- téléphone : client, hunter, real_estate_manager ---------------------------
@@ -224,7 +248,7 @@ def test_person_national_phone_returns_409(
     db_client: TestClient, create_user: Callable[[str], int], endpoint: str
 ):
     payload = person_payload(endpoint, create_user("national@exemple.fr"), "0612345678")
-    assert db_client.post(endpoint, json=payload).status_code == 409
+    assert post_as_creator(db_client, endpoint, payload).status_code == 409
 
 
 @pytest.mark.parametrize("phone_number", ["+33612345678", "+33000000000"])
@@ -233,7 +257,7 @@ def test_person_international_phone_is_accepted(
     db_client: TestClient, create_user: Callable[[str], int], endpoint: str, phone_number: str
 ):
     payload = person_payload(endpoint, create_user("international@exemple.fr"), phone_number)
-    response = db_client.post(endpoint, json=payload)
+    response = post_as_creator(db_client, endpoint, payload)
     assert response.status_code == 201, response.text
 
 
@@ -275,13 +299,14 @@ def eircode_payload(create_user: Callable[[str], int], endpoint: str, postal_cod
     return {**NEXT_CRITERIA_VERSION, "estate_type": "Appartement", "budget_max": 300000, **location}
 
 
-# En chasseur : /estates l'exige (ADR-047), /clients et /criteria l'acceptent.
+# Chaque table sous le rôle qui la crée (CREATOR) : le chasseur pour /estates
+# (ADR-047) et /criteria, le client pour /clients.
 @pytest.mark.parametrize("endpoint", EIRCODE_ENDPOINTS)
 def test_eircode_with_space_returns_409(
     db_client: TestClient, create_user: Callable[[str], int], endpoint: str
 ):
     payload = eircode_payload(create_user, endpoint, "D02 X285")
-    assert post_as_hunter(db_client, endpoint, payload).status_code == 409
+    assert post_as_creator(db_client, endpoint, payload).status_code == 409
 
 
 @pytest.mark.parametrize("endpoint", EIRCODE_ENDPOINTS)
@@ -289,7 +314,7 @@ def test_eircode_without_space_is_accepted(
     db_client: TestClient, create_user: Callable[[str], int], endpoint: str
 ):
     payload = eircode_payload(create_user, endpoint, "D02X285")
-    response = post_as_hunter(db_client, endpoint, payload)
+    response = post_as_creator(db_client, endpoint, payload)
     assert response.status_code == 201, response.text
 
 
@@ -302,11 +327,11 @@ CRITERIA: dict[str, Any] = {
 
 
 def test_criteria_district_without_town_returns_409(db_client: TestClient):
-    assert db_client.post("/criteria", json=CRITERIA).status_code == 409
+    assert post_as_hunter(db_client, "/criteria", CRITERIA).status_code == 409
 
 
 def test_criteria_district_with_town_is_accepted(db_client: TestClient):
-    response = db_client.post("/criteria", json={**CRITERIA, "town": "Montpellier"})
+    response = post_as_hunter(db_client, "/criteria", {**CRITERIA, "town": "Montpellier"})
     assert response.status_code == 201, response.text
 
 
@@ -329,58 +354,58 @@ MANDATE: dict[str, Any] = {
 
 def test_mandate_lost_status_is_accepted(db_client: TestClient):
     # Q-REM-02, Q-REM-14 : vente perdue, personne n'est payé sur ce mandat.
-    response = db_client.post("/mandates", json={**MANDATE, "status": "lost"})
+    response = post_as_hunter(db_client, "/mandates", {**MANDATE, "status": "lost"})
     assert response.status_code == 201, response.text
 
 
 def test_mandate_unknown_status_returns_409(db_client: TestClient):
-    response = db_client.post("/mandates", json={**MANDATE, "status": "sold_elsewhere"})
+    response = post_as_hunter(db_client, "/mandates", {**MANDATE, "status": "sold_elsewhere"})
     assert response.status_code == 409
 
 
 def test_mandate_canceled_without_signature_is_accepted(db_client: TestClient):
     # Q-MAN-07 : un client peut renoncer avant de signer — ni date, ni fin.
     payload = {**MANDATE, "status": "canceled", "signature_date": None, "ends_at": None}
-    response = db_client.post("/mandates", json=payload)
+    response = post_as_hunter(db_client, "/mandates", payload)
     assert response.status_code == 201, response.text
 
 
 def test_mandate_active_without_signature_returns_409(db_client: TestClient):
     # chk_status_signature reste strict hors 'pending_signature' et 'canceled'.
     payload = {**MANDATE, "signature_date": None, "ends_at": None}
-    assert db_client.post("/mandates", json=payload).status_code == 409
+    assert post_as_hunter(db_client, "/mandates", payload).status_code == 409
 
 
 def test_mandate_six_months_is_accepted(db_client: TestClient):
     # Q-MAN-01 : signé le 2030-01-01, fini le 2030-07-01.
-    response = db_client.post("/mandates", json=MANDATE)
+    response = post_as_hunter(db_client, "/mandates", MANDATE)
     assert response.status_code == 201, response.text
 
 
 def test_mandate_seven_months_returns_409(db_client: TestClient):
     # Q-MAN-01 : exactement 6 mois ; 7 mois passaient avec le CHECK v2.
     payload = {**MANDATE, "ends_at": "2030-08-01"}
-    assert db_client.post("/mandates", json=payload).status_code == 409
+    assert post_as_hunter(db_client, "/mandates", payload).status_code == 409
 
 
 def test_mandate_second_mandate_during_exclusive_returns_409(db_client: TestClient):
     # Q-MAN-02 : un exclusif bloque tout autre mandat du même client.
-    first = db_client.post("/mandates", json={**MANDATE, "is_exclusive": True})
+    first = post_as_hunter(db_client, "/mandates", {**MANDATE, "is_exclusive": True})
     assert first.status_code == 201, first.text
     second = {**MANDATE, "reference": "TEST-M-0002", "is_exclusive": True}
-    assert db_client.post("/mandates", json=second).status_code == 409
+    assert post_as_hunter(db_client, "/mandates", second).status_code == 409
 
 
 def test_mandate_accepted_after_exclusive_canceled(db_client: TestClient):
     # Q-JEF-06 : l'annulation d'un exclusif libère le client tout de suite.
     first_payload = {**MANDATE, "is_exclusive": True}
-    first = db_client.post("/mandates", json=first_payload)
+    first = post_as_hunter(db_client, "/mandates", first_payload)
     assert first.status_code == 201, first.text
     canceled = db_client.put(f"/mandates/{first.json()['id']}", json={**first_payload, "status": "canceled"})
     assert canceled.status_code == 200, canceled.text
 
     second = {**MANDATE, "reference": "TEST-M-0002", "is_exclusive": True}
-    response = db_client.post("/mandates", json=second)
+    response = post_as_hunter(db_client, "/mandates", second)
     assert response.status_code == 201, response.text
 
 
@@ -389,13 +414,13 @@ def test_mandate_accepted_after_exclusive_closed(db_client: TestClient, closed_s
     # ADR-039, Décision 5 (D1a, 2026-10-09) : un exclusif clos, vente faite ou
     # perdue, libère le client tout de suite, comme une annulation.
     first_payload = {**MANDATE, "is_exclusive": True}
-    first = db_client.post("/mandates", json=first_payload)
+    first = post_as_hunter(db_client, "/mandates", first_payload)
     assert first.status_code == 201, first.text
     closed = db_client.put(f"/mandates/{first.json()['id']}", json={**first_payload, "status": closed_status})
     assert closed.status_code == 200, closed.text
 
     second = {**MANDATE, "reference": "TEST-M-0002", "is_exclusive": True}
-    response = db_client.post("/mandates", json=second)
+    response = post_as_hunter(db_client, "/mandates", second)
     assert response.status_code == 201, response.text
 
 
@@ -403,7 +428,7 @@ def test_mandate_renewal_of_exclusive_is_accepted(db_client: TestClient):
     # Q-MAN-02 : le renouvellement, signé à l'échéance, touche la fin de son
     # parent ; le parent est exclu du contrôle, et le parent reste modifiable.
     parent_payload = {**MANDATE, "is_exclusive": True}
-    parent = db_client.post("/mandates", json=parent_payload)
+    parent = post_as_hunter(db_client, "/mandates", parent_payload)
     assert parent.status_code == 201, parent.text
     parent_id = parent.json()["id"]
 
@@ -415,7 +440,7 @@ def test_mandate_renewal_of_exclusive_is_accepted(db_client: TestClient):
         "is_exclusive": True,
         "id_mandate_parent": parent_id,
     }
-    response = db_client.post("/mandates", json=renewal)
+    response = post_as_hunter(db_client, "/mandates", renewal)
     assert response.status_code == 201, response.text
 
     # 'renewed' est le statut de l'ANCIEN mandat (décision du 2026-10-08).
@@ -425,16 +450,16 @@ def test_mandate_renewal_of_exclusive_is_accepted(db_client: TestClient):
 
 def test_mandate_second_successor_returns_409(db_client: TestClient):
     # Pas d'avenant : un mandat n'a qu'un successeur (UNIQUE sur id_mandate_parent).
-    parent = db_client.post("/mandates", json=MANDATE)
+    parent = post_as_hunter(db_client, "/mandates", MANDATE)
     assert parent.status_code == 201, parent.text
     parent_id = parent.json()["id"]
 
     first = {**MANDATE, "reference": "TEST-M-0002", "signature_date": "2030-07-01",
              "ends_at": "2031-01-01", "id_mandate_parent": parent_id}
-    assert db_client.post("/mandates", json=first).status_code == 201
+    assert post_as_hunter(db_client, "/mandates", first).status_code == 201
 
     second = {**first, "reference": "TEST-M-0003"}
-    assert db_client.post("/mandates", json=second).status_code == 409
+    assert post_as_hunter(db_client, "/mandates", second).status_code == 409
 
 
 # --- review_media ------------------------------------------------------------
@@ -512,12 +537,12 @@ def proposition_payload(db_client: TestClient, status: str) -> dict[str, Any]:
 
 def test_estate_proposed_signed_status_is_accepted(db_client: TestClient):
     # Q-SCH-04 : l'offre signée (ferme D5).
-    response = db_client.post("/estate-proposed", json=proposition_payload(db_client, "signed"))
+    response = post_as_hunter(db_client, "/estate-proposed", proposition_payload(db_client, "signed"))
     assert response.status_code == 201, response.text
 
 
 def test_estate_proposed_unknown_status_returns_409(db_client: TestClient):
-    response = db_client.post("/estate-proposed", json=proposition_payload(db_client, "sent"))
+    response = post_as_hunter(db_client, "/estate-proposed", proposition_payload(db_client, "sent"))
     assert response.status_code == 409
 
 
@@ -525,14 +550,14 @@ def test_estate_proposed_unknown_status_returns_409(db_client: TestClient):
 @pytest.mark.parametrize("priority", [1, 5])
 def test_estate_proposed_priority_at_bounds_is_accepted(db_client: TestClient, priority: int):
     payload = {**proposition_payload(db_client, "offer_pending"), "client_priority": priority}
-    response = db_client.post("/estate-proposed", json=payload)
+    response = post_as_hunter(db_client, "/estate-proposed", payload)
     assert response.status_code == 201, response.text
 
 
 @pytest.mark.parametrize("priority", [0, 6])
 def test_estate_proposed_priority_out_of_range_returns_409(db_client: TestClient, priority: int):
     payload = {**proposition_payload(db_client, "offer_pending"), "client_priority": priority}
-    assert db_client.post("/estate-proposed", json=payload).status_code == 409
+    assert post_as_hunter(db_client, "/estate-proposed", payload).status_code == 409
 
 
 # --- payment -----------------------------------------------------------------
@@ -599,14 +624,14 @@ def offered_estate(db_client: TestClient, mandate_id: int, status: str = "accept
         "id_estate": estate_id,
         "id_mandate": mandate_id,
     }
-    response = db_client.post("/estate-proposed", json=offer)
+    response = post_as_hunter(db_client, "/estate-proposed", offer)
     assert response.status_code == 201, response.text
     return estate_id
 
 
 def sale_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
     """Une vente 'hunter' sur un mandat neuf (SALE_MANDATE), après une offre acceptée (P27)."""
-    mandate = db_client.post("/mandates", json=SALE_MANDATE)
+    mandate = post_as_hunter(db_client, "/mandates", SALE_MANDATE)
     assert mandate.status_code == 201, mandate.text
     mandate_id = mandate.json()["id"]
     payload: dict[str, Any] = {

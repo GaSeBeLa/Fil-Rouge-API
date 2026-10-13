@@ -1,6 +1,7 @@
 from ..models import RealEstateManager
 from ..repositories.real_estate_manager_repository import RealEstateManagerRepository
 from ..services.real_estate_manager_service import RealEstateManagerService
+from ..utils.roles import ADMIN, HUNTER, MANAGER, READER
 from .crud_router import build_crud_router
 
 router = build_crud_router(
@@ -8,4 +9,9 @@ router = build_crud_router(
     prefix="/real-estate-managers",
     tag="real_estate_manager",
     response_model=RealEstateManager,
+    # ADR-027, annexe § 1 : lu par ses chasseurs, lui-même, l'Admin et
+    # Reader ; créé par l'Admin. Le manager modifiera ses coordonnées
+    # en DRO7 : Admin seul d'ici là.
+    read_roles=(ADMIN, HUNTER, MANAGER, READER),
+    write_roles=(ADMIN,),
 )

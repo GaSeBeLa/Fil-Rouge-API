@@ -48,7 +48,7 @@ from src.app.services.remuneration import (
     calculer_score,
 )
 
-from .test_constraints_db import HUNTER_ID, rate_parameters, sale_payload
+from .test_constraints_db import HUNTER_ID, post_as_hunter, rate_parameters, sale_payload
 
 ACTE = date(2026, 3, 1)
 
@@ -151,7 +151,7 @@ def ready_sale(db_client: TestClient, **overrides: Any) -> tuple[int, int]:
     for day, who in [(10, "client"), (12, "hunter"), (14, "hunter"), (20, "client"), (22, "hunter")]:
         visit = {"visit_date": f"2026-02-{day}", "visitor_type": who,
                  "id_estate": payload["id_estate"], "id_mandate": payload["id_mandate"]}
-        response = db_client.post("/visits", json=visit)
+        response = post_as_hunter(db_client, "/visits", visit)
         assert response.status_code == 201, response.text
     return created.json()["id"], payload["id_mandate"]
 

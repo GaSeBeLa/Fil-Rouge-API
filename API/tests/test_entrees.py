@@ -43,6 +43,10 @@ def api() -> TestClient:
         2: incoherent_version(),
     }
 
+    # Les droits ne sont pas l'objet de ce fichier : fermé par défaut (DRO1),
+    # chaque routeur s'ouvre à Admin, le compte du test.
+    open_to_admin: dict[str, Any] = {"read_roles": (ADMIN,), "write_roles": (ADMIN,)}
+
     app = FastAPI()
     app.include_router(
         build_crud_router(
@@ -52,13 +56,20 @@ def api() -> TestClient:
             response_model=UserCreate,
             update_model=UserUpdate,
             read_model=UserUpdate,  # le service factice rend l'entrée telle quelle
+            **open_to_admin,
         )
     )
-    app.include_router(build_crud_router(service=echo_service(), prefix="/estates", tag="e", response_model=Estate))
     app.include_router(
-        build_crud_router(service=echo_service(), prefix="/rates", tag="r", response_model=HunterRateParameters)
+        build_crud_router(service=echo_service(), prefix="/estates", tag="e", response_model=Estate, **open_to_admin)
     )
-    app.include_router(build_crud_router(service=echo_service(), prefix="/payments", tag="p", response_model=Payment))
+    app.include_router(
+        build_crud_router(
+            service=echo_service(), prefix="/rates", tag="r", response_model=HunterRateParameters, **open_to_admin
+        )
+    )
+    app.include_router(
+        build_crud_router(service=echo_service(), prefix="/payments", tag="p", response_model=Payment, **open_to_admin)
+    )
     app.dependency_overrides[get_session] = lambda: None
     app.dependency_overrides[get_principal] = principal_as(ADMIN)
     return TestClient(app, headers=TEST_HEADERS)

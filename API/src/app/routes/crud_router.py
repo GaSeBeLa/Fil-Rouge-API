@@ -31,15 +31,15 @@ manquant finissait en 409. `_validated` revalide donc le corps avec
 `model_validate`, qui, lui, valide : une entrée invalide rend 422, avant
 d'atteindre la base.
 
-Droits (ADR-028, fiche API2) : toutes les routes exigent un jeton (401
-sans). Les GET sont ouverts à tout compte connecté ; POST et PUT sont
-refusés à `Reader` (403), qui lit sans écrire. `write_roles` restreint
-POST et PUT pour une table : `()` les ferme à tous (hunter_performance,
-ADR-035) ; users : `Admin` seul. La
-matrice complète des droits (ADR-027) n'est pas codée. `create_roles`
-restreint le seul POST (estate : Hunter et Manager, ADR-047) ; absent, le
-POST suit `write_roles`. `read_roles` restreint les deux GET (estate_contact :
-ni Client ni Reader, ADR-054) ; absent, tout compte connecté lit.
+Droits (ADR-028, fiche API2 ; moindre privilège, fiche DRO1) : toutes les
+routes exigent un jeton (401 sans). Fermé par défaut : sans `read_roles`
+ni `write_roles`, personne ne lit ni n'écrit (403). Chaque routeur déclare
+donc ses rôles, lus dans l'annexe d'ADR-027
+(`md/adr/adr-027-annexe-matrice-detaillee.md`) au niveau du rôle.
+`read_roles` ouvre les deux GET ; `write_roles` ouvre le PUT, et le POST
+quand `create_roles` est absent ; `create_roles` ouvre le seul POST. `()`
+ferme le geste à tous. « Le sien » (sa propre ligne) n'est pas encore
+filtré : fiches DRO4 à DRO8.
 
 Le compte connecté (fiche API6) : le POST le passe au service,
 `service.create(..., actor=<compte>)`, qui s'en sert pour remplir l'auteur
@@ -70,7 +70,7 @@ from ..conf.database import get_session
 from ..models.input_check import INPUT_CONTEXT
 from ..utils.api_keys import require_api_key
 from ..utils.exceptions import ConflictError, ForbiddenError, NotFoundError
-from ..utils.roles import ALL_ROLES, WRITER_ROLES, Principal, require_roles
+from ..utils.roles import ALL_ROLES, Principal, require_roles
 from ..services.base_service import BaseService
 
 
@@ -98,7 +98,7 @@ _AUTH_ERRORS = "- `401` : clé d'API (`X-API-Key`) ou jeton absent, inconnu ou e
 def _who(roles: Sequence[str]) -> str:
     """Les rôles autorisés, en clair pour la doc Swagger."""
     if not roles:
-        return "personne (l'API remplit cette table seule)"
+        return "personne (geste fermé)"
     if tuple(roles) == ALL_ROLES:
         return "tout compte connecté"
     return ", ".join(f"`{role}`" for role in roles)
@@ -117,8 +117,9 @@ def build_crud_router(
     response_model: Type[SQLModel],
     read_model: Optional[Type[SQLModel]] = None,
     update_model: Optional[Type[SQLModel]] = None,
-    read_roles: Sequence[str] = ALL_ROLES,
-    write_roles: Sequence[str] = WRITER_ROLES,
+    # Fermé par défaut (DRO1) : chaque routeur déclare qui lit, crée, modifie.
+    read_roles: Sequence[str] = (),
+    write_roles: Sequence[str] = (),
     create_roles: Optional[Sequence[str]] = None,
 ) -> APIRouter:
     router = APIRouter(prefix=prefix, tags=[tag], dependencies=[Depends(require_api_key)])

@@ -33,7 +33,7 @@ SIGNED = {"status": "active", "signature_date": "2026-02-01", "ends_at": "2026-0
 def new_request(db_client: TestClient) -> int:
     """Une demande neuve du client 7, acceptée par le chasseur 1."""
     payload = {"id_author": 7, "id_client": 7, "id_hunter": HUNTER_ID, "status": "accepted"}
-    response = db_client.post("/search-requests", json=payload)
+    response = post_as_hunter(db_client, "/search-requests", payload)  # Q-ACC-15
     assert response.status_code == 201, response.text
     return response.json()["id"]
 
@@ -59,7 +59,7 @@ def other_estate(db_client: TestClient) -> int:
 def test_signing_a_mandate_launches_its_request(db_client: TestClient):
     request_id = new_request(db_client)
     payload = {**UNSIGNED, "id_search_request": request_id}
-    created = db_client.post("/mandates", json=payload)
+    created = post_as_hunter(db_client, "/mandates", payload)
     assert created.status_code == 201, created.text
     assert request_status(db_client, request_id) == "accepted"  # pas encore signé
 
@@ -71,7 +71,7 @@ def test_signing_a_mandate_launches_its_request(db_client: TestClient):
 def test_mandate_created_signed_launches_its_request(db_client: TestClient):
     request_id = new_request(db_client)
 
-    response = db_client.post("/mandates", json={**UNSIGNED, **SIGNED, "id_search_request": request_id})
+    response = post_as_hunter(db_client, "/mandates", {**UNSIGNED, **SIGNED, "id_search_request": request_id})
     assert response.status_code == 201, response.text
     assert request_status(db_client, request_id) == "launched"
 
@@ -82,7 +82,7 @@ def test_refused_mandate_does_not_launch_its_request(db_client: TestClient):
     request_id = new_request(db_client)
     payload = {**UNSIGNED, **SIGNED, "ends_at": "2026-09-01", "id_search_request": request_id}
 
-    assert db_client.post("/mandates", json=payload).status_code == 409
+    assert post_as_hunter(db_client, "/mandates", payload).status_code == 409
     assert request_status(db_client, request_id) == "accepted"
 
 
@@ -91,7 +91,7 @@ def test_refused_mandate_does_not_launch_its_request(db_client: TestClient):
 
 def test_sale_on_an_unsigned_mandate_returns_409(db_client: TestClient):
     payload = sale_payload(db_client)
-    unsigned = db_client.post("/mandates", json=UNSIGNED)
+    unsigned = post_as_hunter(db_client, "/mandates", UNSIGNED)
     assert unsigned.status_code == 201, unsigned.text
 
     # 'client_alone' : P27 ne s'applique pas, seule la signature manque.

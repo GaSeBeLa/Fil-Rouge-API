@@ -54,7 +54,16 @@ def service() -> MagicMock:
 @pytest.fixture
 def api(service: MagicMock) -> TestClient:
     app = FastAPI()
-    app.include_router(build_crud_router(service=service, prefix="/things", tag="things", response_model=Thing))
+    # Fermé par défaut (DRO1) : on ouvre les gestes à Admin, le compte du test.
+    router = build_crud_router(
+        service=service,
+        prefix="/things",
+        tag="things",
+        response_model=Thing,
+        read_roles=(ADMIN,),
+        write_roles=(ADMIN,),
+    )
+    app.include_router(router)
     app.dependency_overrides[get_session] = lambda: None
     app.dependency_overrides[get_principal] = principal_as(ADMIN)  # fiche API2
     return TestClient(app, headers=TEST_HEADERS)  # fiche API3
