@@ -68,10 +68,54 @@ from .routes import (
     visit_router,
 )
 
+# Doc Swagger (/docs) : la description de l'API et une phrase par section,
+# écrites pour qui découvre le projet. L'ordre de la liste est celui des
+# sections à l'écran : du compte au paiement, comme le parcours d'un client.
+OPENAPI_DESCRIPTION = """
+API du service de chasse immobilière (projet fil rouge EISI Data-IA).
+
+**Pour commencer** :
+
+1. **Authorize** → `APIKeyHeader` : la clé d'API (`API_KEY_INTERNAL` de `docker/.env`).
+2. `POST /auth/login` avec votre email et votre mot de passe : copier `access_token`.
+3. **Authorize** → `HTTPBearer` : coller le jeton seul, sans le mot `Bearer`.
+
+Chaque table a les mêmes routes : lister, lire par `id`, créer, modifier.
+Aucune ne supprime : un `DELETE` répond `405` (ADR-049).
+Le guide complet est dans `API/README.md`.
+"""
+
+OPENAPI_TAGS = [
+    {"name": "health", "description": "Vérifier que le serveur répond."},
+    {"name": "auth", "description": "Se connecter : recevoir le jeton que demandent les autres routes."},
+    {"name": "search-requests", "description": "Le formulaire du site : un visiteur sans compte dépose sa demande."},
+    {"name": "user", "description": "Les comptes de connexion (email, mot de passe, rôle). `Admin` seul écrit."},
+    {"name": "role", "description": "Les cinq rôles : `Admin`, `Client`, `Hunter`, `Manager`, `Reader`."},
+    {"name": "hunter", "description": "Les chasseurs : ils cherchent des biens pour leurs clients."},
+    {"name": "client", "description": "Les clients : les personnes qui cherchent un bien."},
+    {"name": "real_estate_manager", "description": "Les managers : ils encadrent des chasseurs."},
+    {"name": "search_request", "description": "Les demandes de recherche d'un client."},
+    {"name": "criteria", "description": "Les critères d'une demande (budget, surface…). Chaque révision garde la précédente."},
+    {"name": "mandate", "description": "Les mandats : le contrat qui lie un client et un chasseur."},
+    {"name": "estate", "description": "Les biens immobiliers (annonces)."},
+    {"name": "estate_searchrequest", "description": "Les biens retenus par le chasseur pour une demande, avec son avis."},
+    {"name": "review_media", "description": "Les fichiers audio ou vidéo joints à l'avis du chasseur."},
+    {"name": "picture", "description": "Les photos d'un bien."},
+    {"name": "estate_proposed", "description": "Les biens proposés au client, et le suivi de l'offre."},
+    {"name": "visit", "description": "Les visites d'un bien."},
+    {"name": "sale", "description": "Les ventes. `POST /sales/{id}/payment` calcule la commission du chasseur."},
+    {"name": "payment", "description": "Les paiements du chasseur : `announced` → `scheduled` → `paid`, ou `refused`."},
+    {"name": "parameters_fees", "description": "Les honoraires de l'agence (part fixe et pourcentage), par version datée."},
+    {"name": "commission_scale", "description": "Le barème : tranche de prix → taux de commission du chasseur."},
+    {"name": "hunter_rate_parameters", "description": "Les réglages qui ajustent le taux du chasseur (ancienneté, performance)."},
+    {"name": "hunter_performance", "description": "Le journal des notes du chasseur. L'API l'écrit seule, au paiement."},
+]
+
 app = FastAPI(
     title="Fil Rouge Immobilier — API",
-    description="API du service de chasse immobilière (projet fil rouge EISI Data-IA).",
+    description=OPENAPI_DESCRIPTION,
     version="0.1.0",
+    openapi_tags=OPENAPI_TAGS,
 )
 
 
@@ -86,12 +130,12 @@ async def validation_error_without_input(request: Request, exc: RequestValidatio
     return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
 
 
-@app.get("/", tags=["health"])
+@app.get("/", tags=["health"], summary="Vérifier que l'API répond")
 def health_check():
     """
-    Route de vérification basique : confirme que l'API répond, sans
-    toucher à la base. Utile pour vérifier rapidement que le serveur
-    tourne, avant même de tester la connexion à PostgreSQL.
+    Confirme que l'API tourne, sans toucher à la base. Ouverte à tous :
+    ni clé d'API, ni jeton. Si elle répond `200`, le serveur est debout ;
+    la base, elle, n'est pas testée ici.
     """
     return {"status": "ok", "message": "L'API Fil Rouge Immobilier tourne."}
 

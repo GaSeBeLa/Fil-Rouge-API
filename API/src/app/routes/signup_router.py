@@ -38,8 +38,30 @@ router = APIRouter(
 _service = SignupService(UserRepository(), ClientRepository(), RoleRepository(), SearchRequestRepository())
 
 
-@router.post("/submit", response_model=SubmissionReceipt, status_code=202)
+@router.post(
+    "/submit",
+    response_model=SubmissionReceipt,
+    status_code=202,
+    summary="Déposer une demande depuis le site (sans compte)",
+)
 def submit(form: SearchRequestSubmission, session: Session = Depends(get_session)) -> SubmissionReceipt:
+    """Le formulaire du site : un visiteur demande à être accompagné dans sa recherche.
+
+    Il n'a pas encore de compte : la route demande la **clé d'API**, pas de jeton.
+
+    Si l'email est nouveau, l'API crée **en une fois** le compte, la fiche client
+    et la demande de recherche. Si une étape échoue, rien n'est écrit.
+
+    La réponse est **la même pour tous** : elle ne dit pas si l'email existait
+    déjà, pour ne pas renseigner un curieux.
+
+    Réponses :
+
+    - `202` : `{"detail": "Demande reçue."}` ;
+    - `401` : clé d'API absente ou inconnue ;
+    - `409` : la base refuse une valeur (format du téléphone, du code postal…) ;
+    - `422` : le formulaire est mal rempli (champ obligatoire absent, email invalide).
+    """
     try:
         _service.submit(session, form)
     except ConflictError as exc:

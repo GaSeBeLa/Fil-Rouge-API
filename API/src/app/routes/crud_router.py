@@ -50,6 +50,10 @@ supprime par l'API ; un compte s'efface par POST /users/{id}/anonymize
 
 Clé d'API (ADR-028, points 4 à 6, fiche API3) : posée sur le routeur
 entier, elle est vérifiée avant le jeton ; absente ou inconnue -> 401.
+
+Doc Swagger : chaque route reçoit un `summary` (son titre dans /docs) et une
+`description` écrite pour un débutant. Les rôles cités sont lus dans
+`write_roles` / `create_roles` : la doc suit le code, sans copie à tenir.
 ============================================================================
 """
 
@@ -87,6 +91,23 @@ def _validated(model: Type[SQLModel], item: SQLModel) -> SQLModel:
         raise RequestValidationError(errors) from exc
 
 
+_AUTH_ERRORS = "- `401` : clé d'API (`X-API-Key`) ou jeton absent, inconnu ou expiré."
+
+
+def _who(roles: Sequence[str]) -> str:
+    """Les rôles autorisés, en clair pour la doc Swagger."""
+    if not roles:
+        return "personne (l'API remplit cette table seule)"
+    if tuple(roles) == ALL_ROLES:
+        return "tout compte connecté"
+    return ", ".join(f"`{role}`" for role in roles)
+
+
+def _describe(text: str, roles: Sequence[str], responses: str) -> str:
+    """Assemble la description d'une route : ce qu'elle fait, qui peut, ses réponses."""
+    return f"{text}\n\n**Qui peut** : {_who(roles)}.\n\n**Réponses** :\n\n{responses}\n{_AUTH_ERRORS}"
+
+
 def build_crud_router(
     *,
     service: BaseService,
@@ -106,19 +127,61 @@ def build_crud_router(
 
     out_model = read_model or response_model
     in_update_model = update_model or response_model
+    creators = write_roles if create_roles is None else create_roles
+    # PUT partiel seulement quand un modèle de mise à jour est donné (/users).
+    put_rule = (
+        "Un champ absent du corps **garde** sa valeur actuelle."
+        if update_model is not None
+        else "Envoyer **toute** la ligne : un champ absent reprend sa valeur par défaut, "
+        "souvent vide. L'ancienne valeur est alors perdue."
+    )
 
-    @router.get("", response_model=List[out_model], dependencies=can_read)
+    @router.get(
+        "",
+        response_model=List[out_model],
+        dependencies=can_read,
+        summary="Lister toutes les lignes",
+        description=_describe(
+            "Rend toutes les lignes de la table, en une fois (pas de pagination).",
+            ALL_ROLES,
+            "- `200` : la liste, vide s'il n'y a rien.",
+        ),
+    )
     def list_items(session: Session = Depends(get_session)):
         return service.list_all(session)
 
-    @router.get("/{item_id}", response_model=out_model, dependencies=can_read)
+    @router.get(
+        "/{item_id}",
+        response_model=out_model,
+        dependencies=can_read,
+        summary="Lire une ligne par son id",
+        description=_describe(
+            "Rend la ligne dont l'`id` est donné dans l'URL.",
+            ALL_ROLES,
+            "- `200` : la ligne ;\n- `404` : aucune ligne n'a cet `id` ;\n- `422` : l'`id` n'est pas un nombre entier.",
+        ),
+    )
     def get_item(item_id: int, session: Session = Depends(get_session)):
         try:
             return service.get_by_id(session, item_id)
         except NotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    @router.post("", response_model=out_model, status_code=201)
+    @router.post(
+        "",
+        response_model=out_model,
+        status_code=201,
+        summary="Créer une ligne",
+        description=_describe(
+            "Crée une ligne avec le corps envoyé. L'`id` envoyé est ignoré : la base le choisit.",
+            creators,
+            "- `201` : la ligne créée, avec son `id` ;\n"
+            "- `403` : votre rôle ne peut pas créer dans cette table ;\n"
+            "- `409` : la base ou une règle métier refuse la ligne (valeur en double, "
+            "référence inexistante, règle d'un ADR) ; le message dit laquelle ;\n"
+            "- `422` : le corps est mal formé (champ obligatoire absent, type faux).",
+        ),
+    )
     def create_item(
         item: response_model,
         session: Session = Depends(get_session),
@@ -131,7 +194,21 @@ def build_crud_router(
         except ForbiddenError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
 
-    @router.put("/{item_id}", response_model=out_model, dependencies=can_write)
+    @router.put(
+        "/{item_id}",
+        response_model=out_model,
+        dependencies=can_write,
+        summary="Modifier une ligne",
+        description=_describe(
+            f"Remplace la ligne dont l'`id` est donné dans l'URL. {put_rule}",
+            write_roles,
+            "- `200` : la ligne modifiée ;\n"
+            "- `403` : votre rôle ne peut pas modifier cette table ;\n"
+            "- `404` : aucune ligne n'a cet `id` ;\n"
+            "- `409` : la base ou une règle métier refuse la modification ; le message dit laquelle ;\n"
+            "- `422` : le corps est mal formé.",
+        ),
+    )
     def update_item(item_id: int, data: in_update_model, session: Session = Depends(get_session)):
         try:
             return service.replace(session, item_id, _validated(in_update_model, data))

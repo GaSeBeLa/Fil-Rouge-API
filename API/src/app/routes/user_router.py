@@ -38,8 +38,30 @@ _anonymizer = AnonymizationService()
     "/{item_id}/anonymize",
     response_model=AnonymizationReport,
     dependencies=[Depends(require_roles(ADMIN))],
+    summary="Effacer un compte (le rendre anonyme)",
 )
 def anonymize_user(item_id: int, session: Session = Depends(get_session)) -> AnonymizationReport:
+    """Efface un compte comme le veut le RGPD : il est **désactivé** et rendu **anonyme**.
+
+    Rien n'est supprimé de la base : l'API n'a plus de `DELETE` (ADR-049).
+
+    - **Tout de suite** : email, mot de passe, téléphone, adresse, naissance et
+      commentaires deviennent anonymes. Le compte ne peut plus se connecter.
+    - **Prénom et nom** : effacés tout de suite si rien n'oblige à les garder.
+      Sinon, ils sont gardés **10 ans** après la fin du dernier mandat ou le
+      paiement (obligation comptable). La réponse donne cette date dans
+      `names_kept_until` : rappeler la route après ce jour finit le travail.
+
+    **Qui peut** : `Admin` seul.
+
+    Réponses :
+
+    - `200` : ce qui a été fait (`names_anonymized`, `names_kept_until`) ;
+    - `401` : clé d'API ou jeton absent ;
+    - `403` : vous n'êtes pas `Admin` ;
+    - `404` : aucun compte n'a cet `id` ;
+    - `409` : la base refuse l'écriture.
+    """
     try:
         return _anonymizer.anonymize(session, item_id)
     except NotFoundError as exc:
