@@ -263,7 +263,7 @@ est le code de référence **du sujet**, extrait tel quel de `REGLES-CALCUL-REMU
 
 ### Tests d'intégration — base de test isolée
 
-**22 tests** dans [`tests/integration/`](tests/integration/), contre une vraie base
+Les tests de [`tests/integration/`](tests/integration/) tournent contre une vraie base
 PostgreSQL, **`fil_rouge_test`** — jamais la base de dev. Avant la première fois, et
 après toute modification de `docker/init-v3/01` ou `02` :
 
@@ -277,7 +277,7 @@ bash docker/create_test_db.sh
   (fixture `db_session`) ; utiliser `db_client` au lieu de `client` pour que l'API
   écrive dedans. Mesuré : comptes de `fil_rouge_test` et `fil_rouge_immobilier`
   identiques avant et après la suite.
-* **Base absente ou `db` arrêté** : les 22 tests sont **sautés** (`skipped`),
+* **Base absente ou `db` arrêté** : ces tests sont **sautés** (`skipped`),
   avec la commande à lancer. Les écarter : `-m "not integration"`.
 
 ⚠️ La fixture `client` reste branchée sur la **vraie** base de dev : un test qui
@@ -327,8 +327,8 @@ API/
 │       └── routes/                # routage HTTP : crud_router.py + 1 fichier par table
 └── tests/
     ├── conftest.py              # fixtures client, fast_hasher
-    ├── test_*.py                # 7 fichiers unitaires, voir § Tests
-    └── integration/             # conftest (db_session, db_client) + 3 fichiers
+    ├── test_*.py                # tests unitaires, voir § Tests
+    └── integration/             # conftest (db_session, db_client) + un fichier par sujet
 ```
 
 ## Endpoints
@@ -436,6 +436,10 @@ ensuite créer d'autres comptes avec `POST /users`, pour essayer les autres rôl
   désactivés (migrés sans mot de passe) : en dev, leurs profils sont cachés aux
   non-Admin jusqu'à leur activation ; les tests les activent dans leur transaction
   (`db_client`, `tests/integration/conftest.py`).
+  Le compte PostgreSQL `fil_rouge_reader`, en SQL direct, suit `Reader` (fiche DRO9) : ni
+  `payment`, ni les comptes désactivés (politique par ligne), ni le mot de passe, ni
+  `estate_contact` (`docker/init-v3/04_role-lecture-seule.sql`). Relevé complet et
+  écarts : `md/securite/matrice-droits-crud-par-role.md` (dépôt Fil-Rouge).
 
   | Table | Lire | Créer | Modifier |
   |---|---|---|---|
@@ -513,7 +517,7 @@ ensuite créer d'autres comptes avec `POST /users`, pour essayer les autres rôl
   le paiement ; la réponse dit jusqu'à quand (`names_kept_until`). Rappelée après ce jour,
   la route finit le travail : pas de tâche planifiée (V2).
 * 💶 **Calculer le paiement d'une vente** (fiche API12) : `POST /sales/{id}/payment`,
-  rôles qui écrivent. Compte en base les visites `'client'` de la chaîne du mandat, les
+  **Admin** seul (fiche DRO2). Compte en base les visites `'client'` de la chaîne du mandat, les
   ventes et les mandats du chasseur sur la fenêtre (ADR-048), charge le paramétrage à la
   date de l'acte, appelle `calculer_remuneration` et crée le paiement `'announced'` — ou
   `'refused'` avec son motif (ADR-024). Vente inconnue → `404` ; déjà payée ou paramétrage

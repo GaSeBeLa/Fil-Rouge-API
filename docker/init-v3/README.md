@@ -144,7 +144,7 @@ Jeff a dit oui sur Discord le 2026-10-07, **à condition** que le choix soit exp
 
 **Pourquoi les deux, et pas un seul**
 - L'API se connecte avec le compte `postgres` : le rôle PostgreSQL **ne limite pas** ce qu'un utilisateur de l'API peut faire. Il protège les accès **directs** à la base.
-- Le rôle `'Reader'` couvre l'autre porte : celle de l'API. ⚠️ L'API ne vérifie pas encore les rôles : ce contrôle viendra avec les outils d'authentification côté back. Aujourd'hui, la valeur existe, la règle reste à écrire.
+- Le rôle `'Reader'` couvre l'autre porte : celle de l'API. Elle vérifie les rôles depuis le chantier « Droits : moindre privilège » (2026-10-13) : `Reader` lit, n'écrit rien, et ne voit ni les paiements ni les comptes désactivés ; `fil_rouge_reader` est fermé pareil (fiche DRO9).
 
 **Sans risque pour le dépôt**
 - Mot de passe : `POSTGRES_READER_PASSWORD`, dans `docker/.env`, **jamais dans git**. `docker-compose.yml` le passe au conteneur (une ligne, accord du 2026-10-07).

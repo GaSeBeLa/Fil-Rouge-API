@@ -5,8 +5,8 @@
 -- POURQUOI ? Q14 du registre md/questions/questions-a-trancher.md, ligne
 --   « Rôle en lecture seule » ; accord de Jeff sur Discord le 2026-10-07,
 --   à condition de le justifier (docker/init-v3/README.md, « Rôle en
---   lecture seule — LOT12 »). Un compte qui lit toutes les tables et
---   n'écrit nulle part : pour une requête d'analyse ou un outil de
+--   lecture seule — LOT12 »). Un compte qui lit les tables (sauf ce que
+--   QUOI ferme ci-dessous) et n'écrit nulle part : pour une requête d'analyse ou un outil de
 --   rapport, sans le mot de passe du superutilisateur.
 --
 -- QUOI ?
