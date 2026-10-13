@@ -52,11 +52,15 @@ WHERE NOT EXISTS (
 
 -- 3) Réglages du taux du chasseur (D6, D7, D8 ; sujet l. 658-685, texte l. 139).
 --    Les paliers : borne haute incluse -> note, la dernière ouverte (null).
+--    Critère « mandats » noté par le taux ventes ÷ mandats (ADR-048) : 1.0000,
+--    soit 100 % pour la note max, choisi par le groupe le 2026-10-12 (le sujet
+--    n'a pas de grille). points_per_mandate (10) n'est plus lu par le calcul.
 INSERT INTO hunter_rate_parameters (
     effective_from,
     weight_delay, weight_exclusivity, weight_sales, weight_mandates, weight_visits,
     delay_tiers, visit_tiers,
     score_exclusive, score_non_exclusive, points_per_sale, points_per_mandate,
+    mandate_success_rate_for_max_score,
     window_months,
     seniority_rate_per_year, seniority_cap,
     score_pivot, score_half_range, performance_amplitude,
@@ -72,6 +76,7 @@ VALUES (
       {"maximum": 9, "note": 60},   {"maximum": 12, "note": 40},
       {"maximum": 15, "note": 20},  {"maximum": null, "note": 0}]',
     100, 60, 20, 10,
+    1.0000,
     12,
     0.02, 0.10,
     50, 50, 0.20,

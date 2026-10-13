@@ -929,8 +929,9 @@ CREATE TABLE commission_scale (
 --   valid_from / valid_until de la carte Q-REM-05.
 -- Aucun CHECK sur les valeurs : ce sont des paramètres « à valider avec le
 --   client » (l. 59) ; les graver refait l'erreur que Q-REM-05 corrige.
--- La grille de notes du taux de transformation (Q-JEF-05) n'est pas ici :
---   chantier API.
+-- Le critère « mandats » est noté par le taux de transformation (ADR-048,
+--   Décision 5 ; Q-JEF-05) : son réglage est mandate_success_rate_for_max_score.
+--   points_per_mandate reste en base, mais le calcul ne le lit plus (API11).
 CREATE TABLE hunter_rate_parameters (
     id                      INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at              TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
@@ -945,11 +946,15 @@ CREATE TABLE hunter_rate_parameters (
     --   [{"maximum": 12, "note": 100}, ..., {"maximum": null, "note": 0}]
     delay_tiers             JSONB NOT NULL,  -- en semaines
     visit_tiers             JSONB NOT NULL,
-    -- ... les notes, les points et la fenêtre glissante.
+    -- ... les notes, les points, le réglage des mandats et la fenêtre glissante.
     score_exclusive         NUMERIC(4,1) NOT NULL,
     score_non_exclusive     NUMERIC(4,1) NOT NULL,
     points_per_sale         NUMERIC(4,1) NOT NULL,
+    -- Plus lu par le calcul (ADR-048) : gardé pour les versions déjà posées.
     points_per_mandate      NUMERIC(4,1) NOT NULL,
+    -- Taux ventes ÷ mandats qui donne 100 points au critère « mandats » :
+    --   note = min(100 ; 100 × taux ÷ ce réglage). 1.0000 = 100 % (ADR-048).
+    mandate_success_rate_for_max_score NUMERIC(5,4) NOT NULL,
     window_months           INTEGER NOT NULL,
     -- Modulation (rem.py:108-116) : a = min(taux × années ; plafond),
     --   p = (S - pivot) / demi-amplitude × amplitude, r borné.
@@ -1198,6 +1203,11 @@ COMMENT ON COLUMN estate.floor IS
 COMMENT ON COLUMN criteria.floor IS
   'Etage du logement souhaite par le client, meme sens que estate.floor '
   '(ADR-053, P18).';
+
+-- Le réglage du critère « mandats » (ADR-048, Décision 5 ; API11).
+COMMENT ON COLUMN hunter_rate_parameters.mandate_success_rate_for_max_score IS
+  'Taux de reussite des mandats (ventes / mandats) qui donne la note max du critere '
+  'mandats, note = min(100 ; 100 x taux / reglage), 1.0000 = 100 % (ADR-048).';
 
 -- Clés étrangères : ce que la colonne contient réellement.
 COMMENT ON COLUMN mandate.id_client IS

@@ -105,7 +105,8 @@ def _performance(r: HunterRateParameters) -> ParametresPerformance:
         note_exclusif=r.score_exclusive,
         note_non_exclusif=r.score_non_exclusive,
         points_par_vente=r.points_per_sale,
-        points_par_mandat=r.points_per_mandate,
+        # ADR-048 : points_per_mandate reste en base, mais n'est plus lu.
+        taux_reussite_mandats_note_max=r.mandate_success_rate_for_max_score,
         fenetre_mois=r.window_months,
     )
 

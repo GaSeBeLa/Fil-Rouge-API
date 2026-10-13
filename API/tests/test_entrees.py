@@ -132,6 +132,7 @@ rates = with_(
         "score_non_exclusive": "60",
         "points_per_sale": "20",
         "points_per_mandate": "10",
+        "mandate_success_rate_for_max_score": "1.0000",
         "window_months": 12,
         "seniority_rate_per_year": "0.02",
         "seniority_cap": "0.10",
@@ -162,6 +163,14 @@ def test_p29_stored_version_is_read_without_being_judged(api: TestClient):
 
 def test_p29_floor_above_ceiling_returns_422(api: TestClient):
     assert api.post("/rates", json=rates(rate_floor="0.70")).status_code == 422
+
+
+@pytest.mark.parametrize("value", ["0", "-0.5000"])
+def test_p29_mandate_rate_not_above_zero_returns_422(api: TestClient, value: str):
+    # ADR-048 : la note des mandats divise par ce réglage (choix du 2026-10-13).
+    response = api.post("/rates", json=rates(mandate_success_rate_for_max_score=value))
+    assert response.status_code == 422
+    assert "mandate_success_rate_for_max_score" in response.text
 
 
 @pytest.mark.parametrize(

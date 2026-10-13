@@ -19,6 +19,15 @@ Les valeurs attendues dépendent des PARAMÈTRES proposés par le sujet
 (`parametrage_par_defaut`) : si le groupe en change un, ce sont ces
 attendus qui bougent, pas les règles.
 
+Écart au sujet (ADR-048, fiche API11, 2026-10-13) : le critère « mandats »
+est noté par le taux ventes ÷ mandats, plus par mandats × 10. Les cas du
+sujet qui en dépendent (5 lignes de volume, le calcul de bout en bout de
+Bruno) restent, nommés « cas du sujet » et marqués `xfail(strict=True)` :
+ils DOIVENT échouer ; s'ils repassent, quelqu'un a remis l'ancienne formule
+et la suite tombe. Les cas du taux suivent, dans le bloc @performance, et
+Bruno refait avec le taux dans le bloc @montant. Choix du groupe du
+2026-10-13 (garder les cas du sujet, et ajouter ceux du taux).
+
 Non couverts ici, faute d'objet à tester dans une fonction pure :
 - « Un seul chasseur est rémunéré pour une vente donnée » (.feature l. 52) ;
 - la Règle `@tracabilite` (l. 275-300) : gel en base, notifications,
@@ -170,13 +179,53 @@ def test_critere_exclusivite(exclusivite: str, note: int):
     assert noter_criteres(vente, PARAMS.performance)["exclusivite"] == note
 
 
-@pytest.mark.parametrize(
-    ("ventes", "mandats", "note_ventes", "note_mandats"),
-    [(0, 3, 0, 30), (2, 6, 40, 60), (4, 9, 80, 90), (5, 10, 100, 100), (7, 14, 100, 100)],
+VOLUMES_DU_SUJET = [(0, 3, 0, 30), (2, 6, 40, 60), (4, 9, 80, 90), (5, 10, 100, 100), (7, 14, 100, 100)]
+# Le sujet note les mandats par min(100 ; mandats × 10) (RCR:146) ; ADR-048 l'a remplacé.
+CAS_DU_SUJET_MANDATS = pytest.mark.xfail(
+    strict=True, reason="cas du sujet : mandats × 10, remplacé par le taux ventes ÷ mandats (ADR-048)"
 )
-def test_criteres_de_volume(ventes: int, mandats: int, note_ventes: int, note_mandats: int):
+
+
+@pytest.mark.parametrize(("ventes", "mandats", "note_ventes", "note_mandats"), VOLUMES_DU_SUJET)
+def test_critere_ventes(ventes: int, mandats: int, note_ventes: int, note_mandats: int):
+    # La note des ventes ne change pas (ADR-048, point 3) : les lignes du sujet valent toujours.
+    notes = noter_criteres(vente_bruno(ventes_12_mois=ventes, mandats_12_mois=mandats), PARAMS.performance)
+    assert notes["ventes"] == note_ventes
+
+
+@CAS_DU_SUJET_MANDATS
+@pytest.mark.parametrize(("ventes", "mandats", "note_ventes", "note_mandats"), VOLUMES_DU_SUJET)
+def test_criteres_de_volume_cas_du_sujet(ventes: int, mandats: int, note_ventes: int, note_mandats: int):
     notes = noter_criteres(vente_bruno(ventes_12_mois=ventes, mandats_12_mois=mandats), PARAMS.performance)
     assert (notes["ventes"], notes["mandats"]) == (note_ventes, note_mandats)
+
+
+# --- Le critère « mandats » noté par le taux (ADR-048, Décision 5 et 7) -------
+
+def mandats_avec_reglage(ventes: int, mandats: int, reglage: str = "1.0000") -> D:
+    """Note « mandats » pour ces volumes, avec ce réglage de la note max."""
+    p = replace(PARAMS.performance, taux_reussite_mandats_note_max=D(reglage))
+    return noter_criteres(vente_bruno(ventes_12_mois=ventes, mandats_12_mois=mandats), p)["mandats"]
+
+
+def test_critere_mandats_4_ventes_pour_5_mandats_a_100_pour_cent_vaut_80_points():
+    # T = 4 ÷ 5 = 80 % ; réglage 100 % -> 100 × 0,8 ÷ 1 = 80. Le sujet aurait donné 50 (5 × 10).
+    assert mandats_avec_reglage(4, 5, "1.0000") == 80
+
+
+def test_critere_mandats_4_ventes_pour_5_mandats_a_50_pour_cent_vaut_100_points():
+    # Réglage 50 % : 100 × 0,8 ÷ 0,5 = 160, plafonné à 100.
+    assert mandats_avec_reglage(4, 5, "0.5000") == 100
+
+
+def test_critere_mandats_sans_mandat_vaut_0():
+    # ADR-048, point 7 : un critère d'activité sans activité vaut 0 (choix du 2026-10-13).
+    assert mandats_avec_reglage(2, 0) == 0
+
+
+def test_un_mandat_sans_vente_fait_baisser_la_note():
+    # Le but d'ADR-048 (F10:295-300) : un 6e mandat sans vente fait baisser, pas monter.
+    assert mandats_avec_reglage(4, 6) < mandats_avec_reglage(4, 5)
 
 
 def test_score_global_agrege_les_cinq_criteres():
@@ -249,13 +298,25 @@ def test_taux_final(taux_base: str, anciennete: str, performance: str, retenu: s
 # @montant — 3 cas (.feature l. 252-272, et l. 81 pour l'assiette)
 # =============================================================================
 
-def test_calcul_de_bout_en_bout():
+@CAS_DU_SUJET_MANDATS
+def test_calcul_de_bout_en_bout_cas_du_sujet():
     r = calculer_remuneration(vente_bruno(), PARAMS)
     assert r.honoraires == fr("13500,00")
     assert r.score_performance == fr("73,5")
     assert r.taux_final == pct("46,16")
     assert r.montant == fr("6231,60")
     assert r.marge_entreprise == fr("7268,40")
+
+
+def test_calcul_de_bout_en_bout_avec_le_taux():
+    # Bruno refait (ADR-048) : 4 ventes pour 9 mandats -> note mandats 44,4… au
+    # lieu de 90 ; score 66,7 ; p = 6,68 % ; r = 40 % × 1,1268 = 45,07 %.
+    r = calculer_remuneration(vente_bruno(), PARAMS)
+    assert r.honoraires == fr("13500,00")
+    assert r.score_performance == fr("66,7")
+    assert r.taux_final == pct("45,07")
+    assert r.montant == fr("6084,45")
+    assert r.marge_entreprise == fr("7415,55")
 
 
 def test_arrondi_au_centime_au_demi_superieur():

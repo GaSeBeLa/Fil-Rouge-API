@@ -21,11 +21,13 @@ paramètres « à valider avec le client » (l. 59).
 
 Cohérence d'une version (P29, ADR-053) : contrôlée par l'API à la saisie
 (POST, PUT), sans figer aucune valeur — somme des 5 poids = 1, plancher <=
-plafond, paliers bien formés. Toujours aucun `CHECK` en base (ADR-034,
-Décision 3).
+plafond, paliers bien formés, réglage des mandats > 0. Toujours aucun
+`CHECK` en base (ADR-034, Décision 3).
 
-La grille de notes du taux de transformation (Q-JEF-05) n'est pas ici :
-elle relève du chantier API.
+Le critère « mandats » est noté par le taux de transformation (ADR-048,
+Q-JEF-05 ; fiche API11) : `mandate_success_rate_for_max_score` est le taux
+ventes ÷ mandats qui vaut 100 points. `points_per_mandate` reste en base,
+mais le calcul ne le lit plus.
 """
 
 import math
@@ -61,7 +63,11 @@ class HunterRateParameters(SQLModel, table=True):
     score_exclusive: Decimal = Field(max_digits=4, decimal_places=1)
     score_non_exclusive: Decimal = Field(max_digits=4, decimal_places=1)
     points_per_sale: Decimal = Field(max_digits=4, decimal_places=1)
+    # Plus lu par le calcul (ADR-048) : gardé pour les versions déjà posées.
     points_per_mandate: Decimal = Field(max_digits=4, decimal_places=1)
+    # Taux ventes ÷ mandats qui donne 100 points au critère « mandats »,
+    # NUMERIC(5,4) : 1.0000 vaut 100 % (ADR-048).
+    mandate_success_rate_for_max_score: Decimal = Field(max_digits=5, decimal_places=4)
     window_months: int
 
     # Modulation — a = min(taux × années ; plafond),
@@ -87,10 +93,11 @@ class HunterRateParameters(SQLModel, table=True):
             self.weight_visits,
         )
         bounds = (self.rate_floor, self.rate_ceiling)
+        mandate_rate = self.mandate_success_rate_for_max_score
         # Un modèle de table est construit deux fois : par FastAPI, sans
         # conversion (des textes), puis par `_validated` (crud_router.py),
         # converti. On ne juge que le second passage, qui fait foi.
-        if not all(isinstance(value, Decimal) for value in (*weights, *bounds)):
+        if not all(isinstance(value, Decimal) for value in (*weights, *bounds, mandate_rate)):
             return self
         # Décimaux exacts : 0.2500 + 0.2000 + ... vaut 1 sans erreur d'arrondi.
         if sum(weights, Decimal(0)) != Decimal(1):
@@ -98,6 +105,12 @@ class HunterRateParameters(SQLModel, table=True):
         if self.rate_floor > self.rate_ceiling:
             raise ValueError(
                 f"rate_floor ({self.rate_floor}) dépasse rate_ceiling ({self.rate_ceiling}) (P29)."
+            )
+        # La note des mandats divise par ce réglage (ADR-048) : 0 ferait planter
+        # le calcul, un négatif inverserait la note. Choisi le 2026-10-13.
+        if mandate_rate <= 0:
+            raise ValueError(
+                f"mandate_success_rate_for_max_score vaut {mandate_rate} : il faut plus que 0 (P29)."
             )
         _check_tiers("delay_tiers", self.delay_tiers)
         _check_tiers("visit_tiers", self.visit_tiers)

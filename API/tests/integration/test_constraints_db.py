@@ -951,6 +951,7 @@ HUNTER_RATE_PARAMETERS: dict[str, Any] = {
     "score_non_exclusive": "60",
     "points_per_sale": "20",
     "points_per_mandate": "10",
+    "mandate_success_rate_for_max_score": "1.0000",
     "window_months": 12,
     "seniority_rate_per_year": "0.02",
     "seniority_cap": "0.10",

@@ -11,7 +11,18 @@ Ce module n'est PAS écrit par le groupe. C'est le code de référence du
 sujet, recopié tel quel, par extraction automatique des huit blocs
 `python` de REGLES-CALCUL-REMUNERATION.md (StarterPack - BASE) :
 §14.2, lignes 349 à 637 (le calcul), et §14.3, lignes 643 à 687
-(`parametrage_par_defaut`). Seule cette docstring est ajoutée.
+(`parametrage_par_defaut`). Seuls ajouts : cette docstring, et l'écart
+ci-dessous.
+
+UN ÉCART AU CODE DU SUJET, à dire en soutenance (ADR-048, fiche API11,
+2026-10-13) : le critère « mandats » est noté par le taux de
+transformation, ventes ÷ mandats, au lieu de min(100 ; mandats × 10)
+(RCR:146). Trois endroits changent, et eux seuls :
+- `ParametresPerformance` : `points_par_mandat` devient
+  `taux_reussite_mandats_note_max` ;
+- `noter_criteres` : la note « mandats » vient de `note_mandats`, fonction
+  ajoutée ;
+- `parametrage_par_defaut` : le réglage vaut 1.0000 (100 %).
 
 Pourquoi le reprendre plutôt que le réécrire : c'est la référence que le
 sujet rejoue contre le fichier .feature ; une réécriture ne pourrait que
@@ -25,7 +36,9 @@ Ce qu'il faut savoir avant de s'en servir :
 - les CHIFFRES de `parametrage_par_defaut` (fixe 3 000 €, 2,5 %, tranches,
   poids, bornes) sont des PROPOSITIONS du sujet, pas des règles métier
   (§2, §13) : le groupe peut les changer sans toucher au calcul.
-- tests : tests/test_remuneration.py rejoue les 55 cas du .feature.
+- tests : tests/test_remuneration.py rejoue les 55 cas du .feature ; ceux
+  qui notent les mandats par mandats × 10 y sont gardés comme « cas du
+  sujet », en échec attendu (xfail strict), à côté des cas du taux.
 ============================================================================
 """
 
@@ -101,7 +114,8 @@ class ParametresPerformance:
     note_exclusif: Decimal
     note_non_exclusif: Decimal
     points_par_vente: Decimal
-    points_par_mandat: Decimal
+    # ADR-048 : le taux ventes ÷ mandats qui vaut la note max (1 = 100 %).
+    taux_reussite_mandats_note_max: Decimal
     fenetre_mois: int = 12
 
 
@@ -201,6 +215,22 @@ def semaines_ecoulees(debut: date, fin: date) -> int:
     return (fin - debut).days // 7
 
 
+def note_mandats(vente: Vente, p: ParametresPerformance) -> Decimal:
+    """Critère « mandats » noté par le taux de transformation (ADR-048, écart au sujet).
+
+    T = ventes ÷ mandats, sur la fenêtre ; note = min(100 ; 100 × T ÷ réglage).
+    Un mandat sans vente grossit le seul dénominateur : la note baisse, ce que
+    min(100 ; mandats × 10) du sujet ne permettait pas (F10:295-300).
+    Zéro mandat : 0, un critère d'activité sans activité (ADR-048, point 7 ;
+    confirmé par le groupe le 2026-10-13). Pas d'arrondi ici : seul le score
+    l'est (§9).
+    """
+    if vente.mandats_12_mois == 0:
+        return Decimal(0)
+    taux = Decimal(vente.ventes_12_mois) / Decimal(vente.mandats_12_mois)
+    return min(Decimal(100), Decimal(100) * taux / p.taux_reussite_mandats_note_max)
+
+
 def noter_criteres(vente: Vente, p: ParametresPerformance) -> dict[str, Decimal]:
     semaines = Decimal(semaines_ecoulees(vente.date_signature_mandat, vente.date_acte))
     return {
@@ -211,7 +241,7 @@ def noter_criteres(vente: Vente, p: ParametresPerformance) -> dict[str, Decimal]
             else p.note_non_exclusif
         ),
         "ventes": min(Decimal(100), Decimal(vente.ventes_12_mois) * p.points_par_vente),
-        "mandats": min(Decimal(100), Decimal(vente.mandats_12_mois) * p.points_par_mandat),
+        "mandats": note_mandats(vente, p),  # ADR-048 : le sujet notait mandats × 10
         "visites": note_par_paliers(Decimal(vente.nb_visites), p.paliers_visites),
     }
 
@@ -324,7 +354,8 @@ def parametrage_par_defaut() -> Parametrage:
             note_exclusif=d(100),
             note_non_exclusif=d(60),
             points_par_vente=d(20),
-            points_par_mandat=d(10),
+            # ADR-048, choix du groupe (12/10/2026) ; le sujet : points_par_mandat=d(10).
+            taux_reussite_mandats_note_max=d("1.0000"),
         ),
         modulation=ParametresModulation(                                    # D7
             taux_par_annee=d("0.02"),

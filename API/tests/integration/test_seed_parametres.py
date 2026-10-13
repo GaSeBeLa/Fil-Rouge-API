@@ -21,7 +21,9 @@ Ce qui est vérifié :
 - le seed remplit les trois tables (1 / 5 / 1 lignes) ;
 - il est rejouable (une 2e passe n'ajoute rien) ;
 - le `Parametrage` lu en base est ÉGAL à `parametrage_par_defaut()` ;
-- ce `Parametrage` donne l'exemple de Bruno du sujet (§10) : 6 231,60 €.
+- ce `Parametrage` donne l'exemple de Bruno refait avec le taux (ADR-048) :
+  6 084,45 € ; les 6 231,60 € du sujet (§10) restent, « cas du sujet » en
+  échec attendu (xfail strict), comme dans tests/test_remuneration.py.
 ============================================================================
 """
 
@@ -94,23 +96,37 @@ def test_seed_equals_the_default_parametrage_of_the_code(db_session: Session):
     assert service().charger(db_session, ACTE) == parametrage_par_defaut()
 
 
+BRUNO = Vente(
+    chasseur_id=1,
+    prix_acte=D(420000),
+    date_acte=ACTE,
+    date_signature_mandat=date(2025, 11, 14),
+    date_fin_mandat=date(2026, 8, 14),
+    exclusivite=Exclusivite.EXCLUSIF,
+    origine=OrigineVente.CHASSEUR,
+    nb_visites=5,
+    annees_anciennete=3,
+    ventes_12_mois=4,
+    mandats_12_mois=9,
+)
+
+
+@pytest.mark.xfail(
+    strict=True, reason="cas du sujet : mandats × 10, remplacé par le taux ventes ÷ mandats (ADR-048)"
+)
 def test_seed_gives_the_worked_example_of_the_subject(db_session: Session):
     # Bruno, §10 de REGLES-CALCUL-REMUNERATION.md : 420 000 € -> 6 231,60 €.
     apply_seed(db_session)
-    bruno = Vente(
-        chasseur_id=1,
-        prix_acte=D(420000),
-        date_acte=ACTE,
-        date_signature_mandat=date(2025, 11, 14),
-        date_fin_mandat=date(2026, 8, 14),
-        exclusivite=Exclusivite.EXCLUSIF,
-        origine=OrigineVente.CHASSEUR,
-        nb_visites=5,
-        annees_anciennete=3,
-        ventes_12_mois=4,
-        mandats_12_mois=9,
-    )
-    result = calculer_remuneration(bruno, service().charger(db_session, ACTE))
+    result = calculer_remuneration(BRUNO, service().charger(db_session, ACTE))
     assert result.honoraires == D("13500.00")
     assert result.taux_final == D("0.4616")
     assert result.montant == D("6231.60")
+
+
+def test_seed_gives_the_worked_example_with_the_success_rate(db_session: Session):
+    # Bruno refait avec le taux (ADR-048) : 4 ventes pour 9 mandats -> 6 084,45 €.
+    apply_seed(db_session)
+    result = calculer_remuneration(BRUNO, service().charger(db_session, ACTE))
+    assert result.honoraires == D("13500.00")
+    assert result.taux_final == D("0.4507")
+    assert result.montant == D("6084.45")
