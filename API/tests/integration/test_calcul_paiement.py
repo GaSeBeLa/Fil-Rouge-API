@@ -48,7 +48,7 @@ from src.app.services.remuneration import (
     calculer_score,
 )
 
-from .test_constraints_db import HUNTER_ID, post_as_hunter, rate_parameters, sale_payload
+from .test_constraints_db import HUNTER_ID, post_as_hunter, post_as_manager, rate_parameters, sale_payload
 
 ACTE = date(2026, 3, 1)
 
@@ -146,7 +146,7 @@ def ready_sale(db_client: TestClient, **overrides: Any) -> tuple[int, int]:
     scale = db_client.post("/commission-scales", json={"amount_min": 0, "rate": "0.3000", "valid_from": "2025-01-01"})
     assert scale.status_code == 201, scale.text
     rate_parameters(db_client)
-    created = db_client.post("/sales", json=payload)
+    created = post_as_manager(db_client, "/sales", payload)
     assert created.status_code == 201, created.text
     for day, who in [(10, "client"), (12, "hunter"), (14, "hunter"), (20, "client"), (22, "hunter")]:
         visit = {"visit_date": f"2026-02-{day}", "visitor_type": who,

@@ -23,6 +23,7 @@ from .test_constraints_db import (
     fees_grid,
     offered_estate,
     post_as_hunter,
+    post_as_manager,
     sale_payload,
 )
 
@@ -96,7 +97,7 @@ def test_sale_on_an_unsigned_mandate_returns_409(db_client: TestClient):
 
     # 'client_alone' : P27 ne s'applique pas, seule la signature manque.
     sale = {**payload, "id_mandate": unsigned.json()["id"], "sale_origin": "client_alone"}
-    response = db_client.post("/sales", json=sale)
+    response = post_as_manager(db_client, "/sales", sale)
     assert response.status_code == 409
     assert "Q-MAN-06" in response.text
 
@@ -105,14 +106,14 @@ def test_sale_on_an_unsigned_mandate_returns_409(db_client: TestClient):
 
 
 def test_hunter_sale_with_an_accepted_offer_is_accepted(db_client: TestClient):
-    response = db_client.post("/sales", json=sale_payload(db_client))
+    response = post_as_manager(db_client, "/sales", sale_payload(db_client))
     assert response.status_code == 201, response.text
 
 
 def test_hunter_sale_without_offer_returns_409(db_client: TestClient):
     payload = {**sale_payload(db_client), "id_estate": other_estate(db_client)}
 
-    response = db_client.post("/sales", json=payload)
+    response = post_as_manager(db_client, "/sales", payload)
     assert response.status_code == 409
     assert "P27" in response.text
 
@@ -121,7 +122,7 @@ def test_hunter_sale_with_an_offer_not_yet_accepted_returns_409(db_client: TestC
     payload = sale_payload(db_client)
     pending = offered_estate(db_client, payload["id_mandate"], status="offer_pending", reference="TEST-0002")
 
-    response = db_client.post("/sales", json={**payload, "id_estate": pending})
+    response = post_as_manager(db_client, "/sales", {**payload, "id_estate": pending})
     assert response.status_code == 409
     assert "P27" in response.text
 
@@ -129,7 +130,7 @@ def test_hunter_sale_with_an_offer_not_yet_accepted_returns_409(db_client: TestC
 def test_client_alone_sale_without_offer_is_accepted(db_client: TestClient):
     payload = {**sale_payload(db_client), "id_estate": other_estate(db_client), "sale_origin": "client_alone"}
 
-    response = db_client.post("/sales", json=payload)
+    response = post_as_manager(db_client, "/sales", payload)
     assert response.status_code == 201, response.text
 
 
@@ -140,7 +141,7 @@ def test_sale_completes_its_mandate(db_client: TestClient):
     payload = sale_payload(db_client)
     assert mandate_status(db_client, payload["id_mandate"]) == "active"
 
-    assert db_client.post("/sales", json=payload).status_code == 201
+    assert post_as_manager(db_client, "/sales", payload).status_code == 201
     assert mandate_status(db_client, payload["id_mandate"]) == "completed"
 
 
@@ -149,7 +150,7 @@ def test_refused_sale_leaves_its_mandate_active(db_client: TestClient):
     # chk_fees_lower_than_price), le mandat reste 'active'.
     payload = {**sale_payload(db_client), "fees_amount": "400000.00"}
 
-    assert db_client.post("/sales", json=payload).status_code == 409
+    assert post_as_manager(db_client, "/sales", payload).status_code == 409
     assert mandate_status(db_client, payload["id_mandate"]) == "active"
 
 
@@ -161,16 +162,16 @@ def test_sale_with_an_older_grid_returns_409(db_client: TestClient):
     in_force = fees_grid(db_client, "2026-01-01")
     payload = sale_payload(db_client, id_parameters_fees=older)  # acte du 2026-03-01
 
-    response = db_client.post("/sales", json=payload)
+    response = post_as_manager(db_client, "/sales", payload)
     assert response.status_code == 409
     assert "ADR-030" in response.text
-    assert db_client.post("/sales", json={**payload, "id_parameters_fees": in_force}).status_code == 201
+    assert post_as_manager(db_client, "/sales", {**payload, "id_parameters_fees": in_force}).status_code == 201
 
 
 def test_sale_with_a_grid_not_yet_in_force_returns_409(db_client: TestClient):
     later = fees_grid(db_client, "2026-06-01")
     payload = sale_payload(db_client, id_parameters_fees=later)  # acte du 2026-03-01
 
-    response = db_client.post("/sales", json=payload)
+    response = post_as_manager(db_client, "/sales", payload)
     assert response.status_code == 409
     assert "ADR-030" in response.text

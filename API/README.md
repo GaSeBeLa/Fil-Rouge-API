@@ -194,6 +194,8 @@ Puis **690 passed, 8 skipped, 6 xfailed** (fiche DRO1, 2026-10-13) : fermé par 
 241 tests de droits par rôle, et 6 dans `test_roles.py` (routeur sans rôles fermé aux
 5 rôles, `/roles` fermé aussi à l'Admin). Les tests qui créaient en
 `Admin` passent par le rôle qui crée.
+Puis **770 passed, 8 skipped, 6 xfailed** (fiche DRO2, 2026-10-13) : l'argent réservé à qui
+l'annexe le donne ; 80 tests de droits de plus (tables d'argent, calcul réservé à l'Admin).
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -201,7 +203,9 @@ de droits utilise `principal_as(<rôle>)`, ou retire ce remplacement. Depuis API
 `with acting_as(<rôle>, <id>):` fait agir sous un compte du seed (le chasseur 1 crée
 les biens : `post_as_hunter` dans `test_constraints_db.py`). Depuis DRO1, `Admin` ne
 crée plus la plupart des tables : chaque `POST` d'un test passe par le rôle qui le
-peut (`post_as_hunter`, `post_as_client`, `post_as_creator`).
+peut (`post_as_hunter`, `post_as_client`, `post_as_creator`, `post_as_manager` pour
+les ventes). `POST /payments` étant fermé à tous (DRO2), les tests de paiement écrivent
+par le service (`write_payment`) : un refus y est un `ConflictError`, le `409` de la route.
 
 | Fichier | Ce qu'il prouve |
 |---|---|
@@ -214,7 +218,7 @@ peut (`post_as_hunter`, `post_as_client`, `post_as_creator`).
 | [`test_crud_router.py`](tests/test_crud_router.py) | 404 / 409 / 201 / 422 pour les 18 ressources ; `DELETE` → `405` (ADR-049) |
 | [`integration/test_auth.py`](tests/integration/test_auth.py) | connexion : jeton rendu ; mauvais mot de passe, compte inactif, jeton expiré ou forgé → `401` ; compte désactivé **après** l'émission du jeton → `401` (relu en base) |
 | [`test_roles.py`](tests/test_roles.py), [`integration/test_roles_db.py`](tests/integration/test_roles_db.py) | sans jeton → `401` ; `Reader` lit (`200`) mais n'écrit pas (`403`) ; `Admin` crée (`201`) ; un routeur sans rôles déclarés → `403` pour les 5 rôles (DRO1) ; `/hunter-performances` et `/roles` fermés en écriture ; `/` et `/auth/login` ouverts |
-| [`integration/test_droits_par_role.py`](tests/integration/test_droits_par_role.py) | la grille de l'annexe d'ADR-027, recopiée à la main : chaque case fermée → `403` en lecture (liste et ligne), création, modification ; chaque case ouverte ≠ `403` ; au moins un refus par table (DRO1) |
+| [`integration/test_droits_par_role.py`](tests/integration/test_droits_par_role.py) | la grille de l'annexe d'ADR-027, recopiée à la main : chaque case fermée → `403` en lecture (liste et ligne), création, modification ; chaque case ouverte ≠ `403` ; au moins un refus par table (DRO1) ; tables d'argent, et `POST /sales/{id}/payment` réservé à l'Admin (DRO2) |
 | [`test_api_keys.py`](tests/test_api_keys.py) | sans clé ou clé inconnue → `401` ; bonne clé et bon jeton → `200` ; bonne clé sans jeton → `401` ; `/` sans clé ; démarrage refusé sans clé ou clé trop courte |
 | [`test_entrees.py`](tests/test_entrees.py) | `422` avant la base : email mal formé (P2), plus de chambres que de pièces (P16), réglages du taux incohérents — poids ≠ 1, plancher > plafond, paliers mal formés (P29), détail du calcul mal formé (P32) |
 | [`integration/test_versions_paiement.py`](tests/integration/test_versions_paiement.py) | grille d'honoraires, ligne de barème, réglages du taux : citée → `PUT` `409`, non citée → `200` (ADR-030, ADR-034) ; statut du paiement : pas à pas → `200` ; saut, retour en arrière, refus après `'announced'`, paiement `'paid'` modifié ou supprimé, `POST` au-delà de `'announced'` → `409` (ADR-038) ; taux final faux → `409` (P33) ; `DELETE` → `405` (ADR-049) |
@@ -401,10 +405,13 @@ ensuite créer d'autres comptes avec `POST /users`, pour essayer les autres rôl
   | `/visits` | tous | Hunter | Admin |
   | `/hunter-performances` | Admin, Hunter, Manager, Reader | personne (ADR-035) | personne |
   | `/estate-contacts` | Admin, Hunter, Manager | Admin, Hunter, Manager | Admin, Hunter, Manager |
-  | tables d'argent ¹ | tous | tous sauf Reader | tous sauf Reader |
+  | `/parameters-fees`, `/commission-scales`, `/hunter-rate-parameters` | Admin, Hunter, Manager, Reader | Admin | Admin |
+  | `/payments` | Admin, Hunter, Manager | personne ¹ | Admin |
+  | `/sales` | tous | Manager | personne |
 
-  ¹ `/parameters-fees`, `/commission-scales`, `/hunter-rate-parameters`, `/payments`,
-  `/sales` : ouvertes comme avant, en attendant la fiche DRO2.
+  ¹ Un paiement n'est jamais saisi à la main (ADR-027, point 10) : il naît du calcul,
+  `POST /sales/{id}/payment`, réservé à l'**Admin** (fiche DRO2). Ni Client ni Reader
+  ne lisent les paiements (point 8).
   Écart à l'annexe : elle donne au Client « C son compte » sur `user` ; il le fait par
   `POST /search-requests/submit`, sans jeton (Q-ACC-12). `POST /users` reste à
   `Admin` : ouvert au Client, il lui laisserait choisir `id_role`, donc se créer un Admin.
@@ -566,7 +573,7 @@ encore référencé échoue toujours, même en SQL direct (l'API, elle, ne suppr
 
 * Droits : chaque table déclare ses rôles (fiche DRO1), mais « le sien » n'est pas
   filtré : un Client lit et modifie encore les lignes des autres clients sur les tables
-  qui lui sont ouvertes (fiches DRO4 à DRO8). Les tables d'argent attendent DRO2.
+  qui lui sont ouvertes (fiches DRO4 à DRO8).
 * TODO — pas de verrou entre un contrôle et l'écriture qui le suit (versions figées,
   ordre du paiement) : deux `PUT` simultanés sur le même paiement lisent tous deux
   `'announced'`, et le dernier écrit gagne. Correctif : `SELECT … FOR UPDATE` dans le

@@ -15,7 +15,8 @@ la main, pas importée des routeurs : le test juge le code, il ne le relit pas.
 - test_allowed_role_is_not_refused : chaque case ouverte ne rend pas 403 ;
   un droit fermé par erreur se voit aussi.
 
-Hors de ce fichier : les 5 tables d'argent, ouvertes comme avant (DRO2).
+- test_payment_calculation_is_admin_only : POST /sales/{id}/payment, le
+  calcul du paiement, réservé à l'Admin (DRO2).
 ============================================================================
 """
 
@@ -55,6 +56,14 @@ MATRIX: dict[str, tuple[Sequence[str], Sequence[str], Sequence[str]]] = {
     "/visits": (ALL_ROLES, (H,), (A,)),
     # § 4 : la note n'est jamais saisie à la main (ADR-035).
     "/hunter-performances": ((A, H, M, R), (), ()),
+    # § 4, l'argent (DRO2). Réglages : Admin seul écrit (Q-ACC-07). Paiement :
+    # ni Client ni Reader (point 8), jamais saisi à la main (point 10).
+    # Vente : enregistrée par le manager (Q-ACC-03), modifiée par personne.
+    "/parameters-fees": ((A, H, M, R), (A,), (A,)),
+    "/commission-scales": ((A, H, M, R), (A,), (A,)),
+    "/hunter-rate-parameters": ((A, H, M, R), (A,), (A,)),
+    "/payments": ((A, H, M), (), (A,)),
+    "/sales": (ALL_ROLES, (M,), ()),
     # ADR-054 : ni Client ni Reader.
     "/estate-contacts": ((A, H, M), (A, H, M), (A, H, M)),
 }
@@ -96,3 +105,12 @@ def test_allowed_role_is_not_refused(db_client: TestClient, prefix: str, gesture
     with acting_as(role):
         responses = act(db_client, prefix, gesture)
     assert all(r.status_code != 403 for r in responses), [r.text for r in responses]
+
+
+# Vente inconnue : l'Admin passe le contrôle du rôle et reçoit 404 ; les
+# autres sont arrêtés avant, par le rôle.
+@pytest.mark.parametrize("role", ALL_ROLES)
+def test_payment_calculation_is_admin_only(db_client: TestClient, role: str):
+    with acting_as(role):
+        response = db_client.post("/sales/999999/payment")
+    assert response.status_code == (404 if role == ADMIN else 403), response.text

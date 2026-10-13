@@ -37,6 +37,7 @@ from .test_constraints_db import (
     advance,
     payment_payload,
     post_as_hunter,
+    post_as_manager,
     selected_estate,
 )
 
@@ -71,11 +72,11 @@ def _login(db_client: TestClient, email: str, password: str) -> int:
     return db_client.post("/auth/login", json={"email": email, "password": password}).status_code
 
 
-def _paid_on(db_client: TestClient, paid: date, **overrides: object) -> None:
+def _paid_on(db_client: TestClient, db_session: Session, paid: date, **overrides: object) -> None:
     """Un paiement versé ce jour-là, au chasseur 1 par défaut (ADR-038, pas à pas)."""
     payload = payment_payload(db_client, announced_at=f"{paid - timedelta(days=30)}T09:00:00Z", **overrides)
     scheduled = {"status": "scheduled", "scheduled_for": str(paid)}
-    advance(db_client, payload, scheduled, {**scheduled, "status": "paid", "paid_at": f"{paid}T00:00:00Z"})
+    advance(db_client, db_session, payload, scheduled, {**scheduled, "status": "paid", "paid_at": f"{paid}T00:00:00Z"})
 
 
 # --- Tout de suite : ce que rien n'oblige à garder (Décisions 4, 6, 7) ----------
@@ -184,7 +185,7 @@ def _hunter_with_an_old_mandate(db_client: TestClient) -> tuple[int, int]:
         "id_estate": post_as_hunter(db_client, "/estates", {**ESTATE, "reference": "TEST-API10-1"}).json()["id"],
         "id_parameters_fees": db_client.post("/parameters-fees", json=grid).json()["id"],
     }
-    assert (created := db_client.post("/sales", json=sale)).status_code == 201, created.text
+    assert (created := post_as_manager(db_client, "/sales", sale)).status_code == 201, created.text
     return hunter_id, created.json()["id"]
 
 
@@ -193,7 +194,7 @@ def test_hunter_paid_two_years_ago_keeps_name_rest_anonymized(
 ) -> None:
     hunter_id, sale_id = _hunter_with_an_old_mandate(db_client)
     paid = date.today() - timedelta(days=730)  # après la fin du mandat (2024-07-01)
-    _paid_on(db_client, paid, id_sale=sale_id, id_hunter=hunter_id)
+    _paid_on(db_client, db_session, paid, id_sale=sale_id, id_hunter=hunter_id)
 
     response = _anonymize(db_client, hunter_id)
 
@@ -219,19 +220,19 @@ def test_criteria_reasons_written_by_the_hunter_are_cleared(db_client: TestClien
     assert written and all(version.change_reason is None for version in written)
 
 
-def test_payment_made_today_holds_the_name_ten_years(db_client: TestClient) -> None:
+def test_payment_made_today_holds_the_name_ten_years(db_client: TestClient, db_session: Session) -> None:
     # Versé après la fin des mandats du chasseur 1 (2026-09-25) : c'est le
     # paiement qui fixe la date, pas un mandat.
-    _paid_on(db_client, date.today())
+    _paid_on(db_client, db_session, date.today())
 
     body = _anonymize(db_client, HUNTER_ID).json()
 
     assert body["names_kept_until"] == str(plus_years(date.today(), 10))
 
 
-def test_payment_not_yet_paid_holds_the_name_from_today(db_client: TestClient) -> None:
+def test_payment_not_yet_paid_holds_the_name_from_today(db_client: TestClient, db_session: Session) -> None:
     # Annoncé, pas encore versé : le délai n'a pas commencé.
-    advance(db_client, payment_payload(db_client))
+    advance(db_client, db_session, payment_payload(db_client))
 
     body = _anonymize(db_client, HUNTER_ID).json()
 

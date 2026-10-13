@@ -54,11 +54,13 @@ from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session  # mère de sqlmodel.Session, la fixture db_session
 from sqlmodel import Session as SQLModelSession
 
-from src.app.models import HunterPerformance
+from src.app.models import HunterPerformance, Payment
+from src.app.models.input_check import INPUT_CONTEXT
 from src.app.repositories.hunter_performance_repository import HunterPerformanceRepository
+from src.app.routes.payment_router import payment_service
 from src.app.services.hunter_performance_service import HunterPerformanceService
 from src.app.utils.exceptions import ConflictError
-from src.app.utils.roles import ADMIN, CLIENT, HUNTER
+from src.app.utils.roles import ADMIN, CLIENT, HUNTER, MANAGER
 
 from ..conftest import acting_as
 
@@ -104,6 +106,27 @@ def post_as_hunter(db_client: TestClient, endpoint: str, payload: dict[str, Any]
     """POST sous le compte du chasseur 1 ; les autres requêtes restent en Admin."""
     with acting_as(HUNTER, HUNTER_ID):
         return db_client.post(endpoint, json=payload)
+
+
+# Manager posé par 02 : il enregistre les ventes (Q-ACC-03, ADR-027 annexe § 4).
+MANAGER_ID = 25
+
+
+def post_as_manager(db_client: TestClient, endpoint: str, payload: dict[str, Any]) -> Response:
+    """POST sous le compte du manager 25."""
+    with acting_as(MANAGER, MANAGER_ID):
+        return db_client.post(endpoint, json=payload)
+
+
+def write_payment(db_session: SQLModelSession, payload: dict[str, Any]) -> Payment:
+    """
+    Écrit un paiement par le service, avec le contrôle d'entrée de la route
+    (INPUT_CONTEXT). POST /payments est fermé à tous : un paiement naît du
+    calcul (ADR-027, point 10 ; DRO2). Ces tests jugent la base et les
+    règles du service (P33, ADR-038) : le refus est un ConflictError, que la
+    route traduit en 409 (test_crud_router.py).
+    """
+    return payment_service.create(db_session, Payment.model_validate(payload, context=INPUT_CONTEXT))
 
 
 def post_as_client(db_client: TestClient, endpoint: str, payload: dict[str, Any]) -> Response:
@@ -650,7 +673,7 @@ def sale_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
 
 def payment_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
     """Un paiement annoncé, sur une vente neuve (sale_payload)."""
-    sale = db_client.post("/sales", json=sale_payload(db_client))
+    sale = post_as_manager(db_client, "/sales", sale_payload(db_client))
     assert sale.status_code == 201, sale.text
     scale = db_client.post(
         "/commission-scales",
@@ -677,92 +700,103 @@ def payment_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize("rate", ["0.20", "0.60"])
-def test_payment_final_rate_at_bounds_is_accepted(db_client: TestClient, rate: str):
+def test_payment_final_rate_at_bounds_is_accepted(db_client: TestClient, db_session: SQLModelSession, rate: str):
     # Q-REM-19 (R21) : 20 % et 60 % sont permis, bornes comprises. Le taux de
     # base suit, sinon P33 (taux recalculé, fiche API5) refuserait l'écart.
-    response = db_client.post("/payments", json=payment_payload(db_client, base_rate=rate, final_rate=rate))
-    assert response.status_code == 201, response.text
+    assert write_payment(db_session, payment_payload(db_client, base_rate=rate, final_rate=rate)).id is not None
 
 
 @pytest.mark.parametrize("rate", ["0.19", "0.61"])
-def test_payment_final_rate_out_of_bounds_returns_409(db_client: TestClient, rate: str):
+def test_payment_final_rate_out_of_bounds_returns_409(db_client: TestClient, db_session: SQLModelSession, rate: str):
     # Q-REM-19 : 0,19 et 0,61 passaient avec le CHECK v2 (de 0 à 1).
-    response = db_client.post("/payments", json=payment_payload(db_client, final_rate=rate))
-    assert response.status_code == 409
+    payload = payment_payload(db_client, final_rate=rate)
+    with pytest.raises(ConflictError):
+        write_payment(db_session, payload)
 
 
-def test_payment_without_final_rate_returns_409(db_client: TestClient):
+def test_payment_without_final_rate_returns_409(db_client: TestClient, db_session: SQLModelSession):
     # Q-REM-10 : hors refus, le taux final est exigé (chk_refused).
-    response = db_client.post("/payments", json=payment_payload(db_client, final_rate=None))
-    assert response.status_code == 409
+    payload = payment_payload(db_client, final_rate=None)
+    with pytest.raises(ConflictError):
+        write_payment(db_session, payload)
 
 
-def test_refused_payment_is_accepted(db_client: TestClient):
-    response = db_client.post("/payments", json=payment_payload(db_client, **REFUSED))
-    assert response.status_code == 201, response.text
+def test_refused_payment_is_accepted(db_client: TestClient, db_session: SQLModelSession):
+    assert write_payment(db_session, payment_payload(db_client, **REFUSED)).id is not None
 
 
-def test_refused_payment_with_final_rate_returns_409(db_client: TestClient):
+def test_refused_payment_with_final_rate_returns_409(db_client: TestClient, db_session: SQLModelSession):
     # chk_refused, dans l'autre sens : un refus ne porte aucun taux.
     payload = payment_payload(db_client, **{**REFUSED, "final_rate": "0.3000"})
-    assert db_client.post("/payments", json=payload).status_code == 409
+    with pytest.raises(ConflictError):
+        write_payment(db_session, payload)
 
 
-def test_refused_payment_with_performance_score_returns_409(db_client: TestClient):
+def test_refused_payment_with_performance_score_returns_409(db_client: TestClient, db_session: SQLModelSession):
     # Q-REM-03 : pas de score figé sur un refus.
     payload = payment_payload(db_client, **{**REFUSED, "performance_score": "50.0"})
-    assert db_client.post("/payments", json=payload).status_code == 409
+    with pytest.raises(ConflictError):
+        write_payment(db_session, payload)
 
 
-def test_payment_without_performance_score_returns_409(db_client: TestClient):
+def test_payment_without_performance_score_returns_409(db_client: TestClient, db_session: SQLModelSession):
     # ADR-033, Décision 3 (D2, 2026-10-09) : hors refus, la note est exigée.
     payload = payment_payload(db_client, performance_score=None)
-    assert db_client.post("/payments", json=payload).status_code == 409
+    with pytest.raises(ConflictError):
+        write_payment(db_session, payload)
 
 
-def test_payment_without_calculation_details_returns_409(db_client: TestClient):
+def test_payment_without_calculation_details_returns_409(db_client: TestClient, db_session: SQLModelSession):
     # ADR-033, Décision 3 : hors refus, le détail du calcul est exigé.
     payload = payment_payload(db_client, calculation_details=None)
-    assert db_client.post("/payments", json=payload).status_code == 409
+    with pytest.raises(ConflictError):
+        write_payment(db_session, payload)
 
 
-def test_refused_payment_with_calculation_details_returns_409(db_client: TestClient):
+def test_refused_payment_with_calculation_details_returns_409(db_client: TestClient, db_session: SQLModelSession):
     # ADR-033, Décision 3, dans l'autre sens : un refus ne porte aucun détail.
     payload = payment_payload(db_client, **{**REFUSED, "calculation_details": DETAILS})
-    assert db_client.post("/payments", json=payload).status_code == 409
+    with pytest.raises(ConflictError):
+        write_payment(db_session, payload)
 
 
-def test_payment_without_rate_parameters_returns_409(db_client: TestClient):
+def test_payment_without_rate_parameters_returns_409(db_client: TestClient, db_session: SQLModelSession):
     # G1 : hors refus, la version des réglages du taux est exigée (chk_refused).
     payload = payment_payload(db_client, id_hunter_rate_parameters=None)
-    assert db_client.post("/payments", json=payload).status_code == 409
+    with pytest.raises(ConflictError):
+        write_payment(db_session, payload)
 
 
-def test_refused_payment_with_rate_parameters_returns_409(db_client: TestClient):
+def test_refused_payment_with_rate_parameters_returns_409(db_client: TestClient, db_session: SQLModelSession):
     # G1, dans l'autre sens : un refus ne désigne aucune version de réglages.
     # Le refus garde la version que payment_payload a créée.
     refused = {k: v for k, v in REFUSED.items() if k != "id_hunter_rate_parameters"}
     payload = payment_payload(db_client, **refused)
-    assert db_client.post("/payments", json=payload).status_code == 409
+    with pytest.raises(ConflictError):
+        write_payment(db_session, payload)
 
 
-def test_payment_unknown_rate_parameters_returns_409(db_client: TestClient):
+def test_payment_unknown_rate_parameters_returns_409(db_client: TestClient, db_session: SQLModelSession):
     # G1 : la clé étrangère refuse une version qui n'existe pas.
     payload = payment_payload(db_client, id_hunter_rate_parameters=999999)
-    assert db_client.post("/payments", json=payload).status_code == 409
+    with pytest.raises(ConflictError):
+        write_payment(db_session, payload)
 
 
-def test_payment_announced_without_date_returns_409(db_client: TestClient):
+def test_payment_announced_without_date_returns_409(db_client: TestClient, db_session: SQLModelSession):
     # Q-REM-17 : chk_announced — annoncé, donc daté.
-    response = db_client.post("/payments", json=payment_payload(db_client, announced_at=None))
-    assert response.status_code == 409
+    payload = payment_payload(db_client, announced_at=None)
+    with pytest.raises(ConflictError):
+        write_payment(db_session, payload)
 
 
-def advance(db_client: TestClient, payload: dict[str, Any], *steps: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-    """Crée le paiement 'announced', puis le fait avancer par PUT (ADR-038 : pas de POST en 'paid')."""
-    created = db_client.post("/payments", json=payload)
-    assert created.status_code == 201, created.text
-    payment_id = created.json()["id"]
+def advance(
+    db_client: TestClient, db_session: SQLModelSession, payload: dict[str, Any], *steps: dict[str, Any]
+) -> tuple[int, dict[str, Any]]:
+    """Crée le paiement 'announced' (write_payment), puis le fait avancer par PUT en Admin (ADR-038)."""
+    payment = write_payment(db_session, payload)
+    assert payment.id is not None
+    payment_id = payment.id
     for step in steps:
         payload = {**payload, **step}
         moved = db_client.put(f"/payments/{payment_id}", json=payload)
@@ -770,30 +804,30 @@ def advance(db_client: TestClient, payload: dict[str, Any], *steps: dict[str, An
     return payment_id, payload
 
 
-def test_payment_scheduled_without_date_returns_409(db_client: TestClient):
+def test_payment_scheduled_without_date_returns_409(db_client: TestClient, db_session: SQLModelSession):
     # Q-REM-17 : chk_scheduled — programmé, donc prévu pour un jour.
-    payment_id, payload = advance(db_client, payment_payload(db_client))
+    payment_id, payload = advance(db_client, db_session, payment_payload(db_client))
     response = db_client.put(f"/payments/{payment_id}", json={**payload, "status": "scheduled"})
     assert response.status_code == 409
 
 
-def test_payment_paid_keeps_its_dates_and_details(db_client: TestClient):
+def test_payment_paid_keeps_its_dates_and_details(db_client: TestClient, db_session: SQLModelSession):
     # Q-REM-17 : un paiement fait garde ses trois dates. Q-REM-04 : les
     # termes du calcul se relisent tels quels (clés de CalculationDetails).
     details = {**DETAILS, "mandate_signature_date": "2026-01-05", "is_exclusive": True}
     scheduled = {"status": "scheduled", "scheduled_for": "2026-03-15"}
     paid = {"status": "paid", "paid_at": "2026-03-15T10:00:00Z"}
-    payment_id, _ = advance(db_client, payment_payload(db_client, calculation_details=details), scheduled, paid)
+    payment_id, _ = advance(db_client, db_session, payment_payload(db_client, calculation_details=details), scheduled, paid)
 
     read = db_client.get(f"/payments/{payment_id}").json()
     assert read["calculation_details"] == details
     assert read["announced_at"] and read["scheduled_for"] and read["paid_at"]
 
 
-def test_payment_paid_in_the_future_returns_409(db_client: TestClient):
+def test_payment_paid_in_the_future_returns_409(db_client: TestClient, db_session: SQLModelSession):
     # Audit P34 : un paiement payé a eu lieu (chk_paid_not_in_future).
     scheduled = {"status": "scheduled", "scheduled_for": "2099-03-15"}
-    payment_id, payload = advance(db_client, payment_payload(db_client), scheduled)
+    payment_id, payload = advance(db_client, db_session, payment_payload(db_client), scheduled)
     paid = {**payload, "status": "paid", "paid_at": "2099-03-15T10:00:00Z"}
     assert db_client.put(f"/payments/{payment_id}", json=paid).status_code == 409
 
@@ -802,12 +836,11 @@ def test_payment_paid_in_the_future_returns_409(db_client: TestClient):
     ("field", "value", "final"),
     [("seniority_rate", "0.1200", "0.3360"), ("performance_rate", "-0.2500", "0.2250")],
 )
-def test_payment_rate_beyond_v2_bounds_is_accepted(db_client: TestClient, field: str, value: str, final: str):
+def test_payment_rate_beyond_v2_bounds_is_accepted(db_client: TestClient, db_session: SQLModelSession, field: str, value: str, final: str):
     # Q-REM-05 : +10 % et ±20 % sont des paramètres (REGLES-CALCUL l. 59),
     # plus des CHECK. 0,12 et -0,25 étaient refusés en v2. Le taux final est
     # celui que P33 recalcule : 0,30 × (1 + 0,12) et 0,30 × (1 - 0,25).
-    response = db_client.post("/payments", json=payment_payload(db_client, **{field: value, "final_rate": final}))
-    assert response.status_code == 201, response.text
+    assert write_payment(db_session, payment_payload(db_client, **{field: value, "final_rate": final})).id is not None
 
 
 @pytest.mark.parametrize(
@@ -819,10 +852,11 @@ def test_payment_rate_beyond_v2_bounds_is_accepted(db_client: TestClient, field:
         ("performance_rate", "1.5000"),
     ],
 )
-def test_payment_rate_out_of_domain_returns_409(db_client: TestClient, field: str, value: str):
+def test_payment_rate_out_of_domain_returns_409(db_client: TestClient, db_session: SQLModelSession, field: str, value: str):
     # Q-REM-05 : restent les bornes du domaine, justifiées dans init-v3/01.
-    response = db_client.post("/payments", json=payment_payload(db_client, **{field: value}))
-    assert response.status_code == 409
+    payload = payment_payload(db_client, **{field: value})
+    with pytest.raises(ConflictError):
+        write_payment(db_session, payload)
 
 
 # --- commission_scale --------------------------------------------------------
@@ -867,18 +901,18 @@ def test_parameters_fees_next_grid_is_accepted(db_client: TestClient):
 def test_sale_unknown_fees_grid_returns_409(db_client: TestClient):
     # Q-REM-13 : une vente pointe une grille d'honoraires qui existe.
     payload = sale_payload(db_client, id_parameters_fees=999999)
-    assert db_client.post("/sales", json=payload).status_code == 409
+    assert post_as_manager(db_client, "/sales", payload).status_code == 409
 
 
 def test_sale_second_sale_of_same_estate_returns_409(db_client: TestClient):
     # P37 (ADR-053) : un bien n'est vendu qu'une fois, même sur un autre mandat.
     payload = sale_payload(db_client)
-    first = db_client.post("/sales", json=payload)
+    first = post_as_manager(db_client, "/sales", payload)
     assert first.status_code == 201, first.text
     # Même bien, même grille ; seul le mandat change (sale_payload créerait un autre bien).
     # 'client_alone' : sans offre sur le mandat 2, P27 refuserait avant la base.
     second = {**payload, "id_mandate": 2, "sale_origin": "client_alone"}
-    assert db_client.post("/sales", json=second).status_code == 409
+    assert post_as_manager(db_client, "/sales", second).status_code == 409
 
 
 # --- hunter_performance ------------------------------------------------------
@@ -909,9 +943,8 @@ def add_score(db_session: SQLModelSession, payload: dict[str, Any]) -> HunterPer
 
 def test_hunter_performance_same_payment_twice_conflicts(db_client: TestClient, db_session: SQLModelSession):
     # Q-SCH-06 : un paiement donne une note, une seule (uq_perf_payment).
-    payment = db_client.post("/payments", json=payment_payload(db_client))
-    assert payment.status_code == 201, payment.text
-    first = score_payload(trigger_type="payment", id_payment=payment.json()["id"])
+    payment = write_payment(db_session, payment_payload(db_client))
+    first = score_payload(trigger_type="payment", id_payment=payment.id)
     add_score(db_session, first)
     second = {**first, "scored_at": "2026-03-02T11:00:00Z"}
     with pytest.raises(ConflictError):
@@ -921,9 +954,8 @@ def test_hunter_performance_same_payment_twice_conflicts(db_client: TestClient, 
 def test_hunter_performance_of_another_hunters_payment_conflicts(db_client: TestClient, db_session: SQLModelSession):
     # Audit P35 : la note du paiement du chasseur 1 ne va pas au chasseur 2
     # (fk_perf_payment_same_hunter).
-    payment = db_client.post("/payments", json=payment_payload(db_client))
-    assert payment.status_code == 201, payment.text
-    score = score_payload(trigger_type="payment", id_payment=payment.json()["id"], id_hunter=2)
+    payment = write_payment(db_session, payment_payload(db_client))
+    score = score_payload(trigger_type="payment", id_payment=payment.id, id_hunter=2)
     with pytest.raises(ConflictError):
         add_score(db_session, score)
 

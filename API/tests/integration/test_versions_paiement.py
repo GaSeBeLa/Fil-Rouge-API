@@ -17,6 +17,9 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session as SQLModelSession
+
+from src.app.utils.exceptions import ConflictError
 
 from .test_constraints_db import (
     HUNTER_RATE_PARAMETERS,
@@ -25,16 +28,20 @@ from .test_constraints_db import (
     fees_grid,
     payment_payload,
     rate_parameters,
+    post_as_manager,
     sale_payload,
+    write_payment,
 )
 
 GRID = {"effective_from": "2025-01-01", "fixed_amount": 3000, "rate": "0.0250"}
 SCALE = {"amount_min": 0, "rate": "0.3000", "valid_from": "2025-01-01"}
 
 
-def create_payment(db_client: TestClient, *steps: dict[str, Any], **overrides: Any) -> tuple[int, dict[str, Any]]:
+def create_payment(
+    db_client: TestClient, db_session: SQLModelSession, *steps: dict[str, Any], **overrides: Any
+) -> tuple[int, dict[str, Any]]:
     """Un paiement 'announced', puis avancé par PUT, étape par étape (ADR-038)."""
-    return advance(db_client, payment_payload(db_client, **overrides), *steps)
+    return advance(db_client, db_session, payment_payload(db_client, **overrides), *steps)
 
 
 # --- ADR-030, ADR-034 : une version citée est figée ---------------------------
@@ -42,7 +49,7 @@ def create_payment(db_client: TestClient, *steps: dict[str, Any], **overrides: A
 
 def test_cited_fees_grid_cannot_change(db_client: TestClient):
     grid = fees_grid(db_client)
-    sale = db_client.post("/sales", json=sale_payload(db_client, id_parameters_fees=grid))
+    sale = post_as_manager(db_client, "/sales", sale_payload(db_client, id_parameters_fees=grid))
     assert sale.status_code == 201, sale.text
 
     response = db_client.put(f"/parameters-fees/{grid}", json={**GRID, "fixed_amount": 3500})
@@ -58,8 +65,8 @@ def test_uncited_fees_grid_can_change(db_client: TestClient):
     assert response.json()["fixed_amount"] == 3500
 
 
-def test_cited_commission_scale_cannot_change(db_client: TestClient):
-    _, payload = create_payment(db_client)
+def test_cited_commission_scale_cannot_change(db_client: TestClient, db_session: SQLModelSession):
+    _, payload = create_payment(db_client, db_session)
     scale = payload["id_commission_scale"]
 
     assert db_client.put(f"/commission-scales/{scale}", json={**SCALE, "rate": "0.3500"}).status_code == 409
@@ -71,8 +78,8 @@ def test_uncited_commission_scale_can_change(db_client: TestClient):
     assert db_client.put(f"/commission-scales/{scale}", json={**SCALE, "rate": "0.3500"}).status_code == 200
 
 
-def test_cited_rate_parameters_cannot_change(db_client: TestClient):
-    _, payload = create_payment(db_client)
+def test_cited_rate_parameters_cannot_change(db_client: TestClient, db_session: SQLModelSession):
+    _, payload = create_payment(db_client, db_session)
     version = payload["id_hunter_rate_parameters"]
 
     changed = {**HUNTER_RATE_PARAMETERS, "rate_ceiling": "0.55"}
@@ -93,8 +100,8 @@ PAID = {**SCHEDULED, "status": "paid", "paid_at": "2026-03-15T10:00:00Z"}
 ANNOUNCED = {"status": "announced", "scheduled_for": None, "paid_at": None}
 
 
-def test_payment_moves_forward_step_by_step(db_client: TestClient):
-    payment_id, payload = create_payment(db_client)
+def test_payment_moves_forward_step_by_step(db_client: TestClient, db_session: SQLModelSession):
+    payment_id, payload = create_payment(db_client, db_session)
 
     scheduled = db_client.put(f"/payments/{payment_id}", json={**payload, **SCHEDULED})
     assert scheduled.status_code == 200, scheduled.text
@@ -103,53 +110,53 @@ def test_payment_moves_forward_step_by_step(db_client: TestClient):
     assert paid.json()["status"] == "paid"
 
 
-def test_paid_payment_cannot_go_back_to_announced(db_client: TestClient):
-    payment_id, payload = create_payment(db_client, SCHEDULED, PAID)
+def test_paid_payment_cannot_go_back_to_announced(db_client: TestClient, db_session: SQLModelSession):
+    payment_id, payload = create_payment(db_client, db_session, SCHEDULED, PAID)
 
     response = db_client.put(f"/payments/{payment_id}", json={**payload, **ANNOUNCED})
     assert response.status_code == 409
     assert "ADR-038" in response.text
 
 
-def test_announced_payment_cannot_skip_scheduled(db_client: TestClient):
+def test_announced_payment_cannot_skip_scheduled(db_client: TestClient, db_session: SQLModelSession):
     # PAID porte scheduled_for : chk_scheduled accepterait, seule ADR-038 refuse.
-    payment_id, payload = create_payment(db_client)
+    payment_id, payload = create_payment(db_client, db_session)
 
     assert db_client.put(f"/payments/{payment_id}", json={**payload, **PAID}).status_code == 409
 
 
-def test_paid_payment_is_frozen(db_client: TestClient):
-    payment_id, payload = create_payment(db_client, SCHEDULED, PAID)
+def test_paid_payment_is_frozen(db_client: TestClient, db_session: SQLModelSession):
+    payment_id, payload = create_payment(db_client, db_session, SCHEDULED, PAID)
 
     response = db_client.put(f"/payments/{payment_id}", json={**payload, "amount": "3600.00"})
     assert response.status_code == 409
     assert "ADR-038" in response.text
 
 
-def test_payment_cannot_be_deleted(db_client: TestClient):
+def test_payment_cannot_be_deleted(db_client: TestClient, db_session: SQLModelSession):
     # ADR-049, Décision 10 : plus aucune route DELETE, payé ou non.
-    payment_id, _ = create_payment(db_client, SCHEDULED, PAID)
+    payment_id, _ = create_payment(db_client, db_session, SCHEDULED, PAID)
 
     assert db_client.delete(f"/payments/{payment_id}").status_code == 405
     assert db_client.get(f"/payments/{payment_id}").status_code == 200
 
 
 @pytest.mark.parametrize("step", [SCHEDULED, PAID])
-def test_payment_cannot_be_created_past_announced(db_client: TestClient, step: dict[str, Any]):
+def test_payment_cannot_be_created_past_announced(db_client: TestClient, db_session: SQLModelSession, step: dict[str, Any]):
     # Les dates sont là : la base accepterait, seule ADR-038 refuse.
-    response = db_client.post("/payments", json=payment_payload(db_client, **step))
-    assert response.status_code == 409
-    assert "ADR-038" in response.text
+    payload = payment_payload(db_client, **step)
+    with pytest.raises(ConflictError, match="ADR-038"):
+        write_payment(db_session, payload)
 
 
-def test_scheduled_payment_cannot_go_back_to_announced(db_client: TestClient):
-    payment_id, payload = create_payment(db_client, SCHEDULED)
+def test_scheduled_payment_cannot_go_back_to_announced(db_client: TestClient, db_session: SQLModelSession):
+    payment_id, payload = create_payment(db_client, db_session, SCHEDULED)
 
     assert db_client.put(f"/payments/{payment_id}", json={**payload, **ANNOUNCED}).status_code == 409
 
 
-def test_announced_payment_can_be_refused_but_not_reopened(db_client: TestClient):
-    payment_id, payload = create_payment(db_client)
+def test_announced_payment_can_be_refused_but_not_reopened(db_client: TestClient, db_session: SQLModelSession):
+    payment_id, payload = create_payment(db_client, db_session)
 
     refused = db_client.put(f"/payments/{payment_id}", json={**payload, **REFUSED})
     assert refused.status_code == 200, refused.text
@@ -157,8 +164,8 @@ def test_announced_payment_can_be_refused_but_not_reopened(db_client: TestClient
     assert db_client.put(f"/payments/{payment_id}", json=payload).status_code == 409
 
 
-def test_scheduled_payment_cannot_be_refused(db_client: TestClient):
-    payment_id, payload = create_payment(db_client, SCHEDULED)
+def test_scheduled_payment_cannot_be_refused(db_client: TestClient, db_session: SQLModelSession):
+    payment_id, payload = create_payment(db_client, db_session, SCHEDULED)
 
     # scheduled_for vidé : sans lui, chk_scheduled refuserait déjà, et le test
     # ne prouverait plus la règle d'ADR-038.
@@ -169,11 +176,11 @@ def test_scheduled_payment_cannot_be_refused(db_client: TestClient):
 # --- P33 : le taux final est recalculé ------------------------------------------
 
 
-def test_wrong_final_rate_returns_409(db_client: TestClient):
+def test_wrong_final_rate_returns_409(db_client: TestClient, db_session: SQLModelSession):
     # 0,30 × (1 + 0 + 0) = 0,30 ; 0,35 annoncé ne s'explique pas.
-    response = db_client.post("/payments", json=payment_payload(db_client, final_rate="0.3500"))
-    assert response.status_code == 409
-    assert "P33" in response.text
+    payload = payment_payload(db_client, final_rate="0.3500")
+    with pytest.raises(ConflictError, match="P33"):
+        write_payment(db_session, payload)
 
 
 @pytest.mark.parametrize(
@@ -184,14 +191,13 @@ def test_wrong_final_rate_returns_409(db_client: TestClient):
         ("0.5500", "0.1000", "0.2000", "0.6000"),  # 0,715 ramené au plafond
     ],
 )
-def test_right_final_rate_is_accepted(db_client: TestClient, base: str, seniority: str, performance: str, final: str):
+def test_right_final_rate_is_accepted(db_client: TestClient, db_session: SQLModelSession, base: str, seniority: str, performance: str, final: str):
     rates = {"base_rate": base, "seniority_rate": seniority, "performance_rate": performance, "final_rate": final}
-    response = db_client.post("/payments", json=payment_payload(db_client, **rates))
-    assert response.status_code == 201, response.text
+    assert write_payment(db_session, payment_payload(db_client, **rates)).id is not None
 
 
-def test_wrong_final_rate_on_update_returns_409(db_client: TestClient):
-    payment_id, payload = create_payment(db_client)
+def test_wrong_final_rate_on_update_returns_409(db_client: TestClient, db_session: SQLModelSession):
+    payment_id, payload = create_payment(db_client, db_session)
 
     response = db_client.put(f"/payments/{payment_id}", json={**payload, "final_rate": "0.3100"})
     assert response.status_code == 409

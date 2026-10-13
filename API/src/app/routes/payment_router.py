@@ -11,7 +11,7 @@ from ..repositories.visit_repository import VisitRepository
 from ..services.parametrage_service import ParametrageService
 from ..services.payment_calculation_service import PaymentCalculationService
 from ..services.payment_service import PaymentService
-from ..utils.roles import ALL_ROLES, WRITER_ROLES
+from ..utils.roles import ADMIN, HUNTER, MANAGER
 from .crud_router import build_crud_router
 
 # Fiche API12 : le calcul branché sur la base. Partagé avec sale_router.py,
@@ -39,8 +39,11 @@ router = build_crud_router(
     prefix="/payments",
     tag="payment",
     response_model=Payment,
-    # DRO2 : les droits de l'argent se règlent à part ; ouvert comme
-    # avant le moindre privilège (DRO1).
-    read_roles=ALL_ROLES,
-    write_roles=WRITER_ROLES,
+    # ADR-027, annexe § 4 : lu par le chasseur (H10), son manager
+    # (Q-ACC-02) et l'Admin ; ni Client ni Reader (point 8). Jamais saisi
+    # à la main (point 10) : POST fermé à tous, le paiement naît du calcul
+    # (POST /sales/{id}/payment). L'Admin le fait avancer : programmé, payé.
+    read_roles=(ADMIN, HUNTER, MANAGER),
+    write_roles=(ADMIN,),
+    create_roles=(),
 )
