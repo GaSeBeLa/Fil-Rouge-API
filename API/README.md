@@ -62,8 +62,36 @@ responsable du programme hors du dépôt et hors de Discord.
 
 **Une seule fois, à la première installation** : copier `docker/.env.exemple`
 sous le nom `docker/.env`, et y mettre ses propres mots de passe. Sans ce
-fichier, `docker compose` affiche `variable is not set` et la base ne démarre
-pas.
+fichier, `docker compose` affiche `variable is not set` et une base neuve ne
+démarre pas.
+
+```bash
+cp docker/.env.exemple docker/.env
+```
+
+Le modèle explique chaque ligne. À retenir :
+
+- `POSTGRES_DB` : garder `fil_rouge_immobilier`, l'API et les scripts l'attendent.
+- `POSTGRES_PASSWORD` : jamais vide ; `MINIO_ROOT_PASSWORD` : 8 caractères au moins.
+- `JWT_SECRET`, `API_KEY_INTERNAL`, `API_KEY_APP_BACKEND` : obligatoires, sinon
+  l'API refuse de démarrer. Une valeur par clé, générée par `openssl rand -hex 32`.
+- `POSTGRES_READER_PASSWORD` : facultatif.
+
+**Après un nouveau clone, le `.env` manque aussi** : git ne le suit jamais, le
+clone ne l'apporte donc pas. Le recopier depuis l'ancien clone, ou repartir du
+modèle. Piège : `docker compose up -d` affiche alors une série de
+`The "POSTGRES_PASSWORD" variable is not set` (et de même pour `JWT_SECRET`, les
+clés d'API, MinIO), **mais la base peut quand même dire `Healthy`**.
+`docker-compose.yml` fixe le nom du projet (`name: fil_rouge_immobilier`) : Docker
+reprend le volume de base déjà créé par un autre clone. Rien ne marche pour
+autant, l'API n'a ni secret ni clé. Une fois le `.env` en place, repartir de
+zéro depuis `docker/` (⚠️ efface la base de dev locale) :
+
+```bash
+docker compose down -v && docker compose up -d
+```
+
+puis, depuis la racine du dépôt : `bash docker/create_test_db.sh`.
 
 L'API est un service du `docker-compose` du projet. Depuis `docker/` :
 
