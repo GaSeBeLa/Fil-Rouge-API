@@ -422,6 +422,13 @@ ensuite créer d'autres comptes avec `POST /users`, pour essayer les autres rôl
   (Q-ACC-10 ; un autre champ → `403`, hors équipe → `409`), enregistre une vente de
   son équipe (Q-ACC-03, sinon `409`), change ses coordonnées et son compte, sans rôle ni
   activation (`403`). Client, sélection et avis lui restent fermés (fiche DRO1).
+  Compte désactivé (ADR-027, point 7 ; fiche DRO8) : son profil (`/users`, `/clients`,
+  `/hunters`, `/real-estate-managers`) n'est plus lu que par l'**Admin** ; pour tout
+  autre rôle, `Reader` compris, il sort des listes et rend `404`. Les lignes qui le
+  citent (demande, mandat, vente) restent lisibles. ⚠️ Les 25 comptes du seed sont
+  désactivés (migrés sans mot de passe) : en dev, leurs profils sont cachés aux
+  non-Admin jusqu'à leur activation ; les tests les activent dans leur transaction
+  (`db_client`, `tests/integration/conftest.py`).
 
   | Table | Lire | Créer | Modifier |
   |---|---|---|---|
@@ -613,7 +620,9 @@ encore référencé échoue toujours, même en SQL direct (l'API, elle, ne suppr
 ## Limites connues
 
 * Droits : « le sien » est filtré pour le Client (fiche DRO5), le Hunter (fiches DRO4,
-  DRO6) et le Manager (fiche DRO7). Les comptes désactivés attendent la fiche DRO8.
+  DRO6) et le Manager (fiche DRO7) ; les comptes désactivés sont réservés à l'Admin
+  (fiche DRO8). « Désactivé » ne distingue pas un compte effacé (ADR-049) d'un compte
+  jamais activé, comme ceux du seed : les deux sont cachés.
 * Le Client modifie son mandat et ses biens proposés **champ par champ sans limite** :
   l'annexe ne lui donne que signer (P3), commenter, prioriser, faire une offre (H6, H8).
   Seule l'appartenance est gardée (fiche DRO5).

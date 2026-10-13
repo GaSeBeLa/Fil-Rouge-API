@@ -32,6 +32,11 @@ lignes de son équipe dans les 8 tables de sa colonne, ses paiements, son
 compte et sa fiche, et reçoit 404 sur celles de l'autre. En écriture : il
 n'affecte une demande qu'à l'un de ses chasseurs (409), ne change rien
 d'autre (403), n'enregistre une vente que pour son équipe (409).
+
+Compte désactivé (fiche DRO8) : son profil, dans les quatre tables de
+données personnelles, n'est plus lu que par l'Admin ; Reader et les autres
+rôles reçoivent 404. Les comptes du seed, tous désactivés, sont activés le
+temps du test (db_client, tests/integration/conftest.py).
 ============================================================================
 """
 
@@ -47,7 +52,7 @@ from sqlmodel import Session
 from src.app.models import HunterPerformance, Payment
 from src.app.routes.payment_router import payment_service
 from src.app.utils.exceptions import NotFoundError
-from src.app.utils.roles import CLIENT, HUNTER, MANAGER
+from src.app.utils.roles import CLIENT, HUNTER, MANAGER, READER
 
 from ..conftest import acting_as, principal_as
 from .conftest import USER_PASSWORD
@@ -254,7 +259,7 @@ def test_client_sees_his_rows_not_the_other_clients(
 @pytest.mark.parametrize("field", ["id_role", "is_activated"])
 def test_client_changes_neither_his_role_nor_his_activation(db_client: TestClient, field: str):
     before = db_client.get(f"/users/{CLIENT_ID}").json()
-    # Une autre valeur que la sienne (le client 7 du seed est désactivé).
+    # Une autre valeur que la sienne (activé le temps du test : db_client).
     change = {"id_role": 4} if field == "id_role" else {"is_activated": not before["is_activated"]}
     with acting_as(CLIENT, CLIENT_ID):
         response = db_client.put(f"/users/{CLIENT_ID}", json=change)
@@ -769,3 +774,63 @@ def test_manager_records_a_sale_only_for_his_team(
 
     assert response.status_code == 409, response.text
     assert "le sien" in response.json()["detail"]
+
+
+# --- Compte désactivé (DRO8) --------------------------------------------------
+
+# ADR-027, point 7 : le profil d'un compte désactivé n'est plus lu que par
+# l'Admin. Par table : un compte, et un lecteur qui le voit tant qu'il est
+# actif (Reader voit tout ; le chasseur 3 suit la demande 2 du client 8 ; le
+# manager 25 mène le chasseur 2 ; le chasseur 1 a pour manager le 25).
+DEACTIVATED_PROFILES = [
+    ("/users", OTHER_CLIENT_ID, READER, 0),
+    ("/clients", OTHER_CLIENT_ID, READER, 0),
+    ("/clients", OTHER_CLIENT_ID, HUNTER, 3),
+    ("/hunters", OTHER_HUNTER_ID, READER, 0),
+    ("/hunters", OTHER_HUNTER_ID, MANAGER, SEED_MANAGER),
+    ("/real-estate-managers", SEED_MANAGER, READER, 0),
+    ("/real-estate-managers", SEED_MANAGER, HUNTER, HUNTER_ID),
+]
+
+
+def deactivate(db_client: TestClient, account: int) -> None:
+    """L'Admin désactive le compte (ADR-049, Décision 1)."""
+    response = db_client.put(f"/users/{account}", json={"is_activated": False})
+    assert response.status_code == 200, response.text
+
+
+def profile_of(db_client: TestClient, endpoint: str, account: int) -> int:
+    """L'id de la ligne de ce compte dans la table, lue par l'Admin."""
+    return account if endpoint == "/users" else id_where(db_client, endpoint, "id_user", account)
+
+
+@pytest.mark.parametrize(("endpoint", "account", "role", "viewer"), DEACTIVATED_PROFILES)
+def test_deactivated_profile_is_read_by_admin_only(
+    db_client: TestClient, endpoint: str, account: int, role: str, viewer: int
+):
+    row = profile_of(db_client, endpoint, account)
+    with acting_as(role, viewer):
+        before = db_client.get(f"{endpoint}/{row}")
+    assert before.status_code == 200, before.text  # actif, le lecteur le voit
+
+    deactivate(db_client, account)
+    with acting_as(role, viewer):
+        listed = {item["id"] for item in db_client.get(endpoint).json()}
+        after = db_client.get(f"{endpoint}/{row}")
+        absent = db_client.get(f"{endpoint}/999999")
+    by_admin = db_client.get(f"{endpoint}/{row}")
+
+    assert after.status_code == 404, after.text
+    assert after.json() == absent.json()
+    assert row not in listed
+    assert by_admin.status_code == 200, by_admin.text
+
+
+def test_rows_citing_a_deactivated_account_stay_readable(db_client: TestClient):
+    # Seul le profil se cache : la demande 2 du client 8 reste lisible.
+    deactivate(db_client, OTHER_CLIENT_ID)
+    with acting_as(READER, 0):
+        request = db_client.get(f"/search-requests/{WORLDS[OTHER_CLIENT_ID][0]}")
+
+    assert request.status_code == 200, request.text
+    assert request.json()["id_client"] == OTHER_CLIENT_ID

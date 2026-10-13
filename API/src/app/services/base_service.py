@@ -29,9 +29,15 @@ lignes que ce compte voit ; par défaut, toutes. Une table le surcharge
 de client_rows.py ; celles du Hunter, fiche DRO6, par hunter_rows.py ;
 celles du Manager, fiche DRO7, par manager_rows.py). Une ligne hors du
 crochet est introuvable : 404, en lecture comme en modification, comme une
-ligne qui n'existe pas. L'Admin
-voit tout : le crochet n'est pas appelé pour lui. Sans `viewer` (contrôle
-interne, script, test), rien n'est filtré.
+ligne qui n'existe pas. L'Admin voit tout : le crochet n'est pas appelé pour
+lui. Sans `viewer` (contrôle interne, script, test), rien n'est filtré.
+
+Compte désactivé (ADR-027, point 7 ; ADR-049 ; fiche DRO8) : les quatre
+tables de données personnelles (`user`, `client`, `hunter`,
+`real_estate_manager`) déclarent `account_column`, la colonne qui nomme leur
+compte. Pour tout autre rôle que l'Admin, Reader compris, une ligne dont le
+compte a `is_activated = FALSE` sort des listes et rend 404, en plus du
+crochet. Les lignes qui citent ce compte (mandat, vente) restent lisibles.
 
 En écriture (fiche DRO5) : le POST passe par create_as, le PUT par
 replace_visible. Les deux demandent au crochet `owns` si la ligne, telle
@@ -47,10 +53,10 @@ d'avis (review_media_service.py, ADR-051, 403).
 ============================================================================
 """
 
-from typing import TYPE_CHECKING, Generic, List, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, List, Optional, TypeVar
 
-from sqlalchemy import ColumnElement
-from sqlmodel import Session, SQLModel
+from sqlalchemy import ColumnElement, and_
+from sqlmodel import Session, SQLModel, col, select
 
 from ..models import User
 from ..utils.exceptions import ConflictError, NotFoundError
@@ -80,6 +86,10 @@ def fields_changed_outside(existing: SQLModel, data: SQLModel, allowed: tuple[st
 
 
 class BaseService(Generic[ModelType]):
+    # La colonne qui nomme le compte d'une ligne de données personnelles
+    # (fiche DRO8) ; None pour une table qui n'en porte pas.
+    account_column: Any = None
+
     def __init__(self, repository: BaseRepository[ModelType], not_found_detail: str):
         self.repository = repository
         self.not_found_detail = not_found_detail
@@ -135,4 +145,16 @@ class BaseService(Generic[ModelType]):
     def _where(self, viewer: Optional["Principal"]) -> Optional[ColumnElement[bool]]:
         if viewer is None or viewer.is_admin:
             return None
-        return self.visible_rows(viewer)
+        conditions = [c for c in (self.visible_rows(viewer), self._active_accounts_only()) if c is not None]
+        if len(conditions) < 2:
+            return conditions[0] if conditions else None
+        return and_(*conditions)
+
+    def _active_accounts_only(self) -> Optional[ColumnElement[bool]]:
+        """ADR-027, point 7 : le profil d'un compte désactivé, Admin seul (fiche DRO8)."""
+        # Par la classe : lue sur l'instance, la colonne SQLAlchemy (un
+        # descripteur) chercherait une ligne dans le service.
+        column = type(self).account_column
+        if column is None:
+            return None
+        return col(column).in_(select(User.id).where(col(User.is_activated).is_(True)))

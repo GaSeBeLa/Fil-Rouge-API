@@ -7,6 +7,9 @@ compte.
 
 Le Hunter (fiche DRO6) voit ses clients (H3) : ceux d'une de ses demandes
 ou d'un de ses mandats.
+
+Compte désactivé (fiche DRO8) : sa fiche n'est plus lue que par l'Admin
+(account_column, base_service.py).
 """
 
 from typing import Optional
@@ -22,6 +25,9 @@ from .hunter_rows import clients_of
 
 
 class ClientService(BaseService[Client]):
+    # ADR-027, point 7 : désactivé, ce compte n'est plus lu que par l'Admin (DRO8).
+    account_column = Client.id_user
+
     def __init__(self, repository: ClientRepository):
         super().__init__(repository, not_found_detail="Client introuvable")
 

@@ -10,6 +10,9 @@ embauche, carte T, certification, manager, compte — est à l'Admin : le
 changer lève ForbiddenError (403).
 
 Le Manager (fiche DRO7) voit ses chasseurs (Q-ACC-02).
+
+Compte désactivé (fiche DRO8) : sa fiche n'est plus lue que par l'Admin
+(account_column, base_service.py).
 """
 
 from typing import Optional
@@ -38,6 +41,9 @@ def check_contact_only(existing: SQLModel, data: SQLModel, viewer: Principal) ->
 
 
 class HunterService(BaseService[Hunter]):
+    # ADR-027, point 7 : désactivé, ce compte n'est plus lu que par l'Admin (DRO8).
+    account_column = Hunter.id_user
+
     def __init__(self, repository: HunterRepository):
         super().__init__(repository, not_found_detail="Chasseur introuvable")
 

@@ -7,6 +7,9 @@ real_estate_manager_service.py — Les fiches des managers.
 Le Manager (fiche DRO7) voit sa fiche, et n'y modifie que ses coordonnées
 (CONTACT_FIELDS de hunter_service.py, le bloc commun aux deux tables) ; le
 reste lève ForbiddenError (403).
+
+Compte désactivé (fiche DRO8) : sa fiche n'est plus lue que par l'Admin
+(account_column, base_service.py).
 """
 
 from typing import Optional
@@ -23,6 +26,9 @@ from .hunter_service import check_contact_only
 
 
 class RealEstateManagerService(BaseService[RealEstateManager]):
+    # ADR-027, point 7 : désactivé, ce compte n'est plus lu que par l'Admin (DRO8).
+    account_column = RealEstateManager.id_user
+
     def __init__(self, repository: RealEstateManagerRepository):
         super().__init__(repository, not_found_detail="Gestionnaire immobilier introuvable")
 

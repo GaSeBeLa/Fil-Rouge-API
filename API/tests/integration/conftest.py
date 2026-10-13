@@ -33,13 +33,14 @@ from collections.abc import Callable, Iterator
 import pytest
 from argon2 import PasswordHasher
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine
+from sqlalchemy import Engine, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, create_engine
 
 from src.app.conf.database import DATABASE_URL, get_session
 from src.app.main import app
+from src.app.models import User
 from src.app.utils.roles import ADMIN, get_principal
 
 from ..conftest import TEST_HEADERS, principal_as
@@ -93,7 +94,16 @@ def db_client(db_session: Session, fast_hasher: PasswordHasher) -> Iterator[Test
     """
     TestClient sur la vraie app, branché sur `db_session` au lieu de la base
     de dev, et connecté en `Admin` (fiche API2 ; voir tests/conftest.py).
+
+    Les 25 comptes du seed 02 sont désactivés : migrés sans mot de passe, ils
+    attendent une remise à zéro (`02_migration.sql`). Désactivé, un profil
+    n'est lu que par l'Admin (ADR-027, point 7 ; fiche DRO8). Les tests
+    agissent sous ces comptes (`acting_as`) comme sous des comptes actifs :
+    ils sont activés ici, dans la transaction annulée du test (choix A de
+    Sébastien, 13/10/2026). Un test qui veut un compte désactivé le désactive.
     """
+    db_session.exec(update(User).values(is_activated=True))
+    db_session.commit()
 
     def override_get_session() -> Iterator[Session]:
         yield db_session

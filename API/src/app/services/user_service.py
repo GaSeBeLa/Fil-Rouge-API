@@ -26,7 +26,13 @@ class UserService(BaseService[User]):
     « Le sien » (ADR-027, annexe § 1 ; fiches DRO5, DRO6, DRO7) : un Client,
     un Hunter ou un Manager voit son compte et le modifie, sauf
     ADMIN_ONLY_FIELDS (403).
+
+    Compte désactivé (fiche DRO8) : il n'est plus lu que par l'Admin
+    (account_column, base_service.py).
     """
+
+    # ADR-027, point 7 : désactivé, ce compte n'est plus lu que par l'Admin (DRO8).
+    account_column = User.id
 
     def __init__(self, repository: UserRepository):
         super().__init__(repository, not_found_detail="Utilisateur introuvable")
