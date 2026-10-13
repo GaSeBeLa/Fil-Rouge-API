@@ -31,7 +31,7 @@ from ..utils.exceptions import ConflictError
 
 router = APIRouter(
     prefix="/search-requests",
-    tags=["search-requests"],
+    tags=["formulaire-du-site"],
     dependencies=[Depends(require_api_key)],
 )
 

@@ -93,7 +93,7 @@ Le guide complet est dans `API/README.md`.
 OPENAPI_TAGS = [
     {"name": "health", "description": "Vérifier que le serveur répond."},
     {"name": "auth", "description": "Se connecter : recevoir le jeton que demandent les autres routes."},
-    {"name": "search-requests", "description": "Le formulaire du site : un visiteur sans compte dépose sa demande."},
+    {"name": "formulaire-du-site", "description": "Le formulaire du site : un visiteur sans compte dépose sa demande."},
     {"name": "user", "description": "Les comptes de connexion (email, mot de passe, rôle). `Admin` seul écrit."},
     {"name": "role", "description": "Les cinq rôles : `Admin`, `Client`, `Hunter`, `Manager`, `Reader`."},
     {"name": "hunter", "description": "Les chasseurs : ils cherchent des biens pour leurs clients."},
