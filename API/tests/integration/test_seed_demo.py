@@ -5,12 +5,15 @@ Les étapes du script tournent sur `db_session` (transaction annulée) :
 rien n'est écrit pour de vrai. `main()` n'est appelé que pour ses refus,
 avant toute connexion.
 
-La base de test n'a aucun bien (`estate`) ; la fixture `demo_estates` en
-pose quelques-uns qui répondent aux critères de démo, dans la transaction.
+La base de test n'a aucun bien (`estate`) ni paramétrage : la fixture
+`demo_estates` pose quelques biens qui répondent aux critères de démo, et
+`seeded` rejoue `init-v3/05_parametres.sql` (celui de la base de dev), tout
+dans la transaction.
 """
 
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from argon2 import PasswordHasher
@@ -22,18 +25,29 @@ from src.app.models import (
     EstateProposed,
     EstateSearchRequest,
     Hunter,
+    HunterPerformance,
     Mandate,
+    Payment,
     RealEstateManager,
+    ReviewMedia,
     Role,
+    Sale,
     SearchRequest,
     User,
     Visit,
 )
+from src.app.repositories.commission_scale_repository import CommissionScaleRepository
+from src.app.repositories.hunter_rate_parameters_repository import HunterRateParametersRepository
+from src.app.repositories.hunter_repository import HunterRepository
+from src.app.repositories.payment_repository import PaymentRepository
+from src.app.repositories.sale_repository import SaleRepository
 from src.app.repositories.estate_repository import EstateRepository
 from src.app.repositories.mandate_repository import MandateRepository
 from src.app.repositories.visit_repository import VisitRepository
 from src.app.repositories.estate_proposed_repository import EstateProposedRepository
 from src.app.scripts import seed_demo
+from src.app.services.payment_calculation_service import PaymentCalculationService
+from src.app.services.remuneration import calculer_remuneration
 from src.app.services.visit_service import VisitService
 from src.app.utils.roles import CLIENT, HUNTER, MANAGER, READER, Principal
 
@@ -62,8 +76,24 @@ def demo_estates(db_session: Session) -> list[Estate]:
     ]
 
 
+# Le paramétrage de la base de dev : monté dans le conteneur api (BAN2), ou lu dans le dépôt sur la machine.
+PARAMETERS_SQL = [
+    Path("/api/sql/init-v3/05_parametres.sql"),
+    Path(__file__).resolve().parents[3] / "docker" / "init-v3" / "05_parametres.sql",
+]
+
+
+def apply_parameters(db_session: Session) -> None:
+    """Rejoue 05_parametres.sql par le curseur du pilote (ses `%` ne sont pas des paramètres)."""
+    found = [path for path in PARAMETERS_SQL if path.exists()]
+    if not found:
+        pytest.skip(f"05_parametres.sql introuvable ({', '.join(map(str, PARAMETERS_SQL))}).")
+    db_session.connection().connection.cursor().execute(found[0].read_text(encoding="utf-8"))
+
+
 @pytest.fixture
 def seeded(db_session: Session, fast_hasher: PasswordHasher, demo_estates: list[Estate]) -> Session:
+    apply_parameters(db_session)
     assert seed_demo.seed(db_session, DEMO_PASSWORD) is True
     return db_session
 
@@ -175,3 +205,44 @@ def test_main_refuses_missing_or_short_password(monkeypatch: pytest.MonkeyPatch,
         monkeypatch.setenv("DEMO_PASSWORD", password)
     with pytest.raises(SystemExit, match="DEMO_PASSWORD"):
         seed_demo.main()
+
+
+# --- DEM3 : vente, paiement, note, avis --------------------------------------------
+
+
+def _demo_sale(session: Session) -> Sale:
+    return session.exec(select(Sale).where(Sale.id_mandate == _demo_mandate(session).id)).one()
+
+
+def test_demo_payment_is_paid_at_the_calculated_amount(seeded: Session) -> None:
+    sale = _demo_sale(seeded)
+    payment = seeded.exec(select(Payment).where(Payment.id_sale == sale.id)).one()
+    assert payment.status == "paid"
+
+    # Le montant attendu est recalculé ici par le vrai calcul, jamais écrit en dur.
+    calculation = PaymentCalculationService(
+        SaleRepository(), MandateRepository(), VisitRepository(), HunterRepository(), PaymentRepository(),
+        CommissionScaleRepository(), HunterRateParametersRepository(), seed_demo._parametrage(),  # pyright: ignore[reportPrivateUsage] -- le même paramétrage que le script
+    )
+    vente = calculation.build_vente(seeded, sale)
+    expected = calculer_remuneration(vente, seed_demo._parametrage().charger(seeded, vente.date_acte))  # pyright: ignore[reportPrivateUsage] -- idem
+    assert expected.montant > 0
+    assert payment.amount == expected.montant
+
+
+def test_demo_payment_writes_the_hunter_note(seeded: Session) -> None:
+    payment = seeded.exec(select(Payment).where(Payment.id_sale == _demo_sale(seeded).id)).one()
+    [note] = seeded.exec(select(HunterPerformance).where(HunterPerformance.id_payment == payment.id)).all()
+    assert (note.trigger_type, note.id_hunter) == ("payment", _demo_user(seeded, HUNTER).id)
+
+
+def test_demo_review_is_on_the_sold_estate(seeded: Session) -> None:
+    sale = _demo_sale(seeded)
+    selection = seeded.exec(
+        select(EstateSearchRequest)
+        .where(EstateSearchRequest.id_estate == sale.id_estate)
+        .where(EstateSearchRequest.id_search_request == _demo_mandate(seeded).id_search_request)
+    ).one()
+    assert selection.review_hunter
+    [media] = seeded.exec(select(ReviewMedia).where(ReviewMedia.id_estate_searchrequest == selection.id)).all()
+    assert media.media_type == "video"

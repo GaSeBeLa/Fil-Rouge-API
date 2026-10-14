@@ -34,7 +34,8 @@ Le domaine `.invalid` est refusé par la validation de `UserCreate`
 """
 
 import os
-from datetime import date
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import NamedTuple
 
 from faker import Faker
@@ -49,20 +50,30 @@ from ..models import (
     EstateSearchRequest,
     Hunter,
     Mandate,
+    Payment,
     RealEstateManager,
+    ReviewMedia,
+    Sale,
     SearchRequest,
     User,
     UserCreate,
     Visit,
 )
 from ..repositories.client_repository import ClientRepository
+from ..repositories.commission_scale_repository import CommissionScaleRepository
 from ..repositories.criteria_repository import CriteriaRepository
 from ..repositories.estate_proposed_repository import EstateProposedRepository
 from ..repositories.estate_search_request_repository import EstateSearchRequestRepository
+from ..repositories.hunter_performance_repository import HunterPerformanceRepository
+from ..repositories.hunter_rate_parameters_repository import HunterRateParametersRepository
 from ..repositories.hunter_repository import HunterRepository
 from ..repositories.mandate_repository import MandateRepository
+from ..repositories.parameters_fees_repository import ParametersFeesRepository
+from ..repositories.payment_repository import PaymentRepository
 from ..repositories.real_estate_manager_repository import RealEstateManagerRepository
+from ..repositories.review_media_repository import ReviewMediaRepository
 from ..repositories.role_repository import RoleRepository
+from ..repositories.sale_repository import SaleRepository
 from ..repositories.search_request_repository import SearchRequestRepository
 from ..repositories.user_repository import UserRepository
 from ..repositories.visit_repository import VisitRepository
@@ -72,7 +83,13 @@ from ..services.estate_proposed_service import EstateProposedService
 from ..services.estate_search_request_service import EstateSearchRequestService
 from ..services.hunter_service import HunterService
 from ..services.mandate_service import MandateService
+from ..services.parametrage_service import ParametrageService
+from ..services.payment_calculation_service import PaymentCalculationService
+from ..services.payment_service import PaymentService
 from ..services.real_estate_manager_service import RealEstateManagerService
+from ..services.remuneration import BaremeIntrouvable, calculer_honoraires, parametres_honoraires_applicables
+from ..services.review_media_service import ReviewMediaService
+from ..services.sale_service import SaleService
 from ..services.search_request_service import SearchRequestService
 from ..services.user_service import UserService
 from ..services.visit_service import VisitService
@@ -107,6 +124,14 @@ WANTED_TYPE = "Maison"
 BUDGET_MIN, BUDGET_MAX = 100_000, 250_000  # en euros
 NB_ESTATES = 3  # sélectionnés, puis tous proposés
 NB_CLIENT_VISITS = 2  # sur les biens proposés (P23), plus une visite du chasseur seul
+VISITS_UNTIL = date(2026, 6, 30)  # toutes avant l'acte : elles comptent dans le calcul (ADR-048 point 4)
+
+# Vente du premier bien proposé, au prix affiché, puis son paiement pas à pas
+# (ADR-038). Les montants sortent du calcul, jamais d'une constante (Q3).
+SALE_SIGNED = date(2026, 7, 15)
+PAYMENT_SCHEDULED_FOR = date(2026, 8, 1)
+PAYMENT_PAID_AT = datetime(2026, 8, 10, 10, 0, tzinfo=timezone.utc)
+REVIEW_MEDIA_URL = "https://example.com/demo/visite-maison.mp4"
 
 
 class DemoProfiles(NamedTuple):
@@ -312,7 +337,7 @@ def seed_visits(session: Session, fake: Faker, mandate: Mandate, proposals: list
         service.create(
             session,
             Visit(
-                visit_date=fake.date_between_dates(MANDATE_SIGNED, MANDATE_ENDS),
+                visit_date=fake.date_between_dates(MANDATE_SIGNED, VISITS_UNTIL),
                 visitor_type=visitor_type,
                 id_estate=estate_id,
                 id_mandate=mandate.id,
@@ -333,6 +358,105 @@ def seed_until_visits(session: Session, fake: Faker, profiles: DemoProfiles) -> 
     return DemoRequest(request, criteria, estates, mandate, proposals, visits)
 
 
+def _parametrage() -> ParametrageService:
+    return ParametrageService(ParametersFeesRepository(), CommissionScaleRepository(), HunterRateParametersRepository())
+
+
+def seed_sale(session: Session, demo: DemoRequest) -> Sale:
+    """Étape 8 : le client accepte une offre au prix affiché, puis la vente 'hunter' (P27, ADR-030)."""
+    offer, estate = demo.proposals[0], demo.estates[0]
+    assert offer.id is not None and estate.id is not None and estate.price is not None
+    assert demo.mandate.id is not None
+    offers = EstateProposedService(EstateProposedRepository(), MandateRepository(), EstateSearchRequestRepository())
+    accepted = EstateProposed(**offer.model_dump(exclude={"id"}))
+    accepted.proposition_status, accepted.amount_proposition = "accepted", estate.price
+    offers.replace(session, offer.id, accepted)
+
+    grid = ParametersFeesRepository().in_force_at(session, SALE_SIGNED)
+    try:
+        parametrage = _parametrage().charger(session, SALE_SIGNED)
+        fees = calculer_honoraires(Decimal(estate.price), parametres_honoraires_applicables(parametrage, SALE_SIGNED))
+    except BaremeIntrouvable as exc:
+        raise SystemExit(f"❌ Paramétrage manquant ({exc}) : la base a-t-elle init-v3/05_parametres.sql ?") from exc
+    assert grid is not None and grid.id is not None  # charger() a trouvé une grille à cette date
+
+    return SaleService(SaleRepository(), MandateRepository(), EstateProposedRepository(), ParametersFeesRepository()).create(
+        session,
+        Sale(
+            signature_date=SALE_SIGNED,
+            purchase_amount=estate.price,
+            fees_amount=fees,
+            sale_origin="hunter",
+            id_mandate=demo.mandate.id,
+            id_estate=estate.id,
+            id_parameters_fees=grid.id,
+        ),
+    )
+
+
+def _next_step(payment: Payment, **changes: object) -> Payment:
+    """Le même paiement, un pas plus loin (ADR-038 : PaymentService.replace)."""
+    data = Payment(**payment.model_dump(exclude={"id"}))
+    for field, value in changes.items():
+        setattr(data, field, value)
+    return data
+
+
+def seed_payment(session: Session, sale: Sale) -> Payment:
+    """
+    Étape 9 : le paiement calculé par build_payment, puis 'announced' ->
+    'scheduled' -> 'paid' ; au passage à 'paid', PaymentService écrit la note
+    du chasseur (hunter_performance, ADR-035). Un refus arrête le script.
+    """
+    assert sale.id is not None
+    calculation = PaymentCalculationService(
+        SaleRepository(),
+        MandateRepository(),
+        VisitRepository(),
+        HunterRepository(),
+        PaymentRepository(),
+        CommissionScaleRepository(),
+        HunterRateParametersRepository(),
+        _parametrage(),
+    )
+    built = calculation.build_payment(session, sale.id)
+    if built.status != "announced":
+        raise SystemExit(f"❌ Le calcul refuse le paiement de la vente {sale.id} : {built.refusal_reason}.")
+    payments = PaymentService(
+        PaymentRepository(), HunterRateParametersRepository(), calculation, HunterPerformanceRepository()
+    )
+    payment = payments.create(session, built)
+    assert payment.id is not None
+    payment = payments.replace(
+        session, payment.id, _next_step(payment, status="scheduled", scheduled_for=PAYMENT_SCHEDULED_FOR)
+    )
+    return payments.replace(session, payment.id, _next_step(payment, status="paid", paid_at=PAYMENT_PAID_AT))  # pyright: ignore[reportArgumentType] -- id lu en base juste au-dessus
+
+
+def seed_review(
+    session: Session, fake: Faker, accounts: dict[str, User], demo: DemoRequest
+) -> ReviewMedia:
+    """
+    Étape 10 : l'avis sur le bien vendu. En base, l'avis est la note du
+    chasseur sur la sélection (`review_hunter`), et seul ce chasseur y ajoute
+    un média (ADR-051) : le client n'a pas d'avis à lui.
+    """
+    selections = EstateSearchRequestRepository()
+    [selection] = selections.list_where(
+        session, id_search_request=demo.request.id, id_estate=demo.estates[0].id
+    )
+    assert selection.id is not None
+    reviewed = EstateSearchRequest(**selection.model_dump(exclude={"id"}))
+    reviewed.review_hunter = fake.paragraph(nb_sentences=3)
+    EstateSearchRequestService(selections).replace(session, selection.id, reviewed)
+
+    return ReviewMediaService(ReviewMediaRepository(), selections).create(
+        session,
+        ReviewMedia(media_url=REVIEW_MEDIA_URL, media_type="video", id_estate_searchrequest=selection.id),
+        actor=accounts[HUNTER],
+    )
+
+
 def seed(session: Session, password: str) -> bool:
     """Enchaîne les étapes ; False, sans rien écrire, si la base est déjà semée."""
     if already_seeded(session):
@@ -340,7 +464,10 @@ def seed(session: Session, password: str) -> bool:
     fake = make_faker()
     accounts = seed_accounts(session, password)
     profiles = seed_profiles(session, fake, accounts)
-    seed_until_visits(session, fake, profiles)
+    demo = seed_until_visits(session, fake, profiles)
+    sale = seed_sale(session, demo)
+    seed_payment(session, sale)
+    seed_review(session, fake, accounts, demo)
     return True
 
 

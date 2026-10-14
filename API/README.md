@@ -388,6 +388,46 @@ Le jeton dure **60 minutes** : ensuite, refaire l'étape 2. En `Admin`, vous pou
 ensuite créer d'autres comptes avec `POST /users`, pour essayer les autres rôles
 (`Client`, `Hunter`, `Manager`, `Reader`).
 
+### Seed de démo — un parcours complet, en une commande
+
+Le script [`scripts/seed_demo.py`](src/app/scripts/seed_demo.py) remplit **votre**
+base de dev avec un parcours de bout en bout, joué par les vrais services :
+demande et critères, sélection de biens, mandat signé, propositions, visites,
+offre acceptée, vente, paiement calculé puis payé, note du chasseur, avis.
+Données fausses (Faker `fr_FR`, graine fixe) : mêmes données à chaque base neuve.
+
+**1. Le mot de passe des comptes de démo**, une fois : dans `docker/.env`,
+
+```bash
+DEMO_PASSWORD=<12 caractères au moins>
+```
+
+puis, depuis `docker/` : `docker compose up -d --build` (le paquet `faker` et
+la variable n'arrivent dans le conteneur qu'au rebuild).
+
+**2. Semer**, depuis `docker/` :
+
+```bash
+docker compose exec api python -m src.app.scripts.seed_demo
+```
+
+**3. Se connecter** (`POST /auth/login`, voir plus haut) avec l'un des 4 comptes,
+tous activés, mot de passe `DEMO_PASSWORD` :
+
+| Compte | Rôle |
+|---|---|
+| `demo-client@example.com` | `Client` |
+| `demo-chasseur@example.com` | `Hunter` (rattaché au manager de démo) |
+| `demo-manager@example.com` | `Manager` |
+| `demo-lecteur@example.com` | `Reader` |
+
+- Le script ne sème qu'**une fois par base** : si un compte de démo existe, il
+  s'arrête sans rien écrire. Pour resemer : `docker compose down -v`, `up -d`.
+- Il refuse d'écrire dans la base de test `fil_rouge_test` : **aucun test ne
+  dépend du seed**.
+- Un refus d'une règle (`409`) l'arrête avec son message : on corrige les
+  données du seed, jamais la règle.
+
 ### Connexion — `/auth` (ADR-052)
 
 | Route | Ce qu'elle fait |
