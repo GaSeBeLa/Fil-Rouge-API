@@ -11,6 +11,8 @@ python-dotenv==1.2.4
 argon2-cffi==25.1.0
 pyjwt==2.15.1
 email-validator==2.3.0
+# seed de démo (chantier DEM) : version lue sur PyPI le 2026-10-14
+faker==40.43.0
 
 # tests
 pytest==9.1.1

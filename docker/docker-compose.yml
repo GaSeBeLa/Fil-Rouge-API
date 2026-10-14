@@ -43,6 +43,7 @@ services:
       # Une cle par programme appelant (ADR-028, points 4 a 6) ; valeurs dans docker/.env.
       API_KEY_INTERNAL: ${API_KEY_INTERNAL}
       API_KEY_APP_BACKEND: ${API_KEY_APP_BACKEND}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}   # comptes de demo (seed_demo.py, chantier DEM) ; valeur dans docker/.env
     ports:
       - "8000:8000"   # Swagger : http://localhost:8000/docs
     volumes:
