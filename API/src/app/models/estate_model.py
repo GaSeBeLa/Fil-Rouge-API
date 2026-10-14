@@ -29,10 +29,11 @@ from typing import Optional
 from pydantic import ValidationInfo, model_validator
 from sqlmodel import SQLModel, Field
 from .input_check import is_input
+from .field_descriptions import AUTHOR_ACCOUNT
 
 
 class Estate(SQLModel, table=True):
-    __tablename__ = "estate"
+    __tablename__ = "estate"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -82,7 +83,7 @@ class Estate(SQLModel, table=True):
     district: Optional[str] = Field(default=None, max_length=100)
     information: Optional[str] = None
     # Clé vers "user" ; le rôle (chasseur ou manager) se vérifie dans l'API.
-    id_author: Optional[int] = Field(default=None, foreign_key="user.id")
+    id_author: Optional[int] = Field(description=AUTHOR_ACCOUNT, default=None, foreign_key="user.id")
 
     @model_validator(mode="after")
     def _bedrooms_within_rooms(self, info: ValidationInfo) -> "Estate":

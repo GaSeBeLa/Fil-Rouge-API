@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
+from .field_descriptions import AUTHOR_ACCOUNT
 
 
 class EstateContact(SQLModel, table=True):
@@ -28,4 +29,4 @@ class EstateContact(SQLModel, table=True):
     email: Optional[str] = Field(default=None, max_length=150)
     id_estate: int = Field(foreign_key="estate.id", unique=True)
     # Rempli par le service avec le compte connecté ; vide : contact importé.
-    id_author: Optional[int] = Field(default=None, foreign_key="user.id")
+    id_author: Optional[int] = Field(description=AUTHOR_ACCOUNT, default=None, foreign_key="user.id")

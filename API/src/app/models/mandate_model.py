@@ -7,10 +7,11 @@ from datetime import date, datetime, timezone
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
+from .field_descriptions import CLIENT_ACCOUNT, HUNTER_ACCOUNT
 
 
 class Mandate(SQLModel, table=True):
-    __tablename__ = "mandate"
+    __tablename__ = "mandate"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -29,7 +30,7 @@ class Mandate(SQLModel, table=True):
     # (Q-MAN-01). L'exclusivité est un trigger côté base (Q-MAN-02).
     ends_at: Optional[date] = None
     is_exclusive: bool
-    id_hunter: int = Field(foreign_key="hunter.id_user")
-    id_client: int = Field(foreign_key="client.id_user")
+    id_hunter: int = Field(description=HUNTER_ACCOUNT, foreign_key="hunter.id_user")
+    id_client: int = Field(description=CLIENT_ACCOUNT, foreign_key="client.id_user")
     id_search_request: int = Field(foreign_key="search_request.id")
     id_mandate_parent: Optional[int] = Field(default=None, foreign_key="mandate.id")

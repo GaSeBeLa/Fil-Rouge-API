@@ -23,10 +23,11 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
+from .field_descriptions import HUNTER_ACCOUNT
 
 
 class HunterPerformance(SQLModel, table=True):
-    __tablename__ = "hunter_performance"
+    __tablename__ = "hunter_performance"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -37,7 +38,7 @@ class HunterPerformance(SQLModel, table=True):
     # trigger_type : NOT NULL + CHECK cote base — 'initial', 'payment',
     # 'mandate_expired'.
     trigger_type: str = Field(max_length=20)
-    id_hunter: int = Field(foreign_key="hunter.id_user")
+    id_hunter: int = Field(description=HUNTER_ACCOUNT, foreign_key="hunter.id_user")
     # Renseigne selon le declencheur, NULL sinon ; UNIQUE chacun (Q-SCH-06).
     id_payment: Optional[int] = Field(default=None, foreign_key="payment.id")
     id_mandate: Optional[int] = Field(default=None, foreign_key="mandate.id")

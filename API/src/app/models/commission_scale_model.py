@@ -24,10 +24,11 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
+from .field_descriptions import HUNTER_ACCOUNT
 
 
 class CommissionScale(SQLModel, table=True):
-    __tablename__ = "commission_scale"
+    __tablename__ = "commission_scale"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -40,4 +41,4 @@ class CommissionScale(SQLModel, table=True):
     valid_from: date
     valid_until: Optional[date] = None
     # id_hunter NULL = bareme general ; renseigne = bareme propre a un chasseur.
-    id_hunter: Optional[int] = Field(default=None, foreign_key="hunter.id_user")
+    id_hunter: Optional[int] = Field(description=HUNTER_ACCOUNT, default=None, foreign_key="hunter.id_user")

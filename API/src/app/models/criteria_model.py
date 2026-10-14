@@ -19,10 +19,11 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
+from .field_descriptions import AUTHOR_ACCOUNT
 
 
 class Criteria(SQLModel, table=True):
-    __tablename__ = "criteria"
+    __tablename__ = "criteria"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -72,6 +73,6 @@ class Criteria(SQLModel, table=True):
     has_elevator: Optional[bool] = None
     has_chimney: Optional[bool] = None
     parking_spaces: Optional[int] = None
-    id_author: int = Field(foreign_key="user.id")
+    id_author: int = Field(description=AUTHOR_ACCOUNT, foreign_key="user.id")
     id_search_request: int = Field(foreign_key="search_request.id")
     id_previous_version: Optional[int] = Field(default=None, foreign_key="criteria.id")

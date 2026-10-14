@@ -17,10 +17,11 @@ from datetime import date, datetime, timezone
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
+from .field_descriptions import MANAGER_ACCOUNT
 
 
 class Hunter(SQLModel, table=True):
-    __tablename__ = "hunter"
+    __tablename__ = "hunter"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))  # Q-SCH-09
@@ -48,4 +49,4 @@ class Hunter(SQLModel, table=True):
     # vers real_estate_manager.id_user — donc un id de "user", comme toutes
     # les autres FK du schema. Meme nom tout en minuscules que dans
     # search_request_model.py, ou il designe le manager de la demande.
-    id_realestatemanager: int = Field(foreign_key="real_estate_manager.id_user")
+    id_realestatemanager: int = Field(description=MANAGER_ACCOUNT, foreign_key="real_estate_manager.id_user")
