@@ -44,5 +44,8 @@ class EstateContactRepository(BaseRepository[EstateContact]):
         return list(session.connection().execute(query, {"cutoff": cutoff}).scalars())
 
     def commit(self, session: Session) -> None:
-        """Écrit d'un coup les contacts préparés par `stage` ; un refus annule tout."""
-        self._commit_or_raise(session, "La base refuse l'anonymisation d'un contact.")
+        """
+        Écrit d'un coup les contacts préparés par `stage` ; un refus annule
+        tout, et son message nomme la contrainte (fiche FIN1).
+        """
+        self._commit_or_raise(session)

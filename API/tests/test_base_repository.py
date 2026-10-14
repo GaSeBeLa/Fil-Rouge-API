@@ -28,6 +28,7 @@ from sqlalchemy.exc import IntegrityError
 
 from src.app.models import User
 from src.app.repositories.base_repository import BaseRepository
+from src.app.repositories.estate_contact_repository import EstateContactRepository
 from src.app.utils.constraint_messages import conflict_detail
 from src.app.utils.exceptions import ConflictError
 
@@ -133,6 +134,19 @@ def test_conflict_detail_sort_then_name(pgcode: Optional[str], name: Optional[st
 def test_conflict_detail_without_psycopg2_attributes():
     # Une erreur sans pgcode ni diag : la phrase par défaut, jamais un message vide.
     assert conflict_detail(IntegrityError("INSERT ...", {}, Exception("violation")), deleting=False) == "Écriture refusée par la base."
+
+
+def test_estate_contact_commit_is_a_write_not_a_delete():
+    # Un refus pendant l'anonymisation des contacts est une écriture refusée,
+    # pas une suppression bloquée.
+    s = MagicMock()
+    s.commit.side_effect = integrity_error("23503", "estate_contact_id_estate_fkey")
+    with pytest.raises(ConflictError) as exc:
+        EstateContactRepository().commit(s)
+    assert str(exc.value) == (
+        "Référence inexistante : la ligne citée n'existe pas (contrainte estate_contact_id_estate_fkey)."
+    )
+    s.rollback.assert_called_once()
 
 
 def test_conflict_detail_never_copies_the_refused_value():
