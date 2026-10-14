@@ -53,6 +53,11 @@ services:
       # DATABASE_URL en "localhost" passerait devant POSTGRES_HOST=db.
       - ../API/src:/api/src:ro
       - ../API/tests:/api/tests:ro
+      # Les fichiers SQL joues par le banc v2/v3 (chantier BAN), en lecture
+      # seule. Jamais docker/ en entier : il porte .env.
+      - ./init-v2:/api/sql/init-v2:ro
+      - ./init-v3:/api/sql/init-v3:ro
+      - ./migrations/v2-vers-v3:/api/sql/v2-vers-v3:ro
 
   minio:
     image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
