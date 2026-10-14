@@ -13,9 +13,9 @@
 --   init-v3 : les lignes y sont déjà, et chaque insertion est ignorée.
 --
 -- SOURCE : les trois INSERT de docker/init-v3/05_parametres.sql, recopiés
---   tels quels (valeurs et provenance : voir son en-tête). Le banc
---   compare_v2_v3.sh compte les lignes des deux bases : il garde ces deux
---   fichiers alignés.
+--   tels quels (valeurs et provenance : voir son en-tête). Le banc v2/v3
+--   (API/tests/integration/test_banc_v2_v3.py) compte les lignes des deux
+--   bases : il garde ces deux fichiers alignés.
 --
 -- COMMENT ? Depuis docker/, en bash :
 --

@@ -42,7 +42,8 @@
 --     passe) : le rôle ne voit aucun profil tant qu'on n'en active pas.
 --
 -- Psql seulement (\getenv, \if, \gexec) : chargé par l'entrypoint de
--- l'image, par docker/create_test_db.sh et par docker/compare_v2_v3.sh.
+-- l'image, par docker/create_test_db.sh et par le banc v2/v3
+-- (API/tests/integration/test_banc_v2_v3.py).
 -- Une base v2 existante reçoit le même par
 -- docker/migrations/v2-vers-v3/12_role-lecture-seule.sql, puis la
 -- fermeture du mot de passe par 18_role-lecture-seule-sans-mot-de-passe.sql,

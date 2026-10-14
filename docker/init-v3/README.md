@@ -637,6 +637,8 @@ SQLModel `table=True` ne valide pas les champs obligatoires à l'entrée, donc
 Chaque changement de v3 s'écrit **deux fois** : ici, pour une base neuve, et
 dans `docker/migrations/v2-vers-v3/NN_<thème>.sql`, pour une base v2 qui
 existe déjà. Le banc vérifie que les deux chemins mènent au même endroit.
+C'est un test pytest depuis le chantier BAN (2026-10-14) :
+`API/tests/integration/test_banc_v2_v3.py`, lancé à **chaque** `pytest`, ou seul :
 
 ```bash
 bash docker/compare_v2_v3.sh
@@ -644,17 +646,28 @@ bash docker/compare_v2_v3.sh
 
 - **Ce qu'il fait** : il crée `cmp_v2_migree` (`init-v2/*.sql`, puis chaque
   migration `v2-vers-v3/*.sql` par ordre de nom) et `cmp_v3_neuve`
-  (`init-v3/*.sql`), décrit les deux bases, compare, puis les supprime.
+  (`init-v3/*.sql`), chaque fichier joué par `psql` depuis le conteneur `api`
+  (montages `/api/sql/…` en lecture seule), décrit les deux bases, compare,
+  puis les supprime.
 - **Ce qu'il compare** : colonnes (nom, type, nullable, défaut), contraintes
   (nom et définition), index, triggers, fonctions, et le nombre de lignes par
-  table. L'**ordre des colonnes est ignoré** : `ADD COLUMN` la met en dernier.
-- **Ce qu'il rend** : `IDENTIQUES` et code `0` ; sinon le diff et code `1` ;
-  code `2` si un fichier ne se charge pas (il est nommé).
+  table, **hors tables de démo** (`estate_contact`, ADR-054 : son schéma reste
+  comparé). L'**ordre des colonnes est ignoré** : `ADD COLUMN` la met en dernier.
+- **Ce qu'il rend** : `1 passed` ; sinon le test échoue en montrant le diff,
+  ou le fichier qui ne se charge pas. Dossiers ou `psql` absents : `skipped`.
+- **Mesuré le 2026-10-14** (BAN3) : `1 passed` en 9,2 s ; une 6e ligne de
+  barème dans une copie de `init-v3/05` le fait échouer sur
+  `lignes public.commission_scale 5` / `6`.
 - **Mesuré le 2026-10-07** (LOT2, aucune migration encore) : `IDENTIQUES —
   499 faits comparés`, de 17,8 à 27,4 s selon le passage. Un mutant (`ALTER TABLE role ADD COLUMN
   mutant int` côté v3) rend `1` et nomme `public.role.mutant` ; la même
   colonne écrite au milieu du `CREATE TABLE role` rend `IDENTIQUES`.
-- **Mutants** : les dossiers passent en variables (`V2_DIR`, `V3_DIR`,
-  `MIG_DIR`) — on mute une copie temporaire, jamais ces dossiers.
+- **Mutants** : les dossiers passent en variables (`BANC_V2_DIR`,
+  `BANC_V3_DIR`, `BANC_MIG_DIR`, chemins dans le conteneur `api` ; la liste des
+  tables de démo : `BANC_DEMO_TABLES`) — on mute une copie temporaire, jamais
+  ces dossiers.
 - **Ce qu'il ne compare pas** : les droits (`GRANT`), les rôles (communs au
   serveur), les vues, les types et les séquences.
+- **Le rôle `fil_rouge_reader`** est commun au serveur, et `04` le passe en
+  `NOLOGIN` sans `POSTGRES_READER_PASSWORD`, absent du conteneur `api` : le test
+  note son état avant de jouer les fichiers et le remet à la fin.
