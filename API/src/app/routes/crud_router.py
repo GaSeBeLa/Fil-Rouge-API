@@ -198,7 +198,8 @@ def build_crud_router(
         ),
     )
     def create_item(
-        item: response_model,
+        # Modèle choisi à l'exécution : FastAPI lit cette annotation pour le corps et le Swagger.
+        item: response_model,  # pyright: ignore[reportInvalidTypeForm]
         session: Session = Depends(get_session),
         principal: Principal = Depends(can_create),
     ):
@@ -225,7 +226,8 @@ def build_crud_router(
     )
     def update_item(
         item_id: int,
-        data: in_update_model,
+        # Modèle choisi à l'exécution, comme dans create_item.
+        data: in_update_model,  # pyright: ignore[reportInvalidTypeForm]
         session: Session = Depends(get_session),
         viewer: Principal = Depends(can_write),
     ):
