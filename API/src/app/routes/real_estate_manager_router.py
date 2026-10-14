@@ -2,6 +2,7 @@ from ..models import RealEstateManager
 from ..repositories.real_estate_manager_repository import RealEstateManagerRepository
 from ..services.real_estate_manager_service import RealEstateManagerService
 from ..utils.roles import ADMIN, HUNTER, MANAGER, READER
+from ..models.field_descriptions import MANAGER_ID
 from .crud_router import build_crud_router
 
 router = build_crud_router(
@@ -15,4 +16,5 @@ router = build_crud_router(
     read_roles=(ADMIN, HUNTER, MANAGER, READER),
     write_roles=(ADMIN, MANAGER),
     create_roles=(ADMIN,),
+    item_id_description=MANAGER_ID,
 )

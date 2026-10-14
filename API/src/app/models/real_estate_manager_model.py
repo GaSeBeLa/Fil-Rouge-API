@@ -14,14 +14,15 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
+from .field_descriptions import MANAGER_ID, MANAGER_USER
 
 
 class RealEstateManager(SQLModel, table=True):
     __tablename__ = "real_estate_manager"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: Optional[int] = Field(description=MANAGER_ID, default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))  # Q-SCH-09
-    id_user: int = Field(foreign_key="user.id", unique=True)
+    id_user: int = Field(description=MANAGER_USER, foreign_key="user.id", unique=True)
     first_name: str = Field(max_length=80)
     last_name: str = Field(max_length=80)
     # CHECK cote base : format international d'ADR-007, ex. +33612345678

@@ -2,6 +2,7 @@ from ..models import Hunter
 from ..repositories.hunter_repository import HunterRepository
 from ..services.hunter_service import HunterService
 from ..utils.roles import ADMIN, ALL_ROLES, HUNTER
+from ..models.field_descriptions import HUNTER_ID
 from .crud_router import build_crud_router
 
 router = build_crud_router(
@@ -15,4 +16,5 @@ router = build_crud_router(
     read_roles=ALL_ROLES,
     write_roles=(ADMIN, HUNTER),
     create_roles=(ADMIN,),
+    item_id_description=HUNTER_ID,
 )

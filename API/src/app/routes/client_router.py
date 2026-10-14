@@ -2,6 +2,7 @@ from ..models import Client
 from ..repositories.client_repository import ClientRepository
 from ..services.client_service import ClientService
 from ..utils.roles import ADMIN, CLIENT, HUNTER, READER
+from ..models.field_descriptions import CLIENT_ID
 from .crud_router import build_crud_router
 
 router = build_crud_router(
@@ -15,4 +16,5 @@ router = build_crud_router(
     read_roles=(ADMIN, CLIENT, HUNTER, READER),
     write_roles=(ADMIN, CLIENT),
     create_roles=(CLIENT,),
+    item_id_description=CLIENT_ID,
 )

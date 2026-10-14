@@ -69,9 +69,9 @@ Doc Swagger : chaque route reçoit un `summary` (son titre dans /docs) et une
 """
 
 from collections.abc import Sequence
-from typing import List, Optional, Type
+from typing import Annotated, List, Optional, Type
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlmodel import Session, SQLModel
@@ -131,6 +131,9 @@ def build_crud_router(
     read_roles: Sequence[str] = (),
     write_roles: Sequence[str] = (),
     create_roles: Optional[Sequence[str]] = None,
+    # Phrase du Swagger sous `{item_id}`, quand l'id de la table prête à confusion
+    # (fiches de profil : `id` n'est pas le `user.id` que citent les autres tables).
+    item_id_description: Optional[str] = None,
 ) -> APIRouter:
     router = APIRouter(prefix=prefix, tags=[tag], dependencies=[Depends(require_api_key)])
 
@@ -175,7 +178,11 @@ def build_crud_router(
             "- `422` : l'`id` n'est pas un nombre entier.",
         ),
     )
-    def get_item(item_id: int, session: Session = Depends(get_session), viewer: Principal = Depends(can_read)):
+    def get_item(
+        item_id: Annotated[int, Path(description=item_id_description)],
+        session: Session = Depends(get_session),
+        viewer: Principal = Depends(can_read),
+    ):
         try:
             return service.get_by_id(session, item_id, viewer)
         except NotFoundError as exc:
@@ -225,7 +232,7 @@ def build_crud_router(
         ),
     )
     def update_item(
-        item_id: int,
+        item_id: Annotated[int, Path(description=item_id_description)],
         # Modèle choisi à l'exécution, comme dans create_item.
         data: in_update_model,  # pyright: ignore[reportInvalidTypeForm]
         session: Session = Depends(get_session),
