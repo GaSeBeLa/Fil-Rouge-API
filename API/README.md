@@ -150,6 +150,24 @@ docker compose exec api python -m pytest -q -p no:cacheprovider
 `-p no:cacheprovider` : `tests/` est monté en lecture seule, pytest ne peut pas y
 écrire son cache. En local, depuis `API/` : `pytest`.
 
+### Couverture des tests
+
+La part du code que les tests exécutent, fichier par fichier (pytest-cov, sur
+coverage.py ; l'équivalent Python de JaCoCo). Depuis `docker/` :
+
+```bash
+docker compose exec api python -m pytest -q -p no:cacheprovider --cov=src --cov-branch --cov-report=term-missing:skip-covered --cov-report=html
+docker compose cp api:/api/htmlcov ../API/htmlcov
+```
+
+La première commande affiche, dans le terminal, les lignes jamais exécutées ; la
+seconde copie le rapport web hors du conteneur : ouvrir `API/htmlcov/index.html`
+(lignes non testées en rouge). `htmlcov/` et `.coverage` ne vont pas dans git.
+
+**Au 2026-10-14** : **96 %** des lignes (2 848, dont 110 jamais exécutées), **95 %**
+en comptant les branches. Les plus gros trous : `scripts/create_admin.py` (0 %),
+`payment_calculation_service.py` et `payment_service.py` (89 %).
+
 **État au 2026-10-02** : **121 tests, `121 passed`** — 99 unitaires, qui ne
 touchent pas PostgreSQL (vérifié avec le conteneur `db` arrêté), dont les
 **55 cas de rémunération** du sujet, et 22 d'intégration (voir plus bas).

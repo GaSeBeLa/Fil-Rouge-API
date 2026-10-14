@@ -14,6 +14,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+# rapport de couverture (pytest-cov), refait à chaque mesure
+.coverage
+htmlcov/
 
 # Environnements virtuels
 .venv/
