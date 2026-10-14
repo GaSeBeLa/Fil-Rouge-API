@@ -22,14 +22,15 @@ Ni vente, ni visite, ni paiement.
 ============================================================================
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any, Optional
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from src.app.models import Hunter, HunterPerformance, Mandate, Sale, User, Visit
+from src.app.models import Hunter, HunterPerformance, Mandate, Payment, Sale, User, Visit
 from src.app.repositories.commission_scale_repository import CommissionScaleRepository
 from src.app.repositories.hunter_rate_parameters_repository import HunterRateParametersRepository
 from src.app.repositories.hunter_repository import HunterRepository
@@ -46,14 +47,17 @@ from src.app.services.payment_calculation_service import (
     count_client_visits,
     full_years,
     months_before,
+    scale_line_id,
 )
 from src.app.services.remuneration import (
+    BaremeIntrouvable,
     Exclusivite,
     OrigineVente,
     Vente,
     calculer_remuneration,
     calculer_score,
 )
+from src.app.utils.exceptions import ConflictError
 
 from .test_constraints_db import (
     HUNTER_ID,
@@ -283,3 +287,50 @@ def test_a_hunter_whose_id_differs_from_its_account_is_found(db_client: TestClie
     vente = calculation.build_vente(db_session, sale)
     assert vente.chasseur_id == account.id
     assert vente.annees_anciennete == full_years(date(2024, 1, 2), ACTE)
+
+
+# --- 3. Les refus du calcul (trous de couverture du 2026-10-14) --------------
+
+
+def calculation_service() -> PaymentCalculationService:
+    return PaymentCalculationService(
+        SaleRepository(), MandateRepository(), VisitRepository(), HunterRepository(), PaymentRepository(),
+        CommissionScaleRepository(), HunterRateParametersRepository(), parametrage_service(),
+    )
+
+
+def test_no_scale_line_for_the_price_is_a_parametrage_error():
+    # RCR §7 : sans ligne applicable, c'est le paramétrage qui manque, pas un cas métier.
+    with pytest.raises(BaremeIntrouvable):
+        scale_line_id([], HUNTER_ID, ACTE, 354712)
+
+
+def test_a_sale_above_every_scale_line_returns_409(db_client: TestClient):
+    # Le barème s'arrête à 1 000 € : la vente de 354 712 € n'a pas de taux.
+    payload = sale_payload(db_client)
+    scale = db_client.post("/commission-scales",
+                           json={"amount_min": 0, "amount_max": 1000, "rate": "0.3000", "valid_from": "2025-01-01"})
+    assert scale.status_code == 201, scale.text
+    rate_parameters(db_client)
+    created = post_as_manager(db_client, "/sales", payload)
+    assert created.status_code == 201, created.text
+    response = db_client.post(f"/sales/{created.json()['id']}/payment")
+    assert response.status_code == 409, response.text
+    assert "Paramétrage incomplet" in response.json()["detail"]
+
+
+def test_a_payment_without_details_has_no_journal_note(db_session: Session):
+    # ADR-035 : la note reprend le détail du calcul ; sans lui, rien à noter.
+    payment = Payment(id=1, amount=Decimal(0), status="paid", id_sale=1, id_hunter=HUNTER_ID)
+    with pytest.raises(ConflictError, match="pas de détail de calcul"):
+        calculation_service().journal_note(db_session, payment, datetime(2026, 3, 15, tzinfo=timezone.utc))
+
+
+def test_a_naive_paid_at_is_read_as_utc(db_client: TestClient, db_session: Session):
+    # La base garde ses TIMESTAMP en UTC : une heure sans fuseau est une heure UTC.
+    sale_id, _ = ready_sale(db_client)
+    payment_id = db_client.post(f"/sales/{sale_id}/payment").json()["id"]
+    payment = PaymentRepository().get_by_id(db_session, payment_id)
+    assert payment is not None
+    note = calculation_service().journal_note(db_session, payment, datetime(2026, 3, 15, 10))
+    assert note.scored_at == datetime(2026, 3, 15, 10, tzinfo=timezone.utc)

@@ -164,9 +164,13 @@ La première commande affiche, dans le terminal, les lignes jamais exécutées ;
 seconde copie le rapport web hors du conteneur : ouvrir `API/htmlcov/index.html`
 (lignes non testées en rouge). `htmlcov/` et `.coverage` ne vont pas dans git.
 
-**Au 2026-10-14** : **96 %** des lignes (2 848, dont 110 jamais exécutées), **95 %**
-en comptant les branches. Les plus gros trous : `scripts/create_admin.py` (0 %),
-`payment_calculation_service.py` et `payment_service.py` (89 %).
+**Au 2026-10-14** : d'abord **96 %** des lignes (2 848, dont 110 jamais exécutées),
+**95 %** avec les branches ; `scripts/create_admin.py` était à 0 %. Après les tests
+de `create_admin.py` et des refus du paiement : **98 %** des lignes (64 jamais
+exécutées), **97 %** avec les branches. Ce qui reste est surtout des gardes que les
+contraintes de la base rendent inatteignables (mandat sans date de fin, chasseur
+introuvable) et `PaymentService.delete`, que plus aucune route n'appelle (`DELETE`
+rend `405` depuis API10).
 
 **État au 2026-10-02** : **121 tests, `121 passed`** — 99 unitaires, qui ne
 touchent pas PostgreSQL (vérifié avec le conteneur `db` arrêté), dont les
@@ -232,6 +236,8 @@ Puis **948 passed, 0 skipped, 7 xfailed** (chantier DEM, 2026-10-14) : le seed d
 et ses 13 tests ; les 8 tests du seed des paramètres (`test_seed_parametres.py`,
 `test_parametrage_service.py`) tournent aussi dans le conteneur, qui monte `init-v3`
 depuis BAN2.
+Puis **961 passed, 0 skipped, 7 xfailed** (2026-10-14) : 2 tests du Swagger des fiches
+de profil, 7 de `create_admin.py`, 4 des refus du paiement (`test_calcul_paiement.py`).
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -268,7 +274,8 @@ par le service (`write_payment`) : un refus y est un `ConflictError`, le `409` d
 | [`integration/test_anonymisation.py`](tests/integration/test_anonymisation.py) | `POST /users/{id}/anonymize` : client sans mandat → **tout** anonyme, compte désactivé, connexion refusée ; nom gardé **10 ans** après la fin du dernier mandat **signé** de la chaîne (un renouvellement pas encore signé n'efface pas la fin d'avant) ou le paiement (seul, pour un chasseur dont les mandats sont finis depuis longtemps) (versé, ou pas encore : à partir d'aujourd'hui), reste anonyme tout de suite ; commentaire du client et motif des critères vidés ; rappelée après le délai → nom « Anonyme » ; non-`Admin` → `403` ; `DELETE /clients/1` → `405` (ADR-049) |
 | [`test_remuneration.py`](tests/test_remuneration.py) | les **55 cas** de [`10_calcul_remuneration_chasseur.feature`](../user-stories/10_calcul_remuneration_chasseur.feature), lignes d'exemples recopiées telles quelles |
 | [`integration/test_banc_v2_v3.py`](tests/integration/test_banc_v2_v3.py) | le banc « base neuve = base migrée » : `init-v2` + migrations d'un côté, `init-v3` de l'autre, deux bases jetables jouées par `psql` ; colonnes, contraintes, index, triggers, fonctions et nombre de lignes (hors démo) identiques, sinon le diff ; `fil_rouge_reader` remis dans son état ([`docker/init-v3/README.md`](../docker/init-v3/README.md) §10) |
-| [`integration/test_calcul_paiement.py`](tests/integration/test_calcul_paiement.py) | comptages purs : chaîne de renouvellements comptée une fois, première issue (vente, clôture, échéance), vente refusée, vente en cours exclue, fenêtre, visites `'client'` seules (ADR-048) ; `POST /sales/{id}/payment` → montant = `calculer_remuneration` sur les mêmes nombres, 2e appel → `409`, vente inconnue → `404`, hors dispositif → paiement `'refused'` ; note `'payment'` du journal absente tant que le paiement n'est pas `'paid'`, écrite au passage (ADR-035) |
+| [`integration/test_calcul_paiement.py`](tests/integration/test_calcul_paiement.py) | comptages purs : chaîne de renouvellements comptée une fois, première issue (vente, clôture, échéance), vente refusée, vente en cours exclue, fenêtre, visites `'client'` seules (ADR-048) ; `POST /sales/{id}/payment` → montant = `calculer_remuneration` sur les mêmes nombres, 2e appel → `409`, vente inconnue → `404`, hors dispositif → paiement `'refused'` ; note `'payment'` du journal absente tant que le paiement n'est pas `'paid'`, écrite au passage (ADR-035) ; sans barème pour le prix → `409` « Paramétrage incomplet », paiement sans détail → pas de note, `paid_at` sans fuseau lu en UTC |
+| [`integration/test_create_admin.py`](tests/integration/test_create_admin.py) | `scripts/create_admin.py` : compte `Admin` activé, mot de passe haché ; email déjà pris (casse ignorée), mot de passe court, deux saisies différentes, rôle `Admin` absent, refus de la base → message, rien d'écrit |
 
 **Calcul de la rémunération** : [`services/remuneration.py`](src/app/services/remuneration.py)
 est le code de référence **du sujet**, extrait tel quel de `REGLES-CALCUL-REMUNERATION.md`
