@@ -29,12 +29,19 @@ from typing import Any, Optional
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from src.app.models import HunterPerformance, Mandate, Sale, Visit
+from src.app.models import Hunter, HunterPerformance, Mandate, Sale, User, Visit
 from src.app.repositories.commission_scale_repository import CommissionScaleRepository
 from src.app.repositories.hunter_rate_parameters_repository import HunterRateParametersRepository
+from src.app.repositories.hunter_repository import HunterRepository
+from src.app.repositories.mandate_repository import MandateRepository
 from src.app.repositories.parameters_fees_repository import ParametersFeesRepository
+from src.app.repositories.payment_repository import PaymentRepository
+from src.app.repositories.sale_repository import SaleRepository
+from src.app.repositories.user_repository import UserRepository
+from src.app.repositories.visit_repository import VisitRepository
 from src.app.services.parametrage_service import ParametrageService, performance
 from src.app.services.payment_calculation_service import (
+    PaymentCalculationService,
     count_activity,
     count_client_visits,
     full_years,
@@ -48,7 +55,15 @@ from src.app.services.remuneration import (
     calculer_score,
 )
 
-from .test_constraints_db import HUNTER_ID, post_as_hunter, post_as_manager, rate_parameters, sale_payload
+from .test_constraints_db import (
+    HUNTER_ID,
+    MANAGER_ID,
+    SALE_MANDATE,
+    post_as_hunter,
+    post_as_manager,
+    rate_parameters,
+    sale_payload,
+)
 
 ACTE = date(2026, 3, 1)
 
@@ -236,3 +251,35 @@ def test_journal_note_is_written_only_when_paid(db_client: TestClient, db_sessio
     assert settings is not None
     assert note.score == calculer_score(notes, performance(settings))
     assert (note.trigger_type, note.id_hunter, note.scored_at.date()) == ("payment", HUNTER_ID, date(2026, 3, 15))
+
+
+def test_a_hunter_whose_id_differs_from_its_account_is_found(db_client: TestClient, db_session: Session):
+    # Dette DEM3 : build_vente cherchait le chasseur par hunter.id au lieu de
+    # hunter.id_user. Les 6 chasseurs de 02 ont id = id_user : le bug ne se
+    # voyait qu'avec un chasseur neuf (seed de démo, 14/10/2026).
+    rate_parameters(db_client)
+    calculation = PaymentCalculationService(
+        SaleRepository(), MandateRepository(), VisitRepository(), HunterRepository(), PaymentRepository(),
+        CommissionScaleRepository(), HunterRateParametersRepository(), parametrage_service(),
+    )
+    account = UserRepository().create(
+        db_session, User(email="chasseur-neuf@example.com", password="-", is_activated=True, id_role=2)  # 'Hunter', posé par 02
+    )
+    assert account.id is not None
+    hunter = HunterRepository().create(
+        db_session,
+        Hunter(id_user=account.id, first_name="Neuf", last_name="Chasseur", phone_number="+33 6 12 34 56 78",
+               hire_date=date(2024, 1, 2), id_realestatemanager=MANAGER_ID),
+    )
+    assert hunter.id != account.id  # sinon le test ne prouve rien
+    mandate = MandateRepository().create(
+        db_session, Mandate(**{**SALE_MANDATE, "reference": "TEST-M-NEUF", "id_hunter": account.id,
+                               "signature_date": date(2026, 2, 1), "ends_at": date(2026, 8, 1)}),
+    )
+    assert mandate.id is not None
+    sale = Sale(signature_date=ACTE, purchase_amount=354712, fees_amount=Decimal("11867.80"),
+                sale_origin="hunter", id_mandate=mandate.id, id_estate=0, id_parameters_fees=0)
+
+    vente = calculation.build_vente(db_session, sale)
+    assert vente.chasseur_id == account.id
+    assert vente.annees_anciennete == full_years(date(2024, 1, 2), ACTE)
