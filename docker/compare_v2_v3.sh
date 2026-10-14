@@ -10,11 +10,11 @@
 # CE QU'IL FAIT :
 #   1. recrée cmp_v2_migree : les *.sql de init-v2/ (01, 02, 03), puis chaque
 #      migrations/v2-vers-v3/*.sql, par ordre de nom ;
-#   2. recrée cmp_v3_neuve : les *.sql de init-v3/ (01, 02, 03) ;
+#   2. recrée cmp_v3_neuve : les *.sql de init-v3/ (01 à 06) ;
 #      « tous les *.sql par ordre de nom » : comme docker-entrypoint-initdb.d ;
 #   3. décrit chaque base en lignes triées — colonnes (nom, type, nullable,
 #      défaut), contraintes (pg_get_constraintdef), index, triggers,
-#      fonctions, et le nombre de lignes par table ;
+#      fonctions, et le nombre de lignes par table, hors tables de démo ;
 #   4. rend IDENTIQUES et 0, ou le diff et 1 (2 : le banc n'a pas pu
 #      conclure) ; supprime ses deux bases dans tous les cas.
 #
@@ -28,6 +28,11 @@
 # script). Les mutants jouent sur une copie temporaire, jamais sur ces
 # dossiers :
 #     V3_DIR=/tmp/v3-mutant bash docker/compare_v2_v3.sh
+#
+# TABLES DE DÉMO : leurs lignes ne sont pas comptées, leur schéma reste
+# comparé. La liste est DEMO_TABLES (noms séparés par des espaces) ; vide,
+# toutes les tables sont comptées :
+#     DEMO_TABLES= bash docker/compare_v2_v3.sh
 #
 # LANCER (depuis n'importe où, conteneur `db` démarré) :
 #     bash docker/compare_v2_v3.sh
@@ -45,6 +50,12 @@ V2_DIR="$(cd "${V2_DIR:-$HERE/init-v2}" && pwd)"
 V3_DIR="$(cd "${V3_DIR:-$HERE/init-v3}" && pwd)"
 MIG_DIR="$(cd "${MIG_DIR:-$HERE/migrations/v2-vers-v3}" && pwd)"
 cd "$HERE"   # docker compose lit docker-compose.yml ici
+
+# Tables de démo, dont on ne compte pas les lignes :
+# - estate_contact : 2 469 contacts de démo, remplis par
+#   init-v3/06_populate_estate_contact.sql ; aucune migration ne pousse de
+#   faux contacts dans une base réelle (ADR-054).
+DEMO_TABLES="${DEMO_TABLES-estate_contact}"
 
 V2_DB="${CMP_V2_DB:-cmp_v2_migree}"
 V3_DB="${CMP_V3_DB:-cmp_v3_neuve}"
@@ -176,6 +187,11 @@ recreer_et_charger "$V2_DB" "${v2_files[@]}" "${mig_files[@]}"
 recreer_et_charger "$V3_DB" "${v3_files[@]}"
 decrire "$V2_DB" "$DESC_V2"
 decrire "$V3_DB" "$DESC_V3"
+
+# Retire le nombre de lignes des tables de démo, des deux côtés.
+for t in $DEMO_TABLES; do
+    sed -i "/^lignes [^ ]*\.$t /d" "$DESC_V2" "$DESC_V3"
+done
 
 # Garde : une description vide ferait dire IDENTIQUES à un banc muet.
 n_v2=$(wc -l < "$DESC_V2")
