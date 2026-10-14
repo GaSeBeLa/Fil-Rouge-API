@@ -1,12 +1,17 @@
-fastapi
-sqlmodel
-uvicorn[standard]
-psycopg2-binary
-python-dotenv
-argon2-cffi
-pyjwt
-email-validator
+# Versions figées : celles installées dans l'image api le 2026-10-14
+# (927 passed). Sans version, une reconstruction de l'image prend la
+# dernière parue, et deux postes de l'équipe peuvent diverger. Monter une
+# version = la changer ici, reconstruire (`docker compose up -d --build api`),
+# puis relancer pytest.
+fastapi==0.143.0
+sqlmodel==0.0.48
+uvicorn[standard]==0.54.0
+psycopg2-binary==2.9.13
+python-dotenv==1.2.4
+argon2-cffi==25.1.0
+pyjwt==2.15.1
+email-validator==2.3.0
 
 # tests
-pytest
-httpx
+pytest==9.1.1
+httpx==0.28.1
