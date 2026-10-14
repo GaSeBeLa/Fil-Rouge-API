@@ -9,7 +9,7 @@ from sqlmodel import SQLModel, Field
 
 
 class Picture(SQLModel, table=True):
-    __tablename__ = "picture"
+    __tablename__ = "picture"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -24,7 +24,7 @@ from sqlmodel import SQLModel, Field
 
 
 class ParametersFees(SQLModel, table=True):
-    __tablename__ = "parameters_fees"
+    __tablename__ = "parameters_fees"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

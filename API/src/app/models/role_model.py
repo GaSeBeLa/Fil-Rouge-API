@@ -13,7 +13,7 @@ from sqlmodel import SQLModel, Field
 
 
 class Role(SQLModel, table=True):
-    __tablename__ = "role"
+    __tablename__ = "role"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))  # Q-SCH-09

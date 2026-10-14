@@ -21,7 +21,7 @@ from sqlmodel import SQLModel, Field
 
 
 class Sale(SQLModel, table=True):
-    __tablename__ = "sale"
+    __tablename__ = "sale"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

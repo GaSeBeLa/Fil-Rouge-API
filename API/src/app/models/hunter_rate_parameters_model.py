@@ -42,7 +42,7 @@ from .input_check import is_input
 
 
 class HunterRateParameters(SQLModel, table=True):
-    __tablename__ = "hunter_rate_parameters"
+    __tablename__ = "hunter_rate_parameters"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

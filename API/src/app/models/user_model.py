@@ -18,7 +18,8 @@ from sqlmodel import SQLModel, Field
 
 
 class User(SQLModel, table=True):
-    __tablename__ = "user"  # "user" est un mot réservé SQL ; SQLAlchemy le
+    __tablename__ = "user"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
+    # "user" est un mot réservé SQL ; SQLAlchemy le
     # met automatiquement entre guillemets doubles à la génération des
     # requêtes, comme le fait le script SQL — pas d'action supplémentaire
     # nécessaire de notre côté.
