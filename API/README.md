@@ -210,6 +210,10 @@ Puis **910 passed, 8 skipped, 7 xfailed** (fiche DRO9, 2026-10-13) : `fil_rouge_
 fermé sur `payment` et sur les comptes désactivés, 5 tests dans `test_lecteur_sql.py`.
 Puis **911 passed, 8 skipped, 6 xfailed** (fiche DRO11, 2026-10-13) : la fuite du
 formulaire fermée, le `xfail` de DRO3 passe.
+Puis **948 passed, 0 skipped, 7 xfailed** (chantier DEM, 2026-10-14) : le seed de démo
+et ses 13 tests ; les 8 tests du seed des paramètres (`test_seed_parametres.py`,
+`test_parametrage_service.py`) tournent aussi dans le conteneur, qui monte `init-v3`
+depuis BAN2.
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test

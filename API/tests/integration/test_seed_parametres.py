@@ -46,7 +46,11 @@ from src.app.services.remuneration import (
     parametrage_par_defaut,
 )
 
-SEED = Path(__file__).resolve().parents[3] / "docker" / "init-v3" / "05_parametres.sql"
+# Le fichier du seed : monté dans le conteneur api (init-v3, chantier BAN), ou lu dans le dépôt sur la machine.
+SEEDS = [
+    Path("/api/sql/init-v3/05_parametres.sql"),
+    Path(__file__).resolve().parents[3] / "docker" / "init-v3" / "05_parametres.sql",
+]
 ACTE = date(2026, 7, 30)
 
 
@@ -56,11 +60,11 @@ def apply_seed(db_session: Session) -> None:
     Passe par le curseur du pilote, sans paramètres : le fichier contient des `%`
     (dans ses commentaires) qu'une exécution paramétrée tenterait d'interpréter.
     """
-    if not SEED.exists():
-        # Le conteneur `api` ne monte que src/ et tests/ (docker-compose.yml) : il ne voit pas docker/.
-        pytest.skip(f"Seed introuvable ({SEED}) : lancer ces tests depuis API/, sur la machine, pas dans le conteneur.")
+    found = [seed for seed in SEEDS if seed.exists()]
+    if not found:
+        pytest.skip(f"Seed introuvable ({', '.join(map(str, SEEDS))}).")
     cursor = db_session.connection().connection.cursor()
-    cursor.execute(SEED.read_text(encoding="utf-8"))
+    cursor.execute(found[0].read_text(encoding="utf-8"))
 
 
 def count(db_session: Session, table: str) -> int:
