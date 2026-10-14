@@ -37,7 +37,7 @@ from src.app.utils.roles import ADMIN, get_principal
 from .conftest import TEST_HEADERS, principal_as
 
 NOT_FOUND = "Chose introuvable"
-CONFLICT = "Contrainte violée"
+CONFLICT = "Valeur déjà utilisée : la base refuse un doublon (contrainte thing_name_key)."
 
 
 class Thing(SQLModel):

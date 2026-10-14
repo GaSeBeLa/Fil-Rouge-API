@@ -9,7 +9,7 @@ Ce que les tests unitaires ne pouvaient pas prouver :
 - le mot de passe est STOCKÉ haché dans PostgreSQL (lu en base, pas dans
   la réponse) ;
 - UNIQUE(email), la clé étrangère id_role et ON DELETE RESTRICT donnent
-  bien 409, avec le message attendu ;
+  bien 409, avec le message qui nomme la contrainte (fiche FIN1) ;
 - le PUT partiel ne touche pas les champs omis, une fois écrit en base.
 ============================================================================
 """
@@ -24,7 +24,6 @@ from src.app.models import User
 from .conftest import USER_PASSWORD
 
 EMAIL = "compte@exemple.fr"
-WRITE_CONFLICT = "Contrainte violée (valeur en double ou référence inexistante)."
 
 
 def test_post_returns_201_without_password(db_client: TestClient):
@@ -54,7 +53,7 @@ def test_duplicate_email_returns_409(db_client: TestClient, create_user: Callabl
     create_user(EMAIL)
     response = db_client.post("/users", json={"email": EMAIL, "password": USER_PASSWORD, "id_role": 1})
     assert response.status_code == 409
-    assert response.json()["detail"] == WRITE_CONFLICT
+    assert response.json()["detail"] == "Cet email a déjà un compte (contrainte user_email_key)."
 
 
 def test_unknown_role_returns_409(db_client: TestClient):

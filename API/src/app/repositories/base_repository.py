@@ -22,6 +22,10 @@ filtre se fait dans la requête, jamais en Python après coup.
 
 `discarded_writes` (fiche DRO11) : un SAVEPOINT toujours annulé. La base
 juge des écritures (ses CHECK), et rien n'en reste.
+
+Un refus de la base (IntegrityError) devient ConflictError, dont le message
+dit la sorte de refus et nomme la contrainte (fiche FIN1,
+utils/constraint_messages.py).
 ============================================================================
 """
 
@@ -32,12 +36,10 @@ from sqlalchemy import ColumnElement
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, select
 
+from ..utils.constraint_messages import conflict_detail
 from ..utils.exceptions import ConflictError
 
 ModelType = TypeVar("ModelType", bound=SQLModel)
-
-_WRITE_CONFLICT_DETAIL = "Contrainte violée (valeur en double ou référence inexistante)."
-_DELETE_CONFLICT_DETAIL = "Suppression impossible : cette ligne est encore référencée ailleurs."
 
 
 @contextmanager
@@ -95,7 +97,7 @@ class BaseRepository(Generic[ModelType]):
         # IDENTITY, PostgreSQL refuse une valeur explicite (voir 02_migration.sql).
         item.id = None
         session.add(item)
-        self._commit_or_raise(session, _WRITE_CONFLICT_DETAIL)
+        self._commit_or_raise(session)
         session.refresh(item)
         return item
 
@@ -103,7 +105,7 @@ class BaseRepository(Generic[ModelType]):
         for key, value in data.model_dump(exclude={"id"}).items():
             setattr(existing, key, value)
         session.add(existing)
-        self._commit_or_raise(session, _WRITE_CONFLICT_DETAIL)
+        self._commit_or_raise(session)
         session.refresh(existing)
         return existing
 
@@ -127,7 +129,7 @@ class BaseRepository(Generic[ModelType]):
             session.flush()
         except IntegrityError as exc:
             session.rollback()
-            raise ConflictError(_WRITE_CONFLICT_DETAIL) from exc
+            raise ConflictError(conflict_detail(exc, deleting=False)) from exc
         return item
 
     def save(self, session: Session, existing: ModelType) -> ModelType:
@@ -139,19 +141,19 @@ class BaseRepository(Generic[ModelType]):
         UserService.replace().
         """
         session.add(existing)
-        self._commit_or_raise(session, _WRITE_CONFLICT_DETAIL)
+        self._commit_or_raise(session)
         session.refresh(existing)
         return existing
 
     def delete(self, session: Session, existing: ModelType) -> ModelType:
         session.delete(existing)
-        self._commit_or_raise(session, _DELETE_CONFLICT_DETAIL)
+        self._commit_or_raise(session, deleting=True)
         return existing
 
     @staticmethod
-    def _commit_or_raise(session: Session, conflict_detail: str) -> None:
+    def _commit_or_raise(session: Session, deleting: bool = False) -> None:
         try:
             session.commit()
         except IntegrityError as exc:
             session.rollback()
-            raise ConflictError(conflict_detail) from exc
+            raise ConflictError(conflict_detail(exc, deleting)) from exc

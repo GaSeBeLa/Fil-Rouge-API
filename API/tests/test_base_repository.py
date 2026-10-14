@@ -10,14 +10,17 @@ de test isolée) : on teste la logique propre au repository.
 
 - `create` ignore l'id fourni (PostgreSQL le génère : GENERATED ALWAYS).
 - `replace` recopie les champs mais jamais l'id.
-- une IntegrityError au commit devient rollback + ConflictError, avec le
-  message propre à l'écriture ou à la suppression.
+- une IntegrityError au commit devient rollback + ConflictError, dont le
+  message dit la sorte de refus et nomme la contrainte (fiche FIN1) ;
+- `conflict_detail` ne recopie jamais la valeur refusée.
 
 `User` sert de modèle concret : instancier une classe SQLModel `table=True`
 ne touche pas la base.
 ============================================================================
 """
 
+from types import SimpleNamespace
+from typing import Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -25,10 +28,17 @@ from sqlalchemy.exc import IntegrityError
 
 from src.app.models import User
 from src.app.repositories.base_repository import BaseRepository
+from src.app.utils.constraint_messages import conflict_detail
 from src.app.utils.exceptions import ConflictError
 
-WRITE_DETAIL = "Contrainte violée (valeur en double ou référence inexistante)."
-DELETE_DETAIL = "Suppression impossible : cette ligne est encore référencée ailleurs."
+
+def integrity_error(pgcode: Optional[str], constraint_name: Optional[str]) -> IntegrityError:
+    """Une IntegrityError comme psycopg2 la remonte : `pgcode` et `diag.constraint_name`."""
+    orig = SimpleNamespace(
+        pgcode=pgcode,
+        diag=SimpleNamespace(constraint_name=constraint_name, message_detail="Key (email)=(secret@exemple.fr)"),
+    )
+    return IntegrityError("INSERT ...", {}, orig)  # pyright: ignore[reportArgumentType] — faux psycopg2.Error, mêmes attributs
 
 
 @pytest.fixture
@@ -44,7 +54,7 @@ def session() -> MagicMock:
 @pytest.fixture
 def failing_session() -> MagicMock:
     s = MagicMock()
-    s.commit.side_effect = IntegrityError("INSERT ...", {}, Exception("violation"))
+    s.commit.side_effect = integrity_error("23503", "client_id_user_fkey")
     return s
 
 
@@ -76,7 +86,7 @@ def test_replace_copies_fields_but_keeps_id(repository: BaseRepository[User], se
 def test_create_conflict_rolls_back_and_raises(repository: BaseRepository[User], failing_session: MagicMock):
     with pytest.raises(ConflictError) as exc:
         repository.create(failing_session, make_user())
-    assert str(exc.value) == WRITE_DETAIL
+    assert str(exc.value) == "Référence inexistante : la ligne citée n'existe pas (contrainte client_id_user_fkey)."
     failing_session.rollback.assert_called_once()
     failing_session.refresh.assert_not_called()
 
@@ -84,11 +94,47 @@ def test_create_conflict_rolls_back_and_raises(repository: BaseRepository[User],
 def test_save_conflict_uses_write_detail(repository: BaseRepository[User], failing_session: MagicMock):
     with pytest.raises(ConflictError) as exc:
         repository.save(failing_session, make_user(id=1))
-    assert str(exc.value) == WRITE_DETAIL
+    assert "client_id_user_fkey" in str(exc.value)
+    assert not str(exc.value).startswith("Suppression")
 
 
 def test_delete_conflict_uses_delete_detail(repository: BaseRepository[User], failing_session: MagicMock):
     with pytest.raises(ConflictError) as exc:
         repository.delete(failing_session, make_user(id=1))
-    assert str(exc.value) == DELETE_DETAIL
+    assert str(exc.value) == "Suppression impossible : la ligne est encore référencée par client_id_user_fkey."
     failing_session.rollback.assert_called_once()
+
+
+def test_insert_pending_conflict_names_the_constraint(repository: BaseRepository[User]):
+    s = MagicMock()
+    s.flush.side_effect = integrity_error("23505", "user_email_key")
+    with pytest.raises(ConflictError) as exc:
+        repository.insert_pending(s, make_user())
+    assert str(exc.value) == "Cet email a déjà un compte (contrainte user_email_key)."
+    s.rollback.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("pgcode", "name", "deleting", "expected"),
+    [
+        ("23505", "mandate_reference_key", False, "Cette référence de mandat existe déjà (contrainte mandate_reference_key)."),
+        ("23505", "uq_criteria_one_successor", False, "Valeur déjà utilisée : la base refuse un doublon (contrainte uq_criteria_one_successor)."),
+        ("23514", "chk_budget", False, "Valeur refusée par une règle de la base (contrainte chk_budget)."),
+        ("23P01", "excl_scale_no_overlap", False, "Chevauchement refusé par la base (contrainte excl_scale_no_overlap)."),
+        ("23503", None, False, "Référence inexistante : la ligne citée n'existe pas."),
+        ("23503", None, True, "Suppression impossible : la ligne est encore référencée ailleurs."),
+        (None, None, False, "Écriture refusée par la base."),
+    ],
+)
+def test_conflict_detail_sort_then_name(pgcode: Optional[str], name: Optional[str], deleting: bool, expected: str):
+    assert conflict_detail(integrity_error(pgcode, name), deleting) == expected
+
+
+def test_conflict_detail_without_psycopg2_attributes():
+    # Une erreur sans pgcode ni diag : la phrase par défaut, jamais un message vide.
+    assert conflict_detail(IntegrityError("INSERT ...", {}, Exception("violation")), deleting=False) == "Écriture refusée par la base."
+
+
+def test_conflict_detail_never_copies_the_refused_value():
+    detail = conflict_detail(integrity_error("23505", "user_email_key"), deleting=False)
+    assert "secret@exemple.fr" not in detail

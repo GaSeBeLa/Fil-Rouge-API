@@ -38,6 +38,9 @@ une interface interactive (Swagger UI) pour tester chaque route sans rien
 ============================================================================
 """
 
+import logging
+from uuid import uuid4
+
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -134,6 +137,25 @@ async def validation_error_without_input(request: Request, exc: RequestValidatio
     """
     errors = [{key: value for key, value in error.items() if key != "input"} for error in exc.errors()]
     return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
+
+
+logger = logging.getLogger(__name__)
+
+
+@app.exception_handler(Exception)
+async def internal_error_with_reference(request: Request, exc: Exception) -> JSONResponse:
+    """
+    Le 500 : un message neutre et un numéro court, le même dans le log avec
+    la pile (décision « 500 = message neutre + numéro », Seb, 2026-10-14 ;
+    fiche FIN1). Le client cite le numéro, on retrouve la pile ; rien de
+    l'erreur ne sort dans la réponse.
+
+    Starlette relance l'exception après cette réponse (ServerErrorMiddleware) :
+    un test la lit avec `TestClient(app, raise_server_exceptions=False)`.
+    """
+    reference = uuid4().hex[:8]
+    logger.exception("Erreur interne, référence %s : %s %s", reference, request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": f"Erreur interne. Référence : {reference}."})
 
 
 # Ouverte à tous, ni clé d'API ni jeton : un outil de supervision demande

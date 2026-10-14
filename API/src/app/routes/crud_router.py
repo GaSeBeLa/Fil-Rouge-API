@@ -192,7 +192,8 @@ def build_crud_router(
             "- `201` : la ligne créée, avec son `id` ;\n"
             "- `403` : votre rôle ne peut pas créer dans cette table ;\n"
             "- `409` : la base ou une règle métier refuse la ligne (valeur en double, "
-            "référence inexistante, règle d'un ADR) ; le message dit laquelle ;\n"
+            "référence inexistante, règle d'un ADR) ; le message nomme la contrainte "
+            "de la base, ou cite la règle ;\n"
             "- `422` : le corps est mal formé (champ obligatoire absent, type faux).",
         ),
     )
