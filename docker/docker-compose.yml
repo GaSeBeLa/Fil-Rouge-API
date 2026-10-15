@@ -26,8 +26,30 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     # Petit serveur de santé du scheduler, port 8974 (son healthcheck).
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    # FLX2 : « from src.config import ... » (DAG) et import « à plat » (lab).
+    PYTHONPATH: /opt/airflow:/opt/airflow/src
+    # Réglages lus par airflow/src/config.py (FLX2) ; mêmes noms que le
+    # service api pour la base.
+    MINIO_ENDPOINT: http://minio:9000
+    MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+    MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+    POSTGRES_HOST: db
+    POSTGRES_PORT: 5432
+    POSTGRES_DB: ${POSTGRES_DB}
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # Connexions Airflow des hooks (FLX2), au format JSON plutôt qu'en URI :
+    # le mot de passe n'a pas à être encodé (pas de « " » ni de « \ »
+    # dedans, voir .env.exemple). Format JSON : airflow.apache.org/docs/
+    # apache-airflow/2.11.2/howto/connection.html, lu le 2026-10-15 ;
+    # endpoint_url de MinIO dans les extras, comme le lab du cours.
+    AIRFLOW_CONN_MINIO_DEFAULT: '{"conn_type": "aws", "login": "${MINIO_ROOT_USER}", "password": "${MINIO_ROOT_PASSWORD}", "extra": {"endpoint_url": "http://minio:9000"}}'
+    AIRFLOW_CONN_FIL_ROUGE_DB: '{"conn_type": "postgres", "host": "db", "port": 5432, "schema": "${POSTGRES_DB}", "login": "${POSTGRES_USER}", "password": "${POSTGRES_PASSWORD}"}'
   volumes:
     - airflow_logs:/opt/airflow/logs
+    # FLX2 : les DAG et le code métier, en lecture seule.
+    - ../airflow/dags:/opt/airflow/dags:ro
+    - ../airflow/src:/opt/airflow/src:ro
   depends_on: &airflow-common-depends-on
     db:
       condition: service_healthy
@@ -122,7 +144,8 @@ services:
       /usr/bin/mc mb myminio/bronze --ignore-existing;
       /usr/bin/mc mb myminio/silver --ignore-existing;
       /usr/bin/mc mb myminio/gold --ignore-existing;
-      echo 'buckets bronze/silver/gold crees';
+      /usr/bin/mc mb myminio/quarantine --ignore-existing;
+      echo 'buckets bronze/silver/gold/quarantine crees';
       "
 
   # Une fois : migre la base airflow, puis crée le compte admin de

@@ -152,6 +152,8 @@ l'arrêter ou voir ses logs : `docker compose --profile airflow logs -f minio`.
 - Trois lignes de `docker/.env` à remplir (le modèle dit comment les
   générer) : `AIRFLOW_DB_PASSWORD`, `AIRFLOW_ADMIN_PASSWORD`,
   `AIRFLOW_FERNET_KEY`.
+- Les DAG, le code métier, les connexions (`minio_default`, `fil_rouge_db`),
+  les tests et le lancement d'un DAG à la main : `airflow/README.md`.
 
 **Base de dev déjà créée** (le cas de toute l'équipe) : la base `airflow` et
 son rôle ne naissent seuls que sur un volume neuf (`init-v3/07_airflow-base.sh`).
