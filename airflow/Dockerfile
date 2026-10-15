@@ -17,8 +17,10 @@
 #   - toujours réinstaller apache-airflow==${AIRFLOW_VERSION}, pour que pip
 #     ne change pas la version d'Airflow en passant.
 #
-# Aucun paquet ajouté pour l'instant : les providers amazon (MinIO, S3) et
-# postgres sont déjà dans l'image officielle. Une fiche qui en ajoute un le
-# fait ici, version figée, sur ce modèle :
-#   RUN pip install --no-cache-dir "apache-airflow==${AIRFLOW_VERSION}" "paquet==x.y.z"
+# Les providers amazon (MinIO, S3) et postgres sont déjà dans l'image
+# officielle. Paquets ajoutés, version figée :
+#   - elasticsearch 9.5.1 (FLX8, DAG estates_index) : la version du kit du
+#     TP1 du cours ELK, et la dernière sur PyPI (publiée le 2026-09-09, lu
+#     le 2026-10-15). Absente de l'image officielle (pip list, 2026-10-15).
 FROM apache/airflow:2.11.2
+RUN pip install --no-cache-dir "apache-airflow==${AIRFLOW_VERSION}" "elasticsearch==9.5.1"

@@ -46,6 +46,9 @@ x-airflow-common: &airflow-common
     # endpoint_url de MinIO dans les extras, comme le lab du cours.
     AIRFLOW_CONN_MINIO_DEFAULT: '{"conn_type": "aws", "login": "${MINIO_ROOT_USER}", "password": "${MINIO_ROOT_PASSWORD}", "extra": {"endpoint_url": "http://minio:9000"}}'
     AIRFLOW_CONN_FIL_ROUGE_DB: '{"conn_type": "postgres", "host": "db", "port": 5432, "schema": "${POSTGRES_DB}", "login": "${POSTGRES_USER}", "password": "${POSTGRES_PASSWORD}"}'
+    # FLX8 : le DAG estates_index écrit dans Elasticsearch (profil elk) avec
+    # le compte dédié airflow_indexer, créé par es-setup ; jamais elastic.
+    AIRFLOW_CONN_ELASTICSEARCH_DEFAULT: '{"conn_type": "generic", "host": "http://elasticsearch:9200", "login": "airflow_indexer", "password": "${ES_INDEXER_PASSWORD}"}'
   volumes:
     - airflow_logs:/opt/airflow/logs
     # FLX2 : les DAG et le code métier, en lecture seule.
@@ -229,8 +232,10 @@ services:
       interval: 10s
       timeout: 10s
       retries: 60
-  # Une fois : fixe le mot de passe de l'utilisateur interne kibana_system,
-  # puis s'arrête (le « setup » du kit).
+  # Une fois : fixe le mot de passe de l'utilisateur interne kibana_system
+  # (le « setup » du kit), puis crée le compte airflow_indexer du DAG
+  # estates_index (FLX8), limité à l'index estates par le rôle
+  # estates_writer ; enfin s'arrête. Rejouable : PUT remplace.
   es-setup:
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION:-9.5.4}
     container_name: fil_rouge_immobilier_es_setup
@@ -242,6 +247,7 @@ services:
     environment:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       KIBANA_PASSWORD: ${KIBANA_PASSWORD}
+      ES_INDEXER_PASSWORD: ${ES_INDEXER_PASSWORD}
     # Forme liste : chaque élément est un argv (voir la note du kit sur le
     # scalaire replié « > »).
     command:
@@ -258,6 +264,17 @@ services:
           sleep 5
         done
         echo "OK"
+        echo "Rôle estates_writer et compte airflow_indexer (FLX8)"
+        curl -sf -X PUT -u "elastic:$${ELASTIC_PASSWORD}" \
+             -H "Content-Type: application/json" \
+             http://elasticsearch:9200/_security/role/estates_writer \
+             -d '{"indices":[{"names":["estates"],"privileges":["create_index","view_index_metadata","read","write","maintenance"]}]}' || exit 1
+        echo
+        curl -sf -X PUT -u "elastic:$${ELASTIC_PASSWORD}" \
+             -H "Content-Type: application/json" \
+             http://elasticsearch:9200/_security/user/airflow_indexer \
+             -d "{\"password\":\"$${ES_INDEXER_PASSWORD}\",\"roles\":[\"estates_writer\"]}" || exit 1
+        echo
     restart: "no"
   kibana:
     image: docker.elastic.co/kibana/kibana:${STACK_VERSION:-9.5.4}
