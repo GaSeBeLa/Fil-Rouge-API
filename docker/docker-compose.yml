@@ -266,12 +266,39 @@ services:
       - -c
       - |
         echo "Définition du mot de passe kibana_system"
-        until curl -s -X POST -u "elastic:$${ELASTIC_PASSWORD}" \
-              -H "Content-Type: application/json" \
-              http://elasticsearch:9200/_security/user/kibana_system/_password \
-              -d "{\"password\":\"$${KIBANA_PASSWORD}\"}" | grep -q '^{}'
-        do
-          echo "Elasticsearch pas encore prêt, nouvelle tentative dans 5 s..."
+        # Le code HTTP dit pourquoi ça échoue : un 4xx (401 = mot de passe
+        # elastic refusé) arrête tout de suite ; le reste (pas de réponse,
+        # 5xx), on réessaie 24 fois, 5 s d'écart (2 à 3 min), puis on
+        # s'arrête en montrant la réponse.
+        tries=0
+        while true; do
+          code=$$(curl -s -o /tmp/es-reponse -w '%{http_code}' -X POST \
+                  -u "elastic:$${ELASTIC_PASSWORD}" \
+                  -H "Content-Type: application/json" \
+                  http://elasticsearch:9200/_security/user/kibana_system/_password \
+                  -d "{\"password\":\"$${KIBANA_PASSWORD}\"}")
+          [ "$$code" = "200" ] && break
+          if [ "$$code" = "401" ]; then
+            echo "Mot de passe elastic refusé (HTTP 401) : vérifier ELASTIC_PASSWORD dans docker/.env"
+            exit 1
+          fi
+          # Autre 4xx (KIBANA_PASSWORD vide ou trop court…) : réessayer n'y
+          # changera rien.
+          case "$$code" in
+            4*)
+              echo "Elasticsearch refuse la demande (HTTP $$code) :"
+              cat /tmp/es-reponse; echo
+              exit 1
+              ;;
+          esac
+          tries=$$((tries + 1))
+          if [ "$$tries" -ge 24 ]; then
+            echo "Elasticsearch ne répond toujours pas après 24 essais (HTTP $$code) :"
+            cat /tmp/es-reponse 2>/dev/null || echo "(aucune réponse)"
+            echo
+            exit 1
+          fi
+          echo "Elasticsearch pas encore prêt (HTTP $$code), nouvelle tentative dans 5 s..."
           sleep 5
         done
         echo "OK"
