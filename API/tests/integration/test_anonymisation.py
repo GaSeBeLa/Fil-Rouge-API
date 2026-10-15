@@ -36,15 +36,19 @@ from .test_constraints_db import (
     ACTIVE_REQUEST,
     ESTATE,
     HUNTER_ID,
+    HUNTER_PROFILE,
     MANDATE,
+    MANAGER_PROFILE,
     advance,
+    client_profile,
+    hunter_profile,
     payment_payload,
     post_as_hunter,
     post_as_manager,
     selected_estate,
 )
 
-ACTIVE_MANDATE_CLIENT = 21
+ACTIVE_MANDATE_CLIENT = 21  # un compte ; sa fiche : client_profile(21)
 ACTIVE_MANDATE_END = date(2026, 9, 25)
 
 CLIENT_RECORD = {
@@ -128,7 +132,7 @@ def test_client_comment_is_cleared_and_name_waits_for_the_mandate(
         "/estate-proposed",
         {
             "proposition_status": "proposed",
-            "id_hunter": HUNTER_ID,
+            "id_hunter": HUNTER_PROFILE,
             "id_estate": selected_estate(db_client),
             "id_mandate": ACTIVE_MANDATE,
             "comment_client": "Trop sombre, et le voisin du dessus est bruyant.",
@@ -152,11 +156,11 @@ def test_client_comment_is_cleared_and_name_waits_for_the_mandate(
 # --- Le nom attend la fin du plus long délai (Décision 5) ------------------------
 
 
-def _hunter_with_an_old_mandate(db_client: TestClient, db_session: Session) -> tuple[int, int]:
+def _hunter_with_an_old_mandate(db_client: TestClient, db_session: Session) -> tuple[int, int, int]:
     """
     Un chasseur neuf, dont le seul mandat (demande 1, client 7) a fini le
-    2024-07-01, et une vente 'client_alone' sur ce mandat : son id, et celui
-    de la vente. Aucun mandat du seed ne lui garde son nom.
+    2024-07-01, et une vente 'client_alone' sur ce mandat : son compte, sa
+    fiche et l'id de la vente. Aucun mandat du seed ne lui garde son nom.
     """
     account = {"email": "paul.martel.api10@exemple.fr", "password": USER_PASSWORD, "id_role": 2}
     hunter_id = db_client.post("/users", json=account).json()["id"]
@@ -166,7 +170,7 @@ def _hunter_with_an_old_mandate(db_client: TestClient, db_session: Session) -> t
         "last_name": "Martel",
         "phone_number": "+33611111111",
         "hire_date": "2020-01-02",
-        "id_realestatemanager": 25,  # manager posé par 02
+        "id_realestatemanager": MANAGER_PROFILE,  # manager posé par 02
     }
     assert (created := db_client.post("/hunters", json=profile)).status_code == 201, created.text
     mandate = {
@@ -175,7 +179,7 @@ def _hunter_with_an_old_mandate(db_client: TestClient, db_session: Session) -> t
         "status": "expired",
         "signature_date": "2024-01-01",
         "ends_at": "2024-07-01",
-        "id_hunter": hunter_id,
+        "id_hunter": created.json()["id"],
     }
     # La demande 1 est au chasseur 1 : l'API refuse ce mandat au chasseur neuf
     # (« le sien », DRO6) ; écrit par le service, sans compte.
@@ -193,15 +197,15 @@ def _hunter_with_an_old_mandate(db_client: TestClient, db_session: Session) -> t
         "id_parameters_fees": db_client.post("/parameters-fees", json=grid).json()["id"],
     }
     assert (created := post_as_manager(db_client, "/sales", sale)).status_code == 201, created.text
-    return hunter_id, created.json()["id"]
+    return hunter_id, old_mandate.id_hunter, created.json()["id"]
 
 
 def test_hunter_paid_two_years_ago_keeps_name_rest_anonymized(
     db_client: TestClient, db_session: Session
 ) -> None:
-    hunter_id, sale_id = _hunter_with_an_old_mandate(db_client, db_session)
+    hunter_id, profile_id, sale_id = _hunter_with_an_old_mandate(db_client, db_session)
     paid = date.today() - timedelta(days=730)  # après la fin du mandat (2024-07-01)
-    _paid_on(db_client, db_session, paid, id_sale=sale_id, id_hunter=hunter_id)
+    _paid_on(db_client, db_session, paid, id_sale=sale_id, id_hunter=profile_id)
 
     response = _anonymize(db_client, hunter_id)
 
@@ -256,8 +260,8 @@ def test_renewal_by_another_hunter_extends_the_delay(db_client: TestClient, db_s
         "reference": "TEST-M-RENOUV",
         "signature_date": "2026-09-26",
         "ends_at": "2027-03-26",
-        "id_hunter": 2,
-        "id_client": ACTIVE_MANDATE_CLIENT,
+        "id_hunter": hunter_profile(2),
+        "id_client": client_profile(ACTIVE_MANDATE_CLIENT),
         "id_search_request": ACTIVE_REQUEST,
         "id_mandate_parent": ACTIVE_MANDATE,
     }
@@ -278,7 +282,7 @@ def test_unsigned_renewal_keeps_the_signed_end(db_client: TestClient) -> None:
         "status": "pending_signature",
         "signature_date": None,
         "ends_at": None,
-        "id_client": ACTIVE_MANDATE_CLIENT,
+        "id_client": client_profile(ACTIVE_MANDATE_CLIENT),
         "id_search_request": ACTIVE_REQUEST,
         "id_mandate_parent": ACTIVE_MANDATE,
     }

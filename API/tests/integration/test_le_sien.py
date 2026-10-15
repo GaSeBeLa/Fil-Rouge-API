@@ -59,9 +59,12 @@ from .conftest import USER_PASSWORD
 from .test_constraints_db import (
     ESTATE,
     HUNTER_ID,
+    HUNTER_PROFILE,
     SALE_MANDATE,
     client_payload,
+    client_profile,
     fees_grid,
+    hunter_profile,
     offered_estate,
     payment_payload,
     post_as_hunter,
@@ -70,6 +73,10 @@ from .test_constraints_db import (
 )
 
 OTHER_HUNTER_ID = 2  # chasseur du seed 02, comme HUNTER_ID = 1
+
+# Dans ce fichier, HUNTER_ID, CLIENT_ID et leurs « autres » sont des comptes
+# (user.id), passés à acting_as. Les colonnes id_hunter et id_client citent
+# la fiche (chantier PRF) : hunter_profile() et client_profile() la donnent.
 
 
 def another_sale(db_client: TestClient, first_sale: int) -> int:
@@ -95,7 +102,7 @@ def payments(db_client: TestClient, db_session: Session) -> tuple[int, int]:
     sales = (payload["id_sale"], another_sale(db_client, payload["id_sale"]))
     ids = []
     for hunter, sale in zip((HUNTER_ID, OTHER_HUNTER_ID), sales):
-        payment = write_payment(db_session, {**payload, "id_hunter": hunter, "id_sale": sale})
+        payment = write_payment(db_session, {**payload, "id_hunter": hunter_profile(hunter), "id_sale": sale})
         assert payment.id is not None
         ids.append(payment.id)
     return ids[0], ids[1]
@@ -109,7 +116,7 @@ def test_hunter_lists_only_his_payments(db_client: TestClient, payments: tuple[i
     listed = response.json()
     assert mine in {p["id"] for p in listed}
     assert other not in {p["id"] for p in listed}
-    assert {p["id_hunter"] for p in listed} == {HUNTER_ID}
+    assert {p["id_hunter"] for p in listed} == {HUNTER_PROFILE}
 
 
 def test_admin_lists_every_payment(db_client: TestClient, payments: tuple[int, int]):
@@ -123,7 +130,7 @@ def test_hunter_reads_his_payment(db_client: TestClient, payments: tuple[int, in
     with acting_as(HUNTER, HUNTER_ID):
         response = db_client.get(f"/payments/{mine}")
     assert response.status_code == 200, response.text
-    assert response.json()["id_hunter"] == HUNTER_ID
+    assert response.json()["id_hunter"] == HUNTER_PROFILE
 
 
 def test_hunter_gets_404_on_another_hunter_payment(db_client: TestClient, payments: tuple[int, int]):
@@ -144,7 +151,7 @@ def test_hunter_update_of_another_hunter_payment_is_not_found(db_session: Sessio
     data = Payment.model_validate({**before, "amount": "1.00"})
 
     with pytest.raises(NotFoundError):
-        payment_service.replace_visible(db_session, other, data, principal_as(HUNTER, HUNTER_ID)())
+        payment_service.replace_visible(db_session, other, data, principal_as(HUNTER, HUNTER_ID, HUNTER_PROFILE)())
 
     db_session.refresh(row)
     assert row.model_dump() == before
@@ -156,7 +163,7 @@ def test_hunter_update_of_his_payment_passes_the_filter(db_session: Session, pay
     assert row is not None
     data = Payment.model_validate(row.model_dump())
 
-    updated = payment_service.replace_visible(db_session, mine, data, principal_as(HUNTER, HUNTER_ID)())
+    updated = payment_service.replace_visible(db_session, mine, data, principal_as(HUNTER, HUNTER_ID, HUNTER_PROFILE)())
 
     assert updated.id == mine
 
@@ -199,20 +206,20 @@ def world(db_client: TestClient, client: int, request: int, hunter: int, grid: i
     }
     mandate = {
         **SALE_MANDATE, "reference": f"TEST-M-DRO5-{client}",
-        "id_hunter": hunter, "id_client": client, "id_search_request": request,
+        "id_hunter": hunter_profile(hunter), "id_client": client_profile(client), "id_search_request": request,
     }
     mandate_id = rows["/mandates"] = created(db_client, "/mandates", mandate, HUNTER, hunter)
     estate = {**ESTATE, "reference": f"TEST-DRO5-{client}"}
     estate_id = rows["/estates"] = created(db_client, "/estates", estate, HUNTER, hunter)
     picture = {"url": "https://exemple.test/p.jpg", "id_estate": estate_id}
     rows["/pictures"] = created(db_client, "/pictures", picture, HUNTER, hunter)
-    selection = {"id_estate": estate_id, "id_search_request": request, "id_hunter": hunter}
+    selection = {"id_estate": estate_id, "id_search_request": request, "id_hunter": hunter_profile(hunter)}
     review_id = rows["/estate-search-requests"] = created(db_client, "/estate-search-requests", selection, HUNTER, hunter)
     media = {"media_url": "https://exemple.test/a.mp3", "media_type": "audio", "id_estate_searchrequest": review_id}
     rows["/review-media"] = created(db_client, "/review-media", media, HUNTER, hunter)
     offer = {
         "proposition_status": "accepted", "amount_proposition": 350000,
-        "id_hunter": hunter, "id_estate": estate_id, "id_mandate": mandate_id,
+        "id_hunter": hunter_profile(hunter), "id_estate": estate_id, "id_mandate": mandate_id,
     }
     rows["/estate-proposed"] = created(db_client, "/estate-proposed", offer, HUNTER, hunter)
     visit = {"visit_date": "2026-02-10", "visitor_type": "client", "id_estate": estate_id, "id_mandate": mandate_id}
@@ -298,13 +305,13 @@ def test_client_cannot_hand_his_mandate_to_another_client(
     body = db_client.get(f"/mandates/{mine}").json()
     # Avec la demande de l'autre client, la clé (id_search_request, id_client)
     # de la base accepterait : seul le crochet `owns` refuse.
-    moved = {**body, "id_client": OTHER_CLIENT_ID, "id_search_request": WORLDS[OTHER_CLIENT_ID][0]}
+    moved = {**body, "id_client": client_profile(OTHER_CLIENT_ID), "id_search_request": WORLDS[OTHER_CLIENT_ID][0]}
     with acting_as(CLIENT, CLIENT_ID):
         response = db_client.put(f"/mandates/{mine}", json=moved)
 
     assert response.status_code == 409, response.text
     assert "le sien" in response.json()["detail"]
-    assert db_client.get(f"/mandates/{mine}").json()["id_client"] == CLIENT_ID
+    assert db_client.get(f"/mandates/{mine}").json()["id_client"] == client_profile(CLIENT_ID)
 
 
 def test_client_creates_a_client_profile_only_for_himself(db_client: TestClient, create_user: Callable[[str], int]):
@@ -324,8 +331,8 @@ def without_id(body: dict[str, Any]) -> dict[str, Any]:
 def test_client_creates_a_search_request_only_for_himself(db_client: TestClient):
     body = without_id(db_client.get(f"/search-requests/{WORLDS[CLIENT_ID][0]}").json())
     with acting_as(CLIENT, CLIENT_ID):
-        mine = db_client.post("/search-requests", json={**body, "id_client": CLIENT_ID})
-        theirs = db_client.post("/search-requests", json={**body, "id_client": OTHER_CLIENT_ID})
+        mine = db_client.post("/search-requests", json={**body, "id_client": client_profile(CLIENT_ID)})
+        theirs = db_client.post("/search-requests", json={**body, "id_client": client_profile(OTHER_CLIENT_ID)})
 
     assert mine.status_code == 201, mine.text
     assert theirs.status_code == 409, theirs.text
@@ -347,7 +354,7 @@ def test_client_cannot_move_his_proposal_to_another_clients_mandate(
 ):
     mine = client_rows[CLIENT_ID]["/estate-proposed"]
     body = db_client.get(f"/estate-proposed/{mine}").json()
-    moved = {**body, "id_mandate": client_rows[OTHER_CLIENT_ID]["/mandates"], "id_hunter": WORLDS[OTHER_CLIENT_ID][1]}
+    moved = {**body, "id_mandate": client_rows[OTHER_CLIENT_ID]["/mandates"], "id_hunter": hunter_profile(WORLDS[OTHER_CLIENT_ID][1])}
     with acting_as(CLIENT, CLIENT_ID):
         response = db_client.put(f"/estate-proposed/{mine}", json=moved)
 
@@ -377,13 +384,14 @@ def hunter_world(db_client: TestClient, db_session: Session, hunter: int, grid: 
     rows = world(db_client, client, request, hunter, grid) | {"/users": hunter}
     # POST /hunter-performances est fermé à tous : une note naît du calcul (H12).
     score = HunterPerformance(
-        score=Decimal("50.0"), scored_at=datetime(2026, 1, 1, tzinfo=timezone.utc), trigger_type="initial", id_hunter=hunter
+        score=Decimal("50.0"), scored_at=datetime(2026, 1, 1, tzinfo=timezone.utc), trigger_type="initial",
+        id_hunter=hunter_profile(hunter),
     )
     db_session.add(score)
     db_session.commit()
     assert score.id is not None
     rows["/hunter-performances"] = score.id
-    scale = {"amount_min": 0, "rate": "0.3000", "valid_from": "2025-01-01", "id_hunter": hunter}
+    scale = {"amount_min": 0, "rate": "0.3000", "valid_from": "2025-01-01", "id_hunter": hunter_profile(hunter)}
     response = db_client.post("/commission-scales", json=scale)
     assert response.status_code == 201, response.text
     rows["/commission-scales"] = response.json()["id"]
@@ -521,7 +529,8 @@ def other_hunters_line(db_client: TestClient, rows: dict[int, dict[str, int]], e
     theirs = rows[OTHER_HUNTER_ID]
     lines: dict[str, Callable[[], dict[str, Any]]] = {
         "/search-requests": lambda: {
-            "id_author": client, "id_client": client, "id_hunter": OTHER_HUNTER_ID, "status": "accepted",
+            "id_author": client, "id_client": client_profile(client), "id_hunter": hunter_profile(OTHER_HUNTER_ID),
+            "status": "accepted",
         },
         "/criteria": lambda: {
             **without_id(db_client.get(f"/criteria/{rows[HUNTER_ID]['/criteria']}").json()),
@@ -529,13 +538,13 @@ def other_hunters_line(db_client: TestClient, rows: dict[int, dict[str, int]], e
         },
         "/mandates": lambda: {
             **SALE_MANDATE, "reference": "TEST-M-DRO6",
-            "id_hunter": OTHER_HUNTER_ID, "id_client": client, "id_search_request": request,
+            "id_hunter": hunter_profile(OTHER_HUNTER_ID), "id_client": client_profile(client), "id_search_request": request,
         },
         "/estate-search-requests": lambda: {
-            "id_estate": rows[HUNTER_ID]["/estates"], "id_search_request": request, "id_hunter": HUNTER_ID,
+            "id_estate": rows[HUNTER_ID]["/estates"], "id_search_request": request, "id_hunter": HUNTER_PROFILE,
         },
         "/estate-proposed": lambda: {
-            "proposition_status": "proposed", "id_hunter": OTHER_HUNTER_ID,
+            "proposition_status": "proposed", "id_hunter": hunter_profile(OTHER_HUNTER_ID),
             "id_estate": theirs["/estates"], "id_mandate": theirs["/mandates"],
         },
         "/visits": lambda: {
@@ -600,7 +609,7 @@ def test_hunter_cannot_sign_a_mandate_on_another_hunters_request(
     their_client = hunter_rows[OTHER_HUNTER_ID]["/clients"]
     mandate = {
         **SALE_MANDATE, "reference": "TEST-M-DRO6-B",
-        "id_hunter": HUNTER_ID, "id_client": client, "id_search_request": request,
+        "id_hunter": HUNTER_PROFILE, "id_client": client_profile(client), "id_search_request": request,
     }
     with acting_as(HUNTER, HUNTER_ID):
         response = db_client.post("/mandates", json=mandate)
@@ -627,10 +636,11 @@ TEAM_TABLES = [
 
 
 def move_hunter(db_client: TestClient, hunter: int, manager: int) -> None:
-    """L'Admin passe le chasseur dans l'équipe de ce manager."""
+    """L'Admin passe le chasseur dans l'équipe de ce manager (deux comptes)."""
     profile_id = id_where(db_client, "/hunters", "id_user", hunter)
+    manager_id = id_where(db_client, "/real-estate-managers", "id_user", manager)
     body = db_client.get(f"/hunters/{profile_id}").json()
-    response = db_client.put(f"/hunters/{profile_id}", json={**body, "id_realestatemanager": manager})
+    response = db_client.put(f"/hunters/{profile_id}", json={**body, "id_realestatemanager": manager_id})
     assert response.status_code == 200, response.text
 
 
@@ -748,17 +758,17 @@ def test_manager_assigns_a_request_to_one_of_his_hunters_only(
     body = db_client.get(f"/search-requests/{mine}").json()
     their_body = db_client.get(f"/search-requests/{theirs}").json()
     with acting_as(MANAGER, SEED_MANAGER):
-        to_other_team = db_client.put(f"/search-requests/{mine}", json={**body, "id_hunter": OTHER_HUNTER_ID})
+        to_other_team = db_client.put(f"/search-requests/{mine}", json={**body, "id_hunter": hunter_profile(OTHER_HUNTER_ID)})
         status = db_client.put(f"/search-requests/{mine}", json={**body, "status": "rejected"})
-        their_request = db_client.put(f"/search-requests/{theirs}", json={**their_body, "id_hunter": 3})
-        assigned = db_client.put(f"/search-requests/{mine}", json={**body, "id_hunter": 3})
+        their_request = db_client.put(f"/search-requests/{theirs}", json={**their_body, "id_hunter": hunter_profile(3)})
+        assigned = db_client.put(f"/search-requests/{mine}", json={**body, "id_hunter": hunter_profile(3)})
 
     assert to_other_team.status_code == 409, to_other_team.text
     assert "le sien" in to_other_team.json()["detail"]
     assert status.status_code == 403, status.text
     assert their_request.status_code == 404, their_request.text
     assert assigned.status_code == 200, assigned.text
-    assert assigned.json()["id_hunter"] == 3
+    assert assigned.json()["id_hunter"] == hunter_profile(3)
     assert db_client.get(f"/search-requests/{theirs}").json() == their_body
 
 
@@ -833,4 +843,4 @@ def test_rows_citing_a_deactivated_account_stay_readable(db_client: TestClient):
         request = db_client.get(f"/search-requests/{WORLDS[OTHER_CLIENT_ID][0]}")
 
     assert request.status_code == 200, request.text
-    assert request.json()["id_client"] == OTHER_CLIENT_ID
+    assert request.json()["id_client"] == client_profile(OTHER_CLIENT_ID)

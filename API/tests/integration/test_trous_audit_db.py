@@ -17,7 +17,10 @@ transaction du test reste utilisable ; tout est annulé à la fin (conftest).
 
 Données de départ (posées par init-v3/02) : chasseurs = comptes 1 à 6,
 clients = comptes 7 à 24 ; la demande n et le mandat n appartiennent au
-client 6 + n ; le mandat 13 (client 19, chasseur 2) est 'active'.
+client 6 + n ; le mandat 13 (client 19, chasseur 2) est 'active'. Ces
+numéros sont des comptes (user.id) : id_hunter et id_client citent la fiche,
+hunter.id = compte + 1000 et client.id = compte + 994 dans la base de test
+(create_test_db.sh, chantier PRF). Les id_author restent des comptes.
 ============================================================================
 """
 
@@ -77,7 +80,7 @@ def test_p2_two_different_emails_are_accepted(db_session: Session):
 
 # --- P6 : une demande qui a reçu une réponse a un chasseur --------------------
 
-NEW_REQUEST = "INSERT INTO search_request (id_author, id_client, id_hunter, status) VALUES (7, 7, {hunter}, '{status}')"
+NEW_REQUEST = "INSERT INTO search_request (id_author, id_client, id_hunter, status) VALUES (7, 1001, {hunter}, '{status}')"
 
 
 @pytest.mark.parametrize("status", ["accepted", "rejected", "launched"])
@@ -88,7 +91,7 @@ def test_p6_answered_request_without_hunter_is_refused(db_session: Session, stat
 
 def test_p6_confirmed_request_without_hunter_is_accepted(db_session: Session):
     run(db_session, NEW_REQUEST.format(hunter="NULL", status="confirmed"))
-    run(db_session, NEW_REQUEST.format(hunter=1, status="accepted"))
+    run(db_session, NEW_REQUEST.format(hunter=1001, status="accepted"))
 
 
 # --- P8 : une version de critères pointe vers celle d'avant, sur sa demande ---
@@ -146,17 +149,17 @@ def test_p9_next_version_without_reason_is_refused(db_session: Session):
 # Pas encore signé : ni durée ni exclusivité à vérifier ici.
 UNSIGNED_MANDATE = (
     "INSERT INTO mandate (reference, status, is_exclusive, id_hunter, id_client, id_search_request) "
-    "VALUES (:ref, 'pending_signature', FALSE, 1, :client, 1)"
+    "VALUES (:ref, 'pending_signature', FALSE, 1001, :client, 1)"
 )
 
 
 def test_p12_mandate_on_another_clients_request_is_refused(db_session: Session):
     # La demande 1 est celle du client 7.
-    refused(db_session, UNSIGNED_MANDATE, match="fk_mandate_request_same_client", ref="P12-A", client=8)
+    refused(db_session, UNSIGNED_MANDATE, match="fk_mandate_request_same_client", ref="P12-A", client=1002)
 
 
 def test_p12_mandate_on_own_request_is_accepted(db_session: Session):
-    run(db_session, UNSIGNED_MANDATE, ref="P12-B", client=7)
+    run(db_session, UNSIGNED_MANDATE, ref="P12-B", client=1001)
 
 
 # --- P13 : le renouvellement ne contourne plus l'exclusivité -----------------
@@ -174,7 +177,7 @@ SIGNED_MANDATE = (
 def exclusive_parent(db_session: Session) -> int:
     return run(
         db_session, SIGNED_MANDATE,
-        ref="P13-PARENT", signed="2031-01-01", exclusive=True, hunter=1, client=7, request=1, parent=None,
+        ref="P13-PARENT", signed="2031-01-01", exclusive=True, hunter=1001, client=1001, request=1, parent=None,
     ).scalar_one()
 
 
@@ -182,7 +185,7 @@ def test_p13_renewal_in_the_middle_of_an_exclusive_is_refused(db_session: Sessio
     parent = exclusive_parent(db_session)
     refused(
         db_session, SIGNED_MANDATE, match="U02",
-        ref="P13-MILIEU", signed="2031-03-01", exclusive=True, hunter=2, client=7, request=1, parent=parent,
+        ref="P13-MILIEU", signed="2031-03-01", exclusive=True, hunter=1002, client=1001, request=1, parent=parent,
     )
 
 
@@ -190,7 +193,7 @@ def test_p13_renewal_at_term_is_accepted(db_session: Session):
     parent = exclusive_parent(db_session)
     run(
         db_session, SIGNED_MANDATE,
-        ref="P13-ECHEANCE", signed="2031-07-01", exclusive=True, hunter=1, client=7, request=1, parent=parent,
+        ref="P13-ECHEANCE", signed="2031-07-01", exclusive=True, hunter=1001, client=1001, request=1, parent=parent,
     )
 
 
@@ -208,7 +211,7 @@ def test_p13_parent_of_another_client_is_refused(db_session: Session):
     parent = exclusive_parent(db_session)
     refused(
         db_session, SIGNED_MANDATE, match="fk_mandate_parent_same_client",
-        ref="P13-AUTRE", signed="2031-07-01", exclusive=False, hunter=3, client=8, request=2, parent=parent,
+        ref="P13-AUTRE", signed="2031-07-01", exclusive=False, hunter=1003, client=1002, request=2, parent=parent,
     )
 
 
@@ -225,7 +228,7 @@ def test_p15_second_transaction_waits_for_the_first(db_session: Session):
         other.execute(text("SET lock_timeout = '200ms'"))
         with pytest.raises(OperationalError, match="lock timeout"):
             other.execute(
-                text(UNSIGNED_MANDATE.replace(":ref", "'P15-B'").replace(":client", "7"))
+                text(UNSIGNED_MANDATE.replace(":ref", "'P15-B'").replace(":client", "1001"))
             )
         other.rollback()
 
@@ -238,7 +241,7 @@ def test_p15_other_client_does_not_wait(db_session: Session):
         other.execute(
             text(
                 "INSERT INTO mandate (reference, status, is_exclusive, id_hunter, id_client, id_search_request) "
-                "VALUES ('P15-C', 'pending_signature', FALSE, 3, 8, 2)"
+                "VALUES ('P15-C', 'pending_signature', FALSE, 1003, 1002, 2)"
             )
         )
         other.rollback()
@@ -276,12 +279,12 @@ def new_estate(db_session: Session, ref: str) -> int:
 
 def test_p22_proposal_by_another_hunter_is_refused(db_session: Session):
     estate = new_estate(db_session, "P22-A")
-    refused(db_session, NEW_PROPOSAL, match="fk_proposed_hunter_of_mandate", hunter=3, estate=estate)
+    refused(db_session, NEW_PROPOSAL, match="fk_proposed_hunter_of_mandate", hunter=1003, estate=estate)
 
 
 def test_p22_proposal_by_the_mandate_hunter_is_accepted(db_session: Session):
     estate = new_estate(db_session, "P22-B")
-    run(db_session, NEW_PROPOSAL, hunter=2, estate=estate)
+    run(db_session, NEW_PROPOSAL, hunter=1002, estate=estate)
 
 
 # --- P24 : une visite enregistrée est une visite faite ------------------------
@@ -307,7 +310,7 @@ def test_p24_visit_done_is_accepted(db_session: Session, days: int):
 
 NEW_SCORE = (
     "INSERT INTO hunter_performance (score, scored_at, trigger_type, id_hunter) "
-    "VALUES (50, (clock_timestamp() AT TIME ZONE 'utc') + CAST(:delay AS interval), 'initial', 1)"
+    "VALUES (50, (clock_timestamp() AT TIME ZONE 'utc') + CAST(:delay AS interval), 'initial', 1001)"
 )
 
 
@@ -335,11 +338,11 @@ EXPIRED_MANDATE_SCORE = (
 
 
 def test_p35_score_of_another_hunters_mandate_is_refused(db_session: Session):
-    refused(db_session, EXPIRED_MANDATE_SCORE, match="fk_perf_mandate_same_hunter", hunter=1)
+    refused(db_session, EXPIRED_MANDATE_SCORE, match="fk_perf_mandate_same_hunter", hunter=1001)
 
 
 def test_p35_score_of_own_mandate_is_accepted(db_session: Session):
-    run(db_session, EXPIRED_MANDATE_SCORE, hunter=2)
+    run(db_session, EXPIRED_MANDATE_SCORE, hunter=1002)
 
 
 # --- P36 : une seule note de départ par chasseur ------------------------------
@@ -351,10 +354,10 @@ INITIAL_SCORE = (
 
 
 def test_p36_second_initial_score_is_refused(db_session: Session):
-    run(db_session, INITIAL_SCORE, score=50, hunter=1)
-    refused(db_session, INITIAL_SCORE, match="uq_perf_one_initial", score=90, hunter=1)
+    run(db_session, INITIAL_SCORE, score=50, hunter=1001)
+    refused(db_session, INITIAL_SCORE, match="uq_perf_one_initial", score=90, hunter=1001)
 
 
 def test_p36_initial_scores_of_two_hunters_are_accepted(db_session: Session):
-    run(db_session, INITIAL_SCORE, score=50, hunter=1)
-    run(db_session, INITIAL_SCORE, score=50, hunter=2)
+    run(db_session, INITIAL_SCORE, score=50, hunter=1001)
+    run(db_session, INITIAL_SCORE, score=50, hunter=1002)

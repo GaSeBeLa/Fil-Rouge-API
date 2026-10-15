@@ -60,9 +60,10 @@ from src.app.services.remuneration import (
 from src.app.utils.exceptions import ConflictError
 
 from .test_constraints_db import (
-    HUNTER_ID,
-    MANAGER_ID,
+    HUNTER_PROFILE,
+    MANAGER_PROFILE,
     SALE_MANDATE,
+    client_profile,
     post_as_hunter,
     post_as_manager,
     rate_parameters,
@@ -78,7 +79,7 @@ ACTE = date(2026, 3, 1)
 def mandate(mid: int, signed: Optional[date], ends: Optional[date], status: str = "completed",
             parent: Optional[int] = None) -> Mandate:
     return Mandate(id=mid, reference=f"M-{mid}", status=status, signature_date=signed, ends_at=ends,
-                   is_exclusive=False, id_hunter=HUNTER_ID, id_client=7, id_search_request=1,
+                   is_exclusive=False, id_hunter=HUNTER_PROFILE, id_client=client_profile(7), id_search_request=1,
                    id_mandate_parent=parent)
 
 
@@ -177,7 +178,7 @@ def ready_sale(db_client: TestClient, **overrides: Any) -> tuple[int, int]:
 
 # Les nombres de la vente, écrits à la main depuis la base de test (en-tête).
 EXPECTED = Vente(
-    chasseur_id=HUNTER_ID,
+    chasseur_id=HUNTER_PROFILE,
     prix_acte=Decimal(354712),
     date_acte=ACTE,
     date_signature_mandat=date(2026, 2, 1),
@@ -254,13 +255,13 @@ def test_journal_note_is_written_only_when_paid(db_client: TestClient, db_sessio
     settings = HunterRateParametersRepository().get_by_id(db_session, payment["id_hunter_rate_parameters"])
     assert settings is not None
     assert note.score == calculer_score(notes, performance(settings))
-    assert (note.trigger_type, note.id_hunter, note.scored_at.date()) == ("payment", HUNTER_ID, date(2026, 3, 15))
+    assert (note.trigger_type, note.id_hunter, note.scored_at.date()) == ("payment", HUNTER_PROFILE, date(2026, 3, 15))
 
 
 def test_a_hunter_whose_id_differs_from_its_account_is_found(db_client: TestClient, db_session: Session):
-    # Dette DEM3 : build_vente cherchait le chasseur par hunter.id au lieu de
-    # hunter.id_user. Les 6 chasseurs de 02 ont id = id_user : le bug ne se
-    # voyait qu'avec un chasseur neuf (seed de démo, 14/10/2026).
+    # Dette DEM3 (14/10/2026) : un chasseur neuf a un hunter.id différent de
+    # son compte. Depuis le chantier PRF, mandate.id_hunter cite hunter.id, et
+    # build_vente cherche le chasseur par ce numéro.
     rate_parameters(db_client)
     calculation = PaymentCalculationService(
         SaleRepository(), MandateRepository(), VisitRepository(), HunterRepository(), PaymentRepository(),
@@ -273,11 +274,11 @@ def test_a_hunter_whose_id_differs_from_its_account_is_found(db_client: TestClie
     hunter = HunterRepository().create(
         db_session,
         Hunter(id_user=account.id, first_name="Neuf", last_name="Chasseur", phone_number="+33 6 12 34 56 78",
-               hire_date=date(2024, 1, 2), id_realestatemanager=MANAGER_ID),
+               hire_date=date(2024, 1, 2), id_realestatemanager=MANAGER_PROFILE),
     )
     assert hunter.id != account.id  # sinon le test ne prouve rien
     mandate = MandateRepository().create(
-        db_session, Mandate(**{**SALE_MANDATE, "reference": "TEST-M-NEUF", "id_hunter": account.id,
+        db_session, Mandate(**{**SALE_MANDATE, "reference": "TEST-M-NEUF", "id_hunter": hunter.id,
                                "signature_date": date(2026, 2, 1), "ends_at": date(2026, 8, 1)}),
     )
     assert mandate.id is not None
@@ -285,7 +286,7 @@ def test_a_hunter_whose_id_differs_from_its_account_is_found(db_client: TestClie
                 sale_origin="hunter", id_mandate=mandate.id, id_estate=0, id_parameters_fees=0)
 
     vente = calculation.build_vente(db_session, sale)
-    assert vente.chasseur_id == account.id
+    assert vente.chasseur_id == hunter.id
     assert vente.annees_anciennete == full_years(date(2024, 1, 2), ACTE)
 
 
@@ -302,7 +303,7 @@ def calculation_service() -> PaymentCalculationService:
 def test_no_scale_line_for_the_price_is_a_parametrage_error():
     # RCR §7 : sans ligne applicable, c'est le paramétrage qui manque, pas un cas métier.
     with pytest.raises(BaremeIntrouvable):
-        scale_line_id([], HUNTER_ID, ACTE, 354712)
+        scale_line_id([], HUNTER_PROFILE, ACTE, 354712)
 
 
 def test_a_sale_above_every_scale_line_returns_409(db_client: TestClient):
@@ -321,7 +322,7 @@ def test_a_sale_above_every_scale_line_returns_409(db_client: TestClient):
 
 def test_a_payment_without_details_has_no_journal_note(db_session: Session):
     # ADR-035 : la note reprend le détail du calcul ; sans lui, rien à noter.
-    payment = Payment(id=1, amount=Decimal(0), status="paid", id_sale=1, id_hunter=HUNTER_ID)
+    payment = Payment(id=1, amount=Decimal(0), status="paid", id_sale=1, id_hunter=HUNTER_PROFILE)
     with pytest.raises(ConflictError, match="pas de détail de calcul"):
         calculation_service().journal_note(db_session, payment, datetime(2026, 3, 15, tzinfo=timezone.utc))
 

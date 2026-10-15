@@ -49,7 +49,7 @@ from src.app.scripts import seed_demo
 from src.app.services.payment_calculation_service import PaymentCalculationService
 from src.app.services.remuneration import calculer_remuneration
 from src.app.services.visit_service import VisitService
-from src.app.utils.roles import CLIENT, HUNTER, MANAGER, READER, Principal
+from src.app.utils.roles import CLIENT, HUNTER, MANAGER, READER, Principal, profile_id_of
 
 DEMO_PASSWORD = "mot-de-passe-de-demo"
 # Mandat actif posé par 02 (chasseur 1, du 2026-03-25 au 2026-09-25) : une visite d'un autre client.
@@ -107,6 +107,11 @@ def _demo_user(session: Session, role: str) -> User:
     return session.exec(select(User).where(User.email == seed_demo.DEMO_EMAILS[role])).one()
 
 
+def _demo_profile(session: Session, role: str) -> int | None:
+    """Le numéro de fiche du compte de démo de ce rôle : id_client et id_hunter le citent (chantier PRF)."""
+    return profile_id_of(session, _demo_user(session, role), role)
+
+
 def _demo_mandate(session: Session) -> Mandate:
     return session.exec(select(Mandate).where(Mandate.reference == seed_demo.MANDATE_REFERENCE)).one()
 
@@ -127,8 +132,8 @@ def test_seed_creates_profiles_hunter_under_demo_manager(seeded: Session) -> Non
     manager_id = by_email[seed_demo.DEMO_EMAILS[MANAGER]].id
 
     hunter = db_session.exec(select(Hunter).where(Hunter.id_user == by_email[seed_demo.DEMO_EMAILS[HUNTER]].id)).one()
-    assert hunter.id_realestatemanager == manager_id
-    assert db_session.exec(select(RealEstateManager).where(RealEstateManager.id_user == manager_id)).one()
+    manager = db_session.exec(select(RealEstateManager).where(RealEstateManager.id_user == manager_id)).one()
+    assert hunter.id_realestatemanager == manager.id
     assert db_session.exec(select(Client).where(Client.id_user == by_email[seed_demo.DEMO_EMAILS[CLIENT]].id)).one()
 
 
@@ -150,7 +155,7 @@ def test_demo_request_is_launched_by_the_signed_mandate(seeded: Session) -> None
     request = seeded.get(SearchRequest, mandate.id_search_request)
     assert request is not None
     assert request.status == "launched"
-    assert request.id_client == _demo_user(seeded, CLIENT).id
+    assert request.id_client == _demo_profile(seeded, CLIENT)
 
 
 def test_seed_selects_and_proposes_estates_within_budget(seeded: Session, demo_estates: list[Estate]) -> None:
@@ -183,7 +188,7 @@ def test_demo_client_sees_only_its_visits(seeded: Session, demo_estates: list[Es
 
     client = _demo_user(seeded, CLIENT)
     visits = VisitService(VisitRepository(), MandateRepository(), EstateProposedRepository())
-    seen = visits.list_all(seeded, Principal(user=client, role=CLIENT))
+    seen = visits.list_all(seeded, Principal(user=client, role=CLIENT, profile_id=_demo_profile(seeded, CLIENT)))
 
     demo_mandate = _demo_mandate(seeded).id
     assert len(seen) == seed_demo.NB_CLIENT_VISITS + 1
@@ -233,7 +238,7 @@ def test_demo_payment_is_paid_at_the_calculated_amount(seeded: Session) -> None:
 def test_demo_payment_writes_the_hunter_note(seeded: Session) -> None:
     payment = seeded.exec(select(Payment).where(Payment.id_sale == _demo_sale(seeded).id)).one()
     [note] = seeded.exec(select(HunterPerformance).where(HunterPerformance.id_payment == payment.id)).all()
-    assert (note.trigger_type, note.id_hunter) == ("payment", _demo_user(seeded, HUNTER).id)
+    assert (note.trigger_type, note.id_hunter) == ("payment", _demo_profile(seeded, HUNTER))
 
 
 def test_demo_review_is_on_the_sold_estate(seeded: Session) -> None:

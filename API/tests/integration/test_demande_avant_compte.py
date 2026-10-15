@@ -60,7 +60,9 @@ def _user_of(session: Session, email: str) -> User:
 
 
 def _requests_of(session: Session, user_id: int | None) -> list[SearchRequest]:
-    return list(session.exec(select(SearchRequest).where(SearchRequest.id_client == user_id)).all())
+    """Les demandes du client dont le compte est `user_id` : id_client cite client.id (chantier PRF)."""
+    client_id = select(Client.id).where(Client.id_user == user_id).scalar_subquery()
+    return list(session.exec(select(SearchRequest).where(SearchRequest.id_client == client_id)).all())
 
 
 def _login(db_client: TestClient, email: str, password: str) -> int:

@@ -35,10 +35,10 @@ from src.app.utils.roles import HUNTER, MANAGER
 
 from ..conftest import acting_as
 from .test_calcul_paiement import ACTE, parametrage_service
-from .test_constraints_db import CLIENT_ADDRESS, ESTATE, MANAGER_ID, rate_parameters
+from .test_constraints_db import CLIENT_ADDRESS, ESTATE, MANAGER_PROFILE, hunter_profile, rate_parameters
 
-# Chasseur 2 du seed 02, rattaché au manager du seed : « un autre ».
-OTHER_HUNTER_ID = 2
+# La fiche du chasseur 2 du seed 02, rattaché au manager du seed : « un autre ».
+OTHER_HUNTER_ID = hunter_profile(2)
 
 
 def added(db_session: Session, row: Hunter | RealEstateManager | Client | SearchRequest | Mandate) -> int:
@@ -116,4 +116,4 @@ def test_hunter_and_manager_whose_ids_differ_from_accounts(
     sale = Sale(signature_date=ACTE, purchase_amount=354712, fees_amount=Decimal("11867.80"),
                 sale_origin="hunter", id_mandate=mine, id_estate=0, id_parameters_fees=0)
     assert calculation.build_vente(db_session, sale).chasseur_id == hunter.id
-    assert MANAGER_ID != manager.id  # le manager du seed n'est pas celui du test
+    assert MANAGER_PROFILE != manager.id  # le manager du seed n'est pas celui du test

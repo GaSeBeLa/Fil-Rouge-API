@@ -19,7 +19,9 @@ from fastapi.testclient import TestClient
 from .test_constraints_db import (
     ESTATE,
     HUNTER_ID,
+    HUNTER_PROFILE,
     MANDATE,
+    client_profile,
     fees_grid,
     offered_estate,
     post_as_hunter,
@@ -33,7 +35,7 @@ SIGNED = {"status": "active", "signature_date": "2026-02-01", "ends_at": "2026-0
 
 def new_request(db_client: TestClient) -> int:
     """Une demande neuve du client 7, acceptée par le chasseur 1."""
-    payload = {"id_author": 7, "id_client": 7, "id_hunter": HUNTER_ID, "status": "accepted"}
+    payload = {"id_author": 7, "id_client": client_profile(7), "id_hunter": HUNTER_PROFILE, "status": "accepted"}
     response = post_as_hunter(db_client, "/search-requests", payload)  # Q-ACC-15
     assert response.status_code == 201, response.text
     return response.json()["id"]

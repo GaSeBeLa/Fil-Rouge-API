@@ -31,7 +31,7 @@ from ..models import ReviewMedia, User
 from ..repositories.estate_search_request_repository import EstateSearchRequestRepository
 from ..repositories.review_media_repository import ReviewMediaRepository
 from ..utils.exceptions import ConflictError, ForbiddenError
-from ..utils.roles import CLIENT, HUNTER, Principal
+from ..utils.roles import CLIENT, HUNTER, Principal, profile_id_of
 from .base_service import BaseService
 from .client_rows import reviews_of
 from .hunter_rows import reviews_by
@@ -62,5 +62,6 @@ class ReviewMediaService(BaseService[ReviewMedia]):
         review = self.reviews.get_by_id(session, item.id_estate_searchrequest)
         if review is None:
             raise ConflictError("Note d'avis introuvable (id_estate_searchrequest).")
-        if actor is None or actor.id != review.id_hunter:
+        # review.id_hunter cite hunter.id (chantier PRF) : on compare la fiche du compte.
+        if actor is None or profile_id_of(session, actor, HUNTER) != review.id_hunter:
             raise ForbiddenError("Seul le chasseur qui a écrit la note y ajoute un média (ADR-051).")

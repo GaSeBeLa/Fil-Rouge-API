@@ -97,9 +97,27 @@ def client_payload(user_id: int, **overrides: Any) -> dict[str, Any]:
     return person_fields(user_id, **{**CLIENT_ADDRESS, **overrides})
 
 
+# Les numéros de fiche du seed 02 dans la base de test : create_test_db.sh
+# fait repartir client.id, hunter.id et real_estate_manager.id de 1001, et
+# 02 insère les chasseurs (comptes 1 à 6), les clients (comptes 7 à 24) et
+# le manager (compte 25) dans cet ordre (chantier PRF, fiche PRF5). Les
+# id_hunter, id_client et id_realestatemanager citent ces numéros ;
+# acting_as prend le compte (user.id).
+def hunter_profile(user_id: int) -> int:
+    """hunter.id du chasseur du seed 02 dont le compte est `user_id` (1 à 6)."""
+    return user_id + 1000
+
+
+def client_profile(user_id: int) -> int:
+    """client.id du client du seed 02 dont le compte est `user_id` (7 à 24)."""
+    return user_id + 994
+
+
 # Chasseur posé par 02 : il crée les biens (ADR-047 : Hunter ou Manager) et
-# écrit les notes dont il ajoute les médias (ADR-051).
+# écrit les notes dont il ajoute les médias (ADR-051). HUNTER_ID : son
+# compte ; HUNTER_PROFILE : sa fiche.
 HUNTER_ID = 1
+HUNTER_PROFILE = hunter_profile(HUNTER_ID)
 
 
 def post_as_hunter(db_client: TestClient, endpoint: str, payload: dict[str, Any]) -> Response:
@@ -109,7 +127,9 @@ def post_as_hunter(db_client: TestClient, endpoint: str, payload: dict[str, Any]
 
 
 # Manager posé par 02 : il enregistre les ventes (Q-ACC-03, ADR-027 annexe § 4).
+# MANAGER_ID : son compte ; MANAGER_PROFILE : sa fiche, la seule du seed.
 MANAGER_ID = 25
+MANAGER_PROFILE = 1001
 
 
 def post_as_manager(db_client: TestClient, endpoint: str, payload: dict[str, Any]) -> Response:
@@ -261,7 +281,7 @@ def test_client_second_profile_for_same_user_returns_409(
 # reprises (Q-MIG-07) : un format trop strict le refuserait.
 PERSON_FIELDS: dict[str, dict[str, Any]] = {
     "/clients": {},
-    "/hunters": {"hire_date": "2024-01-02", "id_realestatemanager": 25},  # manager posé par 02
+    "/hunters": {"hire_date": "2024-01-02", "id_realestatemanager": MANAGER_PROFILE},  # manager posé par 02
     "/real-estate-managers": {},
 }
 
@@ -374,8 +394,8 @@ MANDATE: dict[str, Any] = {
     "signature_date": "2030-01-01",
     "ends_at": "2030-07-01",
     "is_exclusive": False,
-    "id_hunter": 1,
-    "id_client": 7,
+    "id_hunter": HUNTER_PROFILE,
+    "id_client": client_profile(7),
     "id_search_request": 1,
 }
 
@@ -501,7 +521,7 @@ def review_payload(db_client: TestClient) -> dict[str, Any]:
         "review_hunter": "Bien conforme à la demande.",
         "id_estate": estate.json()["id"],
         "id_search_request": 1,
-        "id_hunter": HUNTER_ID,
+        "id_hunter": HUNTER_PROFILE,
     }
 
 
@@ -547,7 +567,7 @@ def selected_estate(db_client: TestClient, search_request: int = ACTIVE_REQUEST,
     estate = post_as_hunter(db_client, "/estates", {**ESTATE, "reference": reference})
     assert estate.status_code == 201, estate.text
     estate_id = estate.json()["id"]
-    selection = {"id_estate": estate_id, "id_search_request": search_request, "id_hunter": HUNTER_ID}
+    selection = {"id_estate": estate_id, "id_search_request": search_request, "id_hunter": HUNTER_PROFILE}
     response = post_as_hunter(db_client, "/estate-search-requests", selection)
     assert response.status_code == 201, response.text
     return estate_id
@@ -558,7 +578,7 @@ def proposition_payload(db_client: TestClient, status: str) -> dict[str, Any]:
     return {
         "proposition_status": status,
         "amount_proposition": 350000,
-        "id_hunter": HUNTER_ID,
+        "id_hunter": HUNTER_PROFILE,
         "id_estate": selected_estate(db_client),
         "id_mandate": ACTIVE_MANDATE,
     }
@@ -649,7 +669,7 @@ def offered_estate(db_client: TestClient, mandate_id: int, status: str = "accept
     offer = {
         "proposition_status": status,
         "amount_proposition": None if status == "proposed" else 350000,
-        "id_hunter": HUNTER_ID,
+        "id_hunter": HUNTER_PROFILE,
         "id_estate": estate_id,
         "id_mandate": mandate_id,
     }
@@ -697,7 +717,7 @@ def payment_payload(db_client: TestClient, **overrides: Any) -> dict[str, Any]:
         "performance_score": "50.0",
         "calculation_details": DETAILS,
         "id_sale": sale.json()["id"],
-        "id_hunter": 1,
+        "id_hunter": HUNTER_PROFILE,
         "id_commission_scale": scale.json()["id"],
         "id_hunter_rate_parameters": rate_parameters(db_client),
     }
@@ -934,7 +954,7 @@ def score_payload(**overrides: Any) -> dict[str, Any]:
         "score": "62.5",
         "scored_at": "2026-03-02T10:00:00Z",
         "trigger_type": "initial",
-        "id_hunter": 1,
+        "id_hunter": HUNTER_PROFILE,
     }
     payload.update(overrides)
     return payload
@@ -961,7 +981,7 @@ def test_hunter_performance_of_another_hunters_payment_conflicts(db_client: Test
     # Audit P35 : la note du paiement du chasseur 1 ne va pas au chasseur 2
     # (fk_perf_payment_same_hunter).
     payment = write_payment(db_session, payment_payload(db_client))
-    score = score_payload(trigger_type="payment", id_payment=payment.id, id_hunter=2)
+    score = score_payload(trigger_type="payment", id_payment=payment.id, id_hunter=hunter_profile(2))
     with pytest.raises(ConflictError):
         add_score(db_session, score)
 

@@ -28,6 +28,7 @@ from .test_constraints_db import (
     ACTIVE_MANDATE_CLIENT,
     ACTIVE_REQUEST,
     HUNTER_ID,
+    HUNTER_PROFILE,
     MANDATE,
     post_as_hunter,
     selected_estate,
@@ -37,7 +38,7 @@ CANCELED_MANDATE, CANCELED_MANDATE_HUNTER = 16, 6
 
 
 def proposal(estate_id: int, mandate: int = ACTIVE_MANDATE) -> dict[str, Any]:
-    return {"proposition_status": "proposed", "id_hunter": HUNTER_ID, "id_estate": estate_id, "id_mandate": mandate}
+    return {"proposition_status": "proposed", "id_hunter": HUNTER_PROFILE, "id_estate": estate_id, "id_mandate": mandate}
 
 
 def visit(estate_id: int, visit_date: str, visitor_type: str = "client", mandate: int = ACTIVE_MANDATE) -> dict[str, Any]:

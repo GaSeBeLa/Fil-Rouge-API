@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from src.app.utils.roles import ADMIN, CLIENT, HUNTER, MANAGER, READER
 
 from ..conftest import acting_as
-from .test_constraints_db import ESTATE, HUNTER_ID, post_as_hunter, review_payload
+from .test_constraints_db import ESTATE, HUNTER_ID, HUNTER_PROFILE, hunter_profile, post_as_hunter, review_payload
 
 OTHER_HUNTER_ID = 2
 MANAGER_ID = 25
@@ -87,12 +87,12 @@ def test_other_hunter_cannot_add_a_media(db_client: TestClient):
 
 def test_review_author_is_the_token_account(db_client: TestClient):
     # ADR-051 : l'id_hunter envoyé est ignoré, la note est au chasseur connecté.
-    payload = {**review_payload(db_client), "id_hunter": OTHER_HUNTER_ID}
+    payload = {**review_payload(db_client), "id_hunter": hunter_profile(OTHER_HUNTER_ID)}
 
     review = post_as_hunter(db_client, "/estate-search-requests", payload)
 
     assert review.status_code == 201, review.text
-    assert review.json()["id_hunter"] == HUNTER_ID
+    assert review.json()["id_hunter"] == HUNTER_PROFILE
 
 
 def test_put_cannot_take_over_a_review(db_client: TestClient):
@@ -103,7 +103,7 @@ def test_put_cannot_take_over_a_review(db_client: TestClient):
     review_id = media["id_estate_searchrequest"]
     review = db_client.get(f"/estate-search-requests/{review_id}").json()
     with acting_as(HUNTER, OTHER_HUNTER_ID):
-        taken = db_client.put(f"/estate-search-requests/{review_id}", json={**review, "id_hunter": OTHER_HUNTER_ID})
+        taken = db_client.put(f"/estate-search-requests/{review_id}", json={**review, "id_hunter": hunter_profile(OTHER_HUNTER_ID)})
         added = db_client.post("/review-media", json=media)
 
     assert taken.status_code == 404, taken.text

@@ -2,9 +2,10 @@
 estate_search_request_service.py — Un bien mis dans la sélection d'une
 demande, et la note du chasseur qui l'y a mis (ADR-051).
 
-- create : `id_hunter`, l'auteur de la note, est le compte connecté, jamais
-  la valeur reçue. Sans compte (un script qui appelle le service), la valeur
-  reçue reste.
+- create : `id_hunter`, l'auteur de la note, est la fiche Hunter du compte
+  connecté (hunter.id, chantier PRF), jamais la valeur reçue. Sans compte (un
+  script qui appelle le service) ou sans fiche Hunter (le routeur réserve le
+  POST à Hunter), la valeur reçue reste.
 - replace : `id_hunter` garde la valeur en base. Sinon un autre chasseur
   prenait la note par un PUT, puis y ajoutait ses médias (relecture de la
   série API6 → API10).
@@ -26,7 +27,7 @@ from sqlmodel import Session, col
 
 from ..models import EstateSearchRequest, User
 from ..repositories.estate_search_request_repository import EstateSearchRequestRepository
-from ..utils.roles import CLIENT, HUNTER, Principal
+from ..utils.roles import CLIENT, HUNTER, Principal, profile_id_of
 from .base_service import BaseService
 from .client_rows import requests_of
 from .hunter_rows import handles_request
@@ -51,7 +52,9 @@ class EstateSearchRequestService(BaseService[EstateSearchRequest]):
         self, session: Session, item: EstateSearchRequest, actor: Optional[User] = None
     ) -> EstateSearchRequest:
         if actor is not None and actor.id is not None:
-            item.id_hunter = actor.id
+            hunter_id = profile_id_of(session, actor, HUNTER)
+            if hunter_id is not None:  # pas de fiche Hunter : la FK refusera la valeur reçue
+                item.id_hunter = hunter_id
         return super().create(session, item, actor)
 
     def replace(self, session: Session, item_id: int, data: EstateSearchRequest) -> EstateSearchRequest:

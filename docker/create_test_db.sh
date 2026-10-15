@@ -15,6 +15,12 @@
 # besoin. Le 04 (rôle en
 # lecture seule, LOT12) aussi, pour que les tests vérifient ses droits.
 #
+# UNE DIFFÉRENCE VOULUE AVEC LA DEV : entre 01 et 02, les numéros de fiche
+# (client.id, hunter.id, real_estate_manager.id) repartent de 1001. Aucune
+# fiche n'a ainsi id = id_user : un code qui confondrait le compte et la
+# fiche tombe en test, au lieu de passer par hasard (chantier PRF, fiche
+# PRF5 ; bug DEM3, Fil-Rouge-API 7e40e8d).
+#
 # REJOUABLE : la base est supprimée puis recréée à chaque lancement. À relancer
 # après toute modification de init-v3/01, 02 ou 04.
 #
@@ -41,6 +47,9 @@ docker compose exec -T db sh -c "
     createdb -U \"\$POSTGRES_USER\" $TEST_DB
     psql -q -v ON_ERROR_STOP=1 -U \"\$POSTGRES_USER\" -d $TEST_DB \
         -f /docker-entrypoint-initdb.d/01_create_fil_rouge_immobilier.sql \
+        -c 'ALTER TABLE client ALTER COLUMN id RESTART WITH 1001' \
+        -c 'ALTER TABLE hunter ALTER COLUMN id RESTART WITH 1001' \
+        -c 'ALTER TABLE real_estate_manager ALTER COLUMN id RESTART WITH 1001' \
         -f /docker-entrypoint-initdb.d/02_migration.sql \
         -f /docker-entrypoint-initdb.d/04_role-lecture-seule.sql
     psql -tA -U \"\$POSTGRES_USER\" -d $TEST_DB -c \

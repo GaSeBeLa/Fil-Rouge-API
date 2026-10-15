@@ -22,9 +22,9 @@ from src.app.models import Client, Mandate, SearchRequest, Visit
 from src.app.utils.roles import CLIENT, HUNTER
 
 from ..conftest import acting_as
-from .test_constraints_db import CLIENT_ADDRESS, ESTATE, HUNTER_ID
+from .test_constraints_db import CLIENT_ADDRESS, ESTATE, HUNTER_ID, HUNTER_PROFILE
 
-# HUNTER_ID : chasseur 1 du seed 02, dont la fiche a aussi le numéro 1.
+# Chasseur 1 du seed 02 : HUNTER_ID est son compte, HUNTER_PROFILE sa fiche.
 
 
 def new_client(db_session: Session, user_id: int, phone: str) -> Client:
@@ -39,7 +39,7 @@ def request_mandate_visit(
 ) -> tuple[int, int, int]:
     """Une demande, un mandat et une visite du client ; leurs ids."""
     assert client.id is not None
-    request = SearchRequest(id_author=client.id_user, id_client=client.id, id_hunter=HUNTER_ID, status="launched")
+    request = SearchRequest(id_author=client.id_user, id_client=client.id, id_hunter=HUNTER_PROFILE, status="launched")
     db_session.add(request)
     db_session.flush()
     assert request.id is not None
@@ -47,7 +47,7 @@ def request_mandate_visit(
         reference=reference,
         status="pending_signature",
         is_exclusive=False,
-        id_hunter=HUNTER_ID,
+        id_hunter=HUNTER_PROFILE,
         id_client=client.id,
         id_search_request=request.id,
     )

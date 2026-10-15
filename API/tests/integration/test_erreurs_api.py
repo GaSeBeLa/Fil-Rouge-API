@@ -34,6 +34,7 @@ from .conftest import USER_PASSWORD
 EMAIL = "doublon@exemple.fr"
 UNKNOWN_CLIENT = 999999
 HUNTER_ID = 1  # chasseur posé par 02 : il crée les demandes (Q-ACC-15)
+HUNTER_PROFILE = 1001  # sa fiche dans la base de test (create_test_db.sh, chantier PRF)
 
 
 def test_duplicate_email_names_the_constraint_without_the_email(
@@ -48,7 +49,7 @@ def test_duplicate_email_names_the_constraint_without_the_email(
 
 
 def test_unknown_client_names_the_foreign_key(db_client: TestClient):
-    payload = {"id_author": HUNTER_ID, "id_client": UNKNOWN_CLIENT, "id_hunter": HUNTER_ID, "status": "accepted"}
+    payload = {"id_author": HUNTER_ID, "id_client": UNKNOWN_CLIENT, "id_hunter": HUNTER_PROFILE, "status": "accepted"}
     with acting_as(HUNTER, HUNTER_ID):
         response = db_client.post("/search-requests", json=payload)
     assert response.status_code == 409, response.text
