@@ -12,13 +12,24 @@ valide à la construction. On vérifie trois promesses de user_model.py :
   seul ce test change) ;
 - une mise à jour peut ne rien fournir ;
 - un mot de passe, même haché, ne sort jamais de l'API.
+
+Et une promesse des fiches de profil (chantier PRF) : Client, Hunter et
+RealEstateManager héritent des sept champs communs d'AbstractPerson.
 ============================================================================
 """
 
 import pytest
 from pydantic import ValidationError
 
-from src.app.models import UserCreate, UserPublic, UserUpdate
+from src.app.models import (
+    AbstractPerson,
+    Client,
+    Hunter,
+    RealEstateManager,
+    UserCreate,
+    UserPublic,
+    UserUpdate,
+)
 
 
 def test_user_create_rejects_short_password():
@@ -47,3 +58,16 @@ def test_user_update_rejects_short_password():
 
 def test_user_public_has_no_password_field():
     assert "password" not in UserPublic.model_fields
+
+
+PERSON_FIELDS = {"created_at", "id_user", "first_name", "last_name", "phone_number", "gender", "country_iso"}
+
+
+def test_profiles_share_abstract_person():
+    assert set(AbstractPerson.model_fields) == PERSON_FIELDS
+    for profile in (Client, Hunter, RealEstateManager):
+        assert issubclass(profile, AbstractPerson)
+        assert PERSON_FIELDS <= set(profile.model_fields)
+    # Client redéclare country_iso obligatoire (ADR-053) ; les deux autres non.
+    assert Client.model_fields["country_iso"].is_required()
+    assert not Hunter.model_fields["country_iso"].is_required()

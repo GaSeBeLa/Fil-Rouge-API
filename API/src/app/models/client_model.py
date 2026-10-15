@@ -5,33 +5,33 @@ Même choix de modélisation que Hunter (voir hunter_model.py) : "id" est
 une clé primaire technique indépendante, "id_user" est le lien logique
 vers User (UNIQUE côté base).
 
-first_name/last_name/phone_number/gender/country_iso : redescendus
-depuis User (choix du groupe, 2026-09).
+Les sept champs communs aux trois fiches (created_at, id_user,
+first_name, last_name, phone_number, gender, country_iso) viennent
+d'AbstractPerson (abstract_person_model.py) ; id_user est redéclaré ici
+pour garder sa description Swagger.
+
+country_iso est redéclaré obligatoire : l'adresse du client l'est
+(ADR-053, P3), alors qu'il est facultatif dans AbstractPerson.
 """
 
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Optional
 
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field
+
+from .abstract_person_model import AbstractPerson
 from .field_descriptions import CLIENT_ID, CLIENT_USER
 
 
-class Client(SQLModel, table=True):
+class Client(AbstractPerson, table=True):
     __tablename__ = "client"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
 
     id: Optional[int] = Field(description=CLIENT_ID, default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))  # Q-SCH-09
     id_user: int = Field(description=CLIENT_USER, foreign_key="user.id", unique=True)
-    first_name: str = Field(max_length=80)
-    last_name: str = Field(max_length=80)
-    # CHECK cote base : format international d'ADR-007, ex. +33612345678
-    # (ck_client_phone_number_format, Q-PRO-08).
-    phone_number: str = Field(max_length=20)
-    gender: Optional[str] = Field(default=None, max_length=10)
     # Adresse, code postal, ville et pays : obligatoires (ADR-053, P3). Les
     # clients repris ont 'non renseigne' et '00000' (Q-SCH-18) ; un client
     # rendu anonyme, 'anonyme', '00000', 'anonyme', 'FR' (ADR-049).
-    country_iso: str = Field(max_length=2)
+    country_iso: str = Field(max_length=2)  # pyright: ignore[reportIncompatibleVariableOverride] -- voulu : obligatoire pour le client (ADR-053), facultatif dans AbstractPerson
     address: str = Field(max_length=150)
     address_complement: Optional[str] = Field(default=None, max_length=150)
     # CHECK cote base : format par pays ; l'Eircode s'ecrit sans espace,

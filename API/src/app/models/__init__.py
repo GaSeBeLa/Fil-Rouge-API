@@ -35,6 +35,7 @@ d'import entre les fichiers de ce dossier.
 
 from .user_model import User, UserPublic, UserCreate, UserUpdate
 from .role_model import Role
+from .abstract_person_model import AbstractPerson
 from .hunter_model import Hunter
 from .client_model import Client
 from .real_estate_manager_model import RealEstateManager
@@ -61,6 +62,7 @@ __all__ = [
     "UserCreate",
     "UserUpdate",
     "Role",
+    "AbstractPerson",
     "Hunter",
     "Client",
     "RealEstateManager",
