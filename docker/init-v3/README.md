@@ -10,12 +10,14 @@ coexistent tant que le groupe n'a pas validé le basculement.
 
 | Fichier | Rôle | État |
 |---|---|---|
-| `01_create_fil_rouge_immobilier.sql` | schéma — 21 tables, 270 colonnes (mesuré le 2026-10-13, après ADR-054) | testé, 0 erreur |
+| `01_create_fil_rouge_immobilier.sql` | schéma — 22 tables, 278 colonnes (mesuré le 2026-10-15, après FLX4) | testé, 0 erreur |
 | `02_migration.sql` | données `Fil_Rouge_Depart` → cible | testé, 0 erreur |
 | `03_populate_estate.sql` | 2 556 biens + 1 976 photos | testé, 0 erreur |
 | `04_role-lecture-seule.sql` | rôle PostgreSQL en lecture seule (LOT12) | testé, 0 erreur |
 | `05_parametres.sql` | paramètres de la rémunération | testé, 0 erreur |
 | `06_populate_estate_contact.sql` | 2 469 contacts de vendeurs (ADR-054), **généré** par `docker/tools/generate_estate_contact.py` | testé le 2026-10-13, 0 erreur |
+| `07_airflow-base.sh` | base `airflow` et son rôle, pour Airflow (chantier FLX, FLX1) | testé le 2026-10-15, 0 erreur |
+| `08_olap.sql` | schéma `olap` en étoile, 6 tables vides (FLX5) | testé le 2026-10-15, 0 erreur |
 
 Vérifié de bout en bout sur PostgreSQL 16, dans cet ordre, sur une base vierge.
 
@@ -165,6 +167,17 @@ Décidé par Seb le 2026-10-15 (chantier « Refacto des profils », ADR-057).
 - **`check_one_profile_per_user()`** et ses 4 triggers refusent une 2ᵉ fiche, ou une fiche sur un compte à `system_role` : `23514`, contrainte `one_profile_per_user`, renvoyé en `409` par l'API.
 - **`"user".id_role` retiré** (PRF8, migration 47) ; `role` ne garde que `Client`, `Hunter`, `Manager` (3 lignes). La migration s'arrête si un compte `Admin` ou `Reader` n'a pas de `system_role` : on ne devine pas.
 - L'API lit le rôle sur `system_role`, sinon sur la fiche ; ni l'un ni l'autre : `403` (PRF7, `API/src/app/utils/roles.py`).
+
+### Schéma d'analyse — chantier FLX, `48_historique-des-prix.sql`, `49_schema-olap.sql`
+
+Décidé par Seb le 2026-10-15 (questions flux-12b, flux-13, flux-16).
+
+- **`estate_price_history`** (FLX4, migration 48) : un prix par bien et par jour vu par l'import d'annonces, `UNIQUE (id_estate, seen_at)`.
+- **Schéma `olap`** (FLX5, `08_olap.sql`, migration 49) : l'étoile du sujet (`documents utiles/OLAP.md`) — `fait_ventes`, une ligne par vente, et `dim_temps`, `dim_chasseur`, `dim_client`, `dim_bien`, `dim_secteur`.
+- D'où vient chaque mesure (`montant_bien`, `honoraires`, `commission_chasseur`, `nb_visites_avant_achat`, `delai_semaines`, `mandat_exclusif`) : la table en tête de `08_olap.sql`.
+- **RGPD** : aucun nom, adresse électronique ni numéro d'appel dans `olap` ; les personnes n'y sont que des numéros, avec des attributs non identifiants.
+- Tables **vides** à la création : le DAG `olap_refresh` les remplit chaque nuit (FLX6).
+- ⚠️ `fil_rouge_reader` ne lit **pas** `olap` : `commission_chasseur` vient de `payment`, que la migration 43 lui a fermé.
 
 ---
 
