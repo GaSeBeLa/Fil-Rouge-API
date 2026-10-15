@@ -1,4 +1,37 @@
 name:  fil_rouge_immobilier
+
+# Profils (chantier FLX, fiche FLX1 ; décision de Seb, Discord, 2026-10-15) :
+#   - sans profil : db et api. « docker compose up -d » ne lance qu'eux ;
+#   - profil airflow : minio, minio-setup et les trois services d'Airflow.
+#     MinIO ne démarre donc plus seul : « docker compose --profile airflow up -d » ;
+#   - tout : « docker compose --profile "*" up -d ».
+
+# Réglages communs aux trois services d'Airflow, sur le modèle du lab du
+# cours (md/flux/cours-airflow-synthese.md, dépôt Fil-Rouge) et du compose
+# officiel de la 2.11.2 (airflow.apache.org/docs/apache-airflow/2.11.2/docker-compose.yaml,
+# lu le 2026-10-15), en LocalExecutor : ni Redis ni Celery.
+x-airflow-common: &airflow-common
+  build: ../airflow
+  image: fil_rouge_immobilier_airflow:2.11.2
+  profiles: ["airflow"]
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    # Base « airflow » de notre PostgreSQL, rôle « airflow » (init-v3/07).
+    # Le mot de passe entre tel quel dans l'URL : hexadécimal seulement
+    # (voir .env.exemple).
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@db:5432/airflow
+    # Chiffre les mots de passe des connexions Airflow ; valeur dans docker/.env.
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    # Petit serveur de santé du scheduler, port 8974 (son healthcheck).
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+  volumes:
+    - airflow_logs:/opt/airflow/logs
+  depends_on: &airflow-common-depends-on
+    db:
+      condition: service_healthy
+
 services:
   db:
     image: postgres:16
@@ -10,6 +43,9 @@ services:
       # Rôle en lecture seule (LOT12, Q14) : lu par init-v3/04. Vide, le
       # rôle existe sans pouvoir se connecter.
       POSTGRES_READER_PASSWORD: ${POSTGRES_READER_PASSWORD:-}
+      # Rôle de la base airflow (FLX1) : lu par init-v3/07. Vide, le rôle
+      # existe sans pouvoir se connecter.
+      AIRFLOW_DB_PASSWORD: ${AIRFLOW_DB_PASSWORD:-}
     ports:
       - "5432:5432"
     volumes:
@@ -63,6 +99,7 @@ services:
   minio:
     image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     container_name: fil_rouge_immobilier_minio
+    profiles: ["airflow"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -75,6 +112,7 @@ services:
   minio-setup:
     image: pgsty/mc@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd
     container_name: fil_rouge_immobilier_minio_setup
+    profiles: ["airflow"]
     depends_on:
       - minio
     entrypoint: >
@@ -87,6 +125,53 @@ services:
       echo 'buckets bronze/silver/gold crees';
       "
 
+  # Une fois : migre la base airflow, puis crée le compte admin de
+  # l'interface. Variables _AIRFLOW_* lues par l'entrypoint de l'image
+  # officielle (compose officiel de la 2.11.2).
+  airflow-init:
+    <<: *airflow-common
+    container_name: fil_rouge_immobilier_airflow_init
+    command: version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: fil_rouge_immobilier_airflow_webserver
+    command: webserver
+    ports:
+      - "8080:8080"   # Interface : http://localhost:8080 ; santé : /health
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: fil_rouge_immobilier_airflow_scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
 volumes:
   db_data:
   minio_data:
+  airflow_logs:

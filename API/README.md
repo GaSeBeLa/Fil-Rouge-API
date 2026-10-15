@@ -127,6 +127,51 @@ conteneur n'est pas la base (l'API répondait alors `500`).
 Pour l'arrêter : `docker compose stop api`. Pour voir ses logs :
 `docker compose logs -f api`.
 
+#### Les profils : ce que lance `docker compose up -d`
+
+Depuis le chantier FLX (fiche FLX1), le `docker-compose.yml` range ses
+services en profils. Depuis `docker/` :
+
+| Commande | Services lancés |
+|---|---|
+| `docker compose up -d` | `db`, `api` |
+| `docker compose --profile airflow up -d` | les mêmes, plus `minio`, `minio-setup`, `airflow-init`, `airflow-webserver`, `airflow-scheduler` |
+| `docker compose --profile "*" up -d` | tous les services |
+
+⚠️ **MinIO ne démarre plus seul** : il faut `--profile airflow`. Pareil pour
+l'arrêter ou voir ses logs : `docker compose --profile airflow logs -f minio`.
+
+#### Airflow
+
+- Image : `apache/airflow:2.11.2` étendue par `airflow/Dockerfile` (paquets en
+  plus, versions figées), en `LocalExecutor`.
+- Interface : http://localhost:8080, compte `admin`. Santé :
+  `curl -s localhost:8080/health`.
+- Ses métadonnées vivent dans une base `airflow`, dans **notre** PostgreSQL,
+  à côté de `fil_rouge_immobilier`, avec son propre rôle `airflow`.
+- Trois lignes de `docker/.env` à remplir (le modèle dit comment les
+  générer) : `AIRFLOW_DB_PASSWORD`, `AIRFLOW_ADMIN_PASSWORD`,
+  `AIRFLOW_FERNET_KEY`.
+
+**Base de dev déjà créée** (le cas de toute l'équipe) : la base `airflow` et
+son rôle ne naissent seuls que sur un volume neuf (`init-v3/07_airflow-base.sh`).
+Sans tout effacer, depuis `docker/`, une fois le `.env` rempli :
+
+```bash
+docker compose up -d db   # recrée db : il relit AIRFLOW_DB_PASSWORD
+docker compose exec db bash /docker-entrypoint-initdb.d/07_airflow-base.sh
+docker compose --profile airflow up -d --build
+```
+
+Le script est rejouable : il ne crée que ce qui manque. Son équivalent en
+`psql` seul, si besoin (remplacer `<mot de passe>`) :
+
+```bash
+docker compose exec db psql -U postgres -c "CREATE ROLE airflow LOGIN PASSWORD '<mot de passe>'" -c "CREATE DATABASE airflow OWNER airflow" -c "REVOKE CONNECT ON DATABASE airflow FROM PUBLIC"
+```
+
+`psql -l` montre alors `airflow` à côté de `fil_rouge_immobilier`.
+
 ### Ou en local, si Python est installé
 
 ```bash
