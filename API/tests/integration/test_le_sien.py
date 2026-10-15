@@ -263,11 +263,12 @@ def test_client_sees_his_rows_not_the_other_clients(
     assert read_theirs.json() == absent.json()
 
 
-@pytest.mark.parametrize("field", ["id_role", "is_activated"])
+# PRF7 : le rôle protégé est system_role (ADMIN_ONLY_FIELDS), plus id_role.
+@pytest.mark.parametrize("field", ["system_role", "is_activated"])
 def test_client_changes_neither_his_role_nor_his_activation(db_client: TestClient, field: str):
     before = db_client.get(f"/users/{CLIENT_ID}").json()
     # Une autre valeur que la sienne (activé le temps du test : db_client).
-    change = {"id_role": 4} if field == "id_role" else {"is_activated": not before["is_activated"]}
+    change = {"system_role": "Admin"} if field == "system_role" else {"is_activated": not before["is_activated"]}
     with acting_as(CLIENT, CLIENT_ID):
         response = db_client.put(f"/users/{CLIENT_ID}", json=change)
 
@@ -500,7 +501,7 @@ def test_hunter_changes_nothing_but_his_contact_details(db_client: TestClient, f
 def test_hunter_changes_neither_his_role_nor_his_activation(db_client: TestClient):
     before = db_client.get(f"/users/{HUNTER_ID}").json()
     with acting_as(HUNTER, HUNTER_ID):
-        response = db_client.put(f"/users/{HUNTER_ID}", json={"id_role": 4})
+        response = db_client.put(f"/users/{HUNTER_ID}", json={"system_role": "Admin"})  # PRF7
 
     assert response.status_code == 403, response.text
     assert db_client.get(f"/users/{HUNTER_ID}").json() == before
@@ -741,13 +742,13 @@ def test_manager_updates_his_account_but_not_his_role(db_client: TestClient, oth
     before = db_client.get(f"/users/{SEED_MANAGER}").json()
     with acting_as(MANAGER, SEED_MANAGER):
         mine = db_client.put(f"/users/{SEED_MANAGER}", json={"email": "manager.25.dro7@exemple.fr"})
-        role = db_client.put(f"/users/{SEED_MANAGER}", json={"id_role": 4})
+        role = db_client.put(f"/users/{SEED_MANAGER}", json={"system_role": "Admin"})  # PRF7
         theirs = db_client.put(f"/users/{other_manager}", json={"email": "autre.dro7@exemple.fr"})
 
     assert mine.status_code == 200, mine.text
     assert role.status_code == 403, role.text
     assert theirs.status_code == 404, theirs.text
-    assert db_client.get(f"/users/{SEED_MANAGER}").json()["id_role"] == before["id_role"]
+    assert db_client.get(f"/users/{SEED_MANAGER}").json()["system_role"] == before["system_role"]
 
 
 def test_manager_assigns_a_request_to_one_of_his_hunters_only(

@@ -8,6 +8,11 @@ COMMENT LIRE CE FICHIER
   de sa fiche (profile_id), relus en base à chaque appel (ADR-052,
   décision 3), par les services. C'est la dépendance que les fixtures de
   test remplacent pour se connecter en `Admin` d'office.
+- Le rôle (chantier PRF, PRF7) : user.system_role (Admin, Reader) pour un
+  compte sans fiche ; sinon role_wording de sa fiche (client, hunter ou
+  real_estate_manager) ; ni l'un ni l'autre : 403. user.id_role n'est plus
+  lu (il s'écrit encore jusqu'à PRF8). Une fiche au plus par compte, et
+  aucune avec un system_role : le trigger check_one_profile_per_user (PRF6).
 - profile_id : client.id, hunter.id ou real_estate_manager.id du compte,
   selon son rôle ; None sans fiche (Admin, Reader). C'est lui que citent
   les id_client, id_hunter et id_realestatemanager des autres tables
@@ -30,10 +35,7 @@ from sqlmodel import Session, select
 
 from ..conf.database import get_session
 from ..models import Client, Hunter, RealEstateManager, User
-from ..repositories.role_repository import RoleRepository
-from ..services.role_service import RoleService
 from .current_user import get_current_user
-from .exceptions import NotFoundError
 
 # Les 5 libellés de la table role (CHECK en base, ADR-028 point 7).
 ADMIN = "Admin"
@@ -45,9 +47,6 @@ READER = "Reader"
 ALL_ROLES: tuple[str, ...] = (ADMIN, CLIENT, HUNTER, MANAGER, READER)
 # ADR-028 : `Reader` consulte sans écrire.
 WRITER_ROLES: tuple[str, ...] = (ADMIN, CLIENT, HUNTER, MANAGER)
-
-
-_roles = RoleService(RoleRepository())
 
 
 # La table de fiche de chaque rôle qui en a une (chantier PRF).
@@ -71,13 +70,16 @@ def get_principal(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> Principal:
-    # id_role est une clé étrangère NOT NULL : un rôle introuvable serait une
-    # base incohérente ; on refuse plutôt que d'accorder un droit au hasard.
-    try:
-        role = _roles.get_by_id(session, user.id_role)
-    except NotFoundError:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Rôle du compte introuvable.")
-    return Principal(user=user, role=role.wording, profile_id=profile_id_of(session, user, role.wording))
+    # PRF7 : system_role d'abord (compte sans fiche), puis la fiche du compte.
+    if user.system_role is not None:
+        return Principal(user=user, role=user.system_role)
+    for model in PROFILE_MODELS.values():
+        row = session.exec(select(model.id, model.role_wording).where(model.id_user == user.id)).first()
+        if row is not None:
+            profile_id, role = row
+            return Principal(user=user, role=role, profile_id=profile_id)
+    # Ni fiche ni system_role : aucun droit plutôt qu'un droit au hasard.
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Compte sans rôle : ni fiche, ni system_role.")
 
 
 def profile_id_of(session: Session, user: User, role: str) -> Optional[int]:

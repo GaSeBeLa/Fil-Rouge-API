@@ -55,7 +55,7 @@ from ..repositories.client_repository import ClientRepository
 from ..repositories.role_repository import RoleRepository
 from ..repositories.search_request_repository import SearchRequestRepository
 from ..repositories.user_repository import UserRepository
-from ..utils.roles import CLIENT
+from ..utils.roles import CLIENT, HUNTER, MANAGER, profile_id_of
 from ..utils.security import PENDING_SIGNUP_PASSWORD
 
 logger = logging.getLogger(__name__)
@@ -140,10 +140,14 @@ class SignupService:
 
         client = next(iter(self.clients.list_where(session, id_user=user_id)), None)
         if client is None:
-            if user.id_role != client_role_id:
-                # P1 : pas de fiche client pour un chasseur, un manager… Rien
-                # n'est écrit, et rien n'est dit au visiteur. Le log garde
-                # l'id du compte, pas l'email.
+            # PRF7 : le rôle se lit sur system_role ou sur la fiche, plus sur id_role.
+            has_other_role = user.system_role is not None or any(
+                profile_id_of(session, user, role) is not None for role in (HUNTER, MANAGER)
+            )
+            if has_other_role:
+                # P1 : pas de fiche client pour un chasseur, un manager, un
+                # Admin, un Reader… Rien n'est écrit, et rien n'est dit au
+                # visiteur. Le log garde l'id du compte, pas l'email.
                 logger.warning("Demande écartée : le compte %s n'est pas un compte client.", user_id)
                 return None
             client = self.clients.insert_pending(

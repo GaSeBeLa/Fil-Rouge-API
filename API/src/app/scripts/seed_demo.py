@@ -94,7 +94,7 @@ from ..services.search_request_service import SearchRequestService
 from ..services.user_service import UserService
 from ..services.visit_service import VisitService
 from ..utils.exceptions import ConflictError
-from ..utils.roles import CLIENT, HUNTER, MANAGER, READER
+from ..utils.roles import CLIENT, HUNTER, MANAGER, PROFILE_MODELS, READER
 
 # Graine fixe (Q3) : mêmes données à chaque lancement.
 SEED = 2026
@@ -193,7 +193,12 @@ def seed_accounts(session: Session, password: str) -> dict[str, User]:
         role = roles.get_by_wording(session, wording)
         if role is None or role.id is None:
             raise SystemExit(f"❌ Le rôle '{wording}' manque dans la table role : la base est-elle initialisée ?")
-        item = UserCreate(email=email, password=password, is_activated=True, id_role=role.id)
+        # PRF7 : un compte sans fiche (Reader) porte son rôle dans system_role ;
+        # les autres le reçoivent de leur fiche (seed_profiles).
+        system_role = None if wording in PROFILE_MODELS else wording
+        item = UserCreate(
+            email=email, password=password, is_activated=True, id_role=role.id, system_role=system_role
+        )
         accounts[wording] = service.create(session, item)
     return accounts
 

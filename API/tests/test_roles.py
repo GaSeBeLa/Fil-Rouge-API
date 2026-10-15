@@ -3,20 +3,22 @@ test_roles.py — Les rôles sur les routes CRUD (ADR-028, fiche API2).
 
 Sans base : une petite app monte build_crud_router sur un service factice
 (MagicMock), plus le vrai routeur /hunter-performances ; get_session rend
-None. get_principal est remplacé par un compte du rôle voulu. La chaîne
+None. get_principal est remplacé par un compte du rôle voulu ; en fin de
+fichier, get_principal lui-même, sur une session factice (PRF7). La chaîne
 réelle (jeton -> compte -> rôle relu en base) est prouvée dans
 tests/integration/test_roles_db.py.
 """
 
-from typing import Optional
+from typing import Any, Optional, cast
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from sqlmodel import SQLModel
+from sqlmodel import Session, SQLModel
 
 from src.app.conf.database import get_session
+from src.app.models import Client, Hunter, RealEstateManager, User
 from src.app.routes import hunter_performance_router, role_router, user_router
 from src.app.routes.crud_router import build_crud_router
 from src.app.services.base_service import BaseService
@@ -161,3 +163,48 @@ def test_health_and_login_stay_open():
     # Corps invalide : 422, pas 401 — la route ne demande aucun jeton
     # (mais la clé d'API, oui : fiche API3).
     assert client.post("/auth/login", json={}, headers=TEST_HEADERS).status_code == 422
+
+
+# --- get_principal : le rôle lu sur system_role ou sur la fiche (PRF7) ---
+
+
+class FakeSession:
+    """Session sans base : (id, role_wording) de la fiche du compte, dans la seule table `table`."""
+
+    def __init__(self, table: Optional[type] = None, row: Optional[tuple[int, str]] = None):
+        self.table = table
+        self.row = row
+
+    def exec(self, statement: Any) -> MagicMock:
+        result = MagicMock()
+        entity = statement.column_descriptions[0]["entity"]
+        result.first.return_value = self.row if entity is self.table else None
+        return result
+
+
+def account(system_role: Optional[str] = None) -> User:
+    # id_role = 1 (Client) partout : get_principal ne doit plus le lire.
+    return User(id=7, email="compte@test.local", password="-", is_activated=True, id_role=1, system_role=system_role)
+
+
+@pytest.mark.parametrize(
+    ("table", "role"), [(Client, CLIENT), (Hunter, HUNTER), (RealEstateManager, MANAGER)]
+)
+def test_role_and_profile_id_come_from_the_profile(table: type, role: str):
+    principal = get_principal(account(), cast(Session, FakeSession(table, (1042, role))))
+
+    assert (principal.role, principal.profile_id) == (role, 1042)
+
+
+@pytest.mark.parametrize("role", [ADMIN, READER])
+def test_role_comes_from_system_role_without_profile(role: str):
+    principal = get_principal(account(system_role=role), cast(Session, FakeSession()))
+
+    assert (principal.role, principal.profile_id) == (role, None)
+
+
+def test_account_without_profile_nor_system_role_gets_403():
+    with pytest.raises(HTTPException) as refused:
+        get_principal(account(), cast(Session, FakeSession()))
+
+    assert refused.value.status_code == 403

@@ -65,7 +65,10 @@ def main() -> None:
         if role is None or role.id is None:
             raise SystemExit("❌ Le rôle 'Admin' manque dans la table role : la base est-elle initialisée ?")
         try:
-            item = UserCreate(email=email, password=password, is_activated=True, id_role=role.id)
+            # PRF7 : le rôle se lit sur system_role ; id_role s'écrit encore (NOT NULL) jusqu'à PRF8.
+            item = UserCreate(
+                email=email, password=password, is_activated=True, id_role=role.id, system_role=ADMIN_ROLE
+            )
         except ValidationError as exc:
             problems = "; ".join(f"{'.'.join(map(str, e['loc']))} : {e['msg']}" for e in exc.errors())
             raise SystemExit(f"❌ Saisie refusée ({problems}) : rien n'est créé.") from exc

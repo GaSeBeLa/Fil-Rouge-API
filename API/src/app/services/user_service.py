@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from ..utils.roles import Principal
 
 # ADR-027, annexe § 1 : « R U le sien, sauf rôle et activation ».
-ADMIN_ONLY_FIELDS = ("id_role", "system_role", "is_activated")  # system_role : PRF6
+ADMIN_ONLY_FIELDS = ("system_role", "is_activated")  # PRF7 : le rôle se lit sur system_role, plus sur id_role
 
 
 class UserService(BaseService[User]):

@@ -28,7 +28,7 @@ router = build_crud_router(
     # ADMIN_ONLY_FIELDS -> 403) ; le compte d'un autre rend 404. Le client
     # crée « son compte » (Q-ACC-12) par POST /search-requests/submit, sans
     # jeton (signup_router.py) : ouvrir ce POST au rôle Client lui
-    # laisserait choisir id_role, donc créer un Admin.
+    # laisserait choisir system_role, donc créer un Admin (PRF7).
     read_roles=ALL_ROLES,
     write_roles=(ADMIN, CLIENT, HUNTER, MANAGER),
     create_roles=(ADMIN,),

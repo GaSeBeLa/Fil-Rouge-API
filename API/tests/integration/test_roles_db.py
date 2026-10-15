@@ -18,7 +18,14 @@ READER_ROLE_ID = 5  # posé par 02 (LOT12)
 def test_reader_token_reads_but_cannot_write(db_client: TestClient):
     created = db_client.post(
         "/users",
-        json={"email": "role-reader@example.com", "password": USER_PASSWORD, "id_role": READER_ROLE_ID, "is_activated": True},
+        # PRF7 : le rôle se lit sur system_role ; id_role s'écrit encore (NOT NULL).
+        json={
+            "email": "role-reader@example.com",
+            "password": USER_PASSWORD,
+            "id_role": READER_ROLE_ID,
+            "system_role": "Reader",
+            "is_activated": True,
+        },
     )
     assert created.status_code == 201, created.text
     app.dependency_overrides.pop(get_principal, None)  # plus d'Admin d'office
