@@ -506,6 +506,27 @@ tous activés, mot de passe `DEMO_PASSWORD` :
 - Un refus d'une règle (`409`) l'arrête avec son message : on corrige les
   données du seed, jamais la règle.
 
+### Faker de volume — des centaines de ventes pour l'OLAP
+
+Le script [`scripts/seed_volume.py`](src/app/scripts/seed_volume.py) (chantier
+FLX, fiche FLX13) fabrique **500 ventes** fausses par défaut (question flux-18),
+pour que l'OLAP et Kibana aient de quoi montrer. Mêmes règles que le seed de
+démo : les vrais services, Faker `fr_FR` à graine fixe, e-mails `example.com`,
+montants calculés, jamais dans `fil_rouge_test`, mot de passe `DEMO_PASSWORD`.
+
+```bash
+docker compose exec api python -m src.app.scripts.seed_volume              # 500 ventes
+docker compose exec api python -m src.app.scripts.seed_volume --sales 100  # au choix
+```
+
+- Par vente : un client neuf, sa demande, un mandat signé de 6 mois, 1 à 3
+  biens proposés, 1 à 5 visites, la vente au prix affiché et son paiement.
+  8 chasseurs et 2 managers (`volume-chasseur-1@example.com`…), réutilisés.
+- Les ventes tombent du **2026-01-01** (premier jour des grilles,
+  `init-v3/05`) à la veille du lancement ; un bien ne se vend qu'une fois.
+- Une fois par base, comme le seed de démo : `volume-manager-1@example.com`
+  sert de marqueur. Plan des ventes testé sans base : `tests/test_seed_volume.py`.
+
 ### Connexion — `/auth` (ADR-052)
 
 | Route | Ce qu'elle fait |
