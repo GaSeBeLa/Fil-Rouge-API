@@ -32,6 +32,10 @@ class User(SQLModel, table=True):
     #   envoyé tel quel, et refusé.
     is_activated: bool = False
     id_role: int = Field(foreign_key="role.id")
+    # PRF6 : le rôle d'un compte SANS fiche, 'Admin' ou 'Reader' (CHECK côté
+    # base) ; vide pour un compte qui a une fiche (trigger
+    # check_one_profile_per_user : sinon 409). id_role reste jusqu'à PRF8.
+    system_role: Optional[str] = Field(default=None, max_length=10)
 
 
 class UserPublic(SQLModel):
@@ -46,6 +50,7 @@ class UserPublic(SQLModel):
     email: str
     is_activated: Optional[bool] = None
     id_role: int
+    system_role: Optional[str] = None
 
 
 class UserCreate(SQLModel):
@@ -70,6 +75,8 @@ class UserCreate(SQLModel):
     # Omis : le compte n'est pas activé (même défaut que la base).
     is_activated: bool = False
     id_role: int
+    # PRF6 : 'Admin' ou 'Reader' pour un compte sans fiche ; omis, vide.
+    system_role: Optional[str] = Field(default=None, max_length=10)
 
 
 class UserUpdate(SQLModel):
@@ -82,3 +89,4 @@ class UserUpdate(SQLModel):
     password: Optional[str] = Field(default=None, min_length=12)
     is_activated: Optional[bool] = None
     id_role: Optional[int] = None
+    system_role: Optional[str] = Field(default=None, max_length=10)  # PRF6

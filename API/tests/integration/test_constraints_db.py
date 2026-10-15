@@ -244,12 +244,21 @@ def test_client_without_address_field_returns_422(
 
 def test_client_without_address_is_refused_by_the_database(db_session: Session):
     # Le NOT NULL tient aussi sans l'API : un script SQL ne passe pas.
+    # Un compte neuf, sans fiche : le compte 1 est un hunter, et le trigger
+    # une-fiche-par-compte (PRF6) le refuserait avant le NOT NULL.
+    user_id = db_session.execute(
+        text(
+            "INSERT INTO \"user\" (email, password, id_role) "
+            "VALUES ('ada.sans-adresse@exemple.fr', 'x', 1) RETURNING id"
+        )
+    ).scalar_one()
     with pytest.raises(IntegrityError, match="violates not-null constraint"):
         db_session.execute(
             text(
                 "INSERT INTO client (id_user, first_name, last_name, phone_number) "
-                "VALUES (1, 'Ada', 'Lovelace', '+33600000000')"
-            )
+                "VALUES (:user_id, 'Ada', 'Lovelace', '+33600000000')"
+            ),
+            {"user_id": user_id},
         )
 
 

@@ -176,6 +176,11 @@ CREATE TABLE "user" (
     password     VARCHAR(255) NOT NULL,
     is_activated BOOLEAN NOT NULL DEFAULT FALSE,
     id_role      INTEGER NOT NULL REFERENCES role(id) ON DELETE RESTRICT,
+    -- Chantier PRF (PRF6, décision de Seb du 2026-10-15) : le rôle d'un compte
+    -- SANS fiche. Vide pour un compte qui a une fiche, dont le rôle est
+    -- role_wording. Garanti par check_one_profile_per_user() (section 2 bis).
+    -- id_role reste jusqu'à PRF8.
+    system_role  VARCHAR(10) CHECK (system_role IN ('Admin', 'Reader')),
 
     -- P2 (ADR-053) : une forme d'email, sans viser la RFC entière ; l'API
     -- validera le détail (EmailStr).
@@ -206,6 +211,8 @@ CREATE TABLE client (
     created_at               TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),  -- Q-SCH-09
     id_user                  INTEGER NOT NULL UNIQUE
                              REFERENCES "user"(id) ON DELETE RESTRICT,
+    role_wording             VARCHAR(20) NOT NULL DEFAULT 'Client'   -- PRF6
+                             CHECK (role_wording = 'Client') REFERENCES role(wording),
     first_name               VARCHAR(80) NOT NULL
                              CHECK (first_name = btrim(first_name) AND first_name <> ''),
     last_name                VARCHAR(80) NOT NULL
@@ -257,6 +264,8 @@ CREATE TABLE real_estate_manager (
     created_at   TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),  -- Q-SCH-09
     id_user      INTEGER NOT NULL UNIQUE
                  REFERENCES "user"(id) ON DELETE RESTRICT,
+    role_wording VARCHAR(20) NOT NULL DEFAULT 'Manager'                -- PRF6
+                 CHECK (role_wording = 'Manager') REFERENCES role(wording),
     first_name   VARCHAR(80) NOT NULL
                  CHECK (first_name = btrim(first_name) AND first_name <> ''),
     last_name    VARCHAR(80) NOT NULL
@@ -279,6 +288,8 @@ CREATE TABLE hunter (
     created_at           TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),  -- Q-SCH-09
     id_user              INTEGER NOT NULL UNIQUE
                          REFERENCES "user"(id) ON DELETE RESTRICT,
+    role_wording         VARCHAR(20) NOT NULL DEFAULT 'Hunter'         -- PRF6
+                         CHECK (role_wording = 'Hunter') REFERENCES role(wording),
     first_name           VARCHAR(80) NOT NULL
                          CHECK (first_name = btrim(first_name) AND first_name <> ''),
     last_name            VARCHAR(80) NOT NULL
@@ -309,6 +320,69 @@ CREATE TABLE hunter (
     CONSTRAINT ck_hunter_phone_number_format                     -- ADR-007, Q-PRO-08
         CHECK (phone_number ~ '^\+[1-9]([ -]?[0-9]){1,14}$')
 );
+
+
+-- ----------------------------------------------------------------------------
+-- 2 bis. UNE FICHE AU PLUS PAR COMPTE (chantier PRF, PRF6)
+-- ----------------------------------------------------------------------------
+-- Décision de Seb du 2026-10-15 : un compte porte une seule casquette.
+--   - une fiche au plus, dans client, hunter OU real_estate_manager ;
+--   - pas de fiche pour un compte à system_role (Admin, Reader), et pas de
+--     system_role pour un compte qui a une fiche.
+-- UNIQUE (id_user) garde déjà chaque table seule ; la règle entre trois
+-- tables et "user" ne tient pas dans un CHECK : un trigger la porte.
+--
+-- Deux écritures simultanées (une fiche client et une fiche hunter pour le
+-- même compte) ne se voient pas : chacune verrouille d'abord la ligne du
+-- compte (FOR NO KEY UPDATE), libérée à la fin de la transaction. Un UPDATE
+-- de system_role prend le même verrou : il attend aussi.
+--
+-- ERRCODE 23514 : classe 23, comme U02 ; l'API la rend en 409
+-- (IntegrityError, base_repository.py).
+-- ----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION check_one_profile_per_user() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+DECLARE
+    v_user INTEGER;
+BEGIN
+    IF TG_TABLE_NAME = 'user' THEN
+        IF NEW.system_role IS NULL THEN
+            RETURN NEW;
+        END IF;
+        v_user := NEW.id;
+    ELSE
+        v_user := NEW.id_user;
+        PERFORM 1 FROM "user" WHERE id = v_user FOR NO KEY UPDATE;
+        IF EXISTS (SELECT 1 FROM "user" WHERE id = v_user AND system_role IS NOT NULL) THEN
+            RAISE EXCEPTION
+                'PRF6 : le compte % a un system_role, il ne peut pas avoir de fiche', v_user
+                USING ERRCODE = '23514', CONSTRAINT = 'one_profile_per_user';
+        END IF;
+    END IF;
+    IF (TG_TABLE_NAME <> 'client' AND EXISTS (SELECT 1 FROM client WHERE id_user = v_user))
+       OR (TG_TABLE_NAME <> 'hunter' AND EXISTS (SELECT 1 FROM hunter WHERE id_user = v_user))
+       OR (TG_TABLE_NAME <> 'real_estate_manager'
+           AND EXISTS (SELECT 1 FROM real_estate_manager WHERE id_user = v_user)) THEN
+        RAISE EXCEPTION
+            'PRF6 : le compte % a deja une fiche, une seule par compte (et aucune avec un system_role)', v_user
+            USING ERRCODE = '23514', CONSTRAINT = 'one_profile_per_user';
+    END IF;
+    RETURN NEW;
+END $fn$;
+
+CREATE TRIGGER trg_client_one_profile
+    BEFORE INSERT OR UPDATE OF id_user ON client
+    FOR EACH ROW EXECUTE FUNCTION check_one_profile_per_user();
+CREATE TRIGGER trg_hunter_one_profile
+    BEFORE INSERT OR UPDATE OF id_user ON hunter
+    FOR EACH ROW EXECUTE FUNCTION check_one_profile_per_user();
+CREATE TRIGGER trg_real_estate_manager_one_profile
+    BEFORE INSERT OR UPDATE OF id_user ON real_estate_manager
+    FOR EACH ROW EXECUTE FUNCTION check_one_profile_per_user();
+CREATE TRIGGER trg_user_system_role
+    BEFORE INSERT OR UPDATE OF system_role ON "user"
+    FOR EACH ROW EXECUTE FUNCTION check_one_profile_per_user();
 
 
 -- ============================================================================
@@ -1277,6 +1351,14 @@ COMMENT ON COLUMN hunter.id IS
   'Cle technique propre, conservee pour permettre une migration MongoDB. Les FK des autres tables pointent vers elle (chantier PRF).';
 COMMENT ON COLUMN client.id IS
   'Cle technique propre, conservee pour permettre une migration MongoDB. Les FK des autres tables pointent vers elle (chantier PRF).';
+COMMENT ON COLUMN "user".system_role IS
+  'Role d''un compte SANS fiche (Admin, Reader) ; vide si le compte a une fiche (PRF6).';
+COMMENT ON COLUMN client.role_wording IS
+  'Role porte par la fiche, toujours Client ; reference role(wording) (PRF6).';
+COMMENT ON COLUMN hunter.role_wording IS
+  'Role porte par la fiche, toujours Hunter ; reference role(wording) (PRF6).';
+COMMENT ON COLUMN real_estate_manager.role_wording IS
+  'Role porte par la fiche, toujours Manager ; reference role(wording) (PRF6).';
 COMMENT ON COLUMN real_estate_manager.id IS
   'Cle technique propre, conservee pour permettre une migration MongoDB. Les FK des autres tables pointent vers elle (chantier PRF).';
 

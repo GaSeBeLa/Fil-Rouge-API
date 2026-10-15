@@ -25,4 +25,7 @@ class RealEstateManager(AbstractPerson, table=True):
 
     id: Optional[int] = Field(description=MANAGER_ID, default=None, primary_key=True)
     id_user: int = Field(description=MANAGER_USER, foreign_key="user.id", unique=True)
+    # PRF6 : le rôle porté par la fiche. CHECK côté base : toujours 'Manager' ;
+    # une autre valeur rend 409.
+    role_wording: str = Field(default="Manager", max_length=20, foreign_key="role.wording")
     company_name: Optional[str] = Field(default=None, max_length=80)

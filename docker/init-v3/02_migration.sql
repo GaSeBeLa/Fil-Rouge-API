@@ -279,4 +279,14 @@ UPDATE search_request sr SET status = 'launched'
  WHERE status = 'confirmed'
    AND EXISTS (SELECT 1 FROM mandate m WHERE m.id_search_request = sr.id);
 
+-- ----------------------------------------------------------------------------
+-- 10. RÔLE D'UN COMPTE SANS FICHE (chantier PRF, PRF6) — "user".system_role
+-- reprend id_role pour Admin et Reader. La reprise n'a aucun de ces comptes
+-- (0 ligne) : l'UPDATE garde 02 juste si on en ajoute un. Les fiches, elles,
+-- reçoivent role_wording par sa valeur par défaut (01).
+-- ----------------------------------------------------------------------------
+UPDATE "user" u SET system_role = r.wording
+  FROM role r
+ WHERE r.id = u.id_role AND r.wording IN ('Admin', 'Reader');
+
 COMMIT;

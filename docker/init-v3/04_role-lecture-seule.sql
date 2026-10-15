@@ -47,9 +47,10 @@
 -- Une base v2 existante reçoit le même par
 -- docker/migrations/v2-vers-v3/12_role-lecture-seule.sql, puis la
 -- fermeture du mot de passe par 18_role-lecture-seule-sans-mot-de-passe.sql,
--- celle du contact du vendeur par 41_contact-ferme-au-lecteur.sql, et
+-- celle du contact du vendeur par 41_contact-ferme-au-lecteur.sql,
 -- celles du paiement et des comptes désactivés par
--- 43_lecteur-sans-paiement-ni-compte-desactive.sql.
+-- 43_lecteur-sans-paiement-ni-compte-desactive.sql, et l'ouverture de
+-- "user".system_role par 46_roles-des-fiches.sql.
 -- =====================================================================
 
 \getenv reader_password POSTGRES_READER_PASSWORD
@@ -79,7 +80,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO fil_rouge_re
 
 -- Le mot de passe reste fermé : ce GRANT doit rester après celui de la table.
 REVOKE SELECT ON "user" FROM fil_rouge_reader;
-GRANT SELECT (id, created_at, email, is_activated, id_role) ON "user" TO fil_rouge_reader;
+-- system_role ouvert par PRF6 (migration 46_roles-des-fiches.sql).
+GRANT SELECT (id, created_at, email, is_activated, id_role, system_role) ON "user" TO fil_rouge_reader;
 
 -- Le contact du vendeur reste fermé (ADR-054) : après le GRANT sur toutes les tables.
 REVOKE SELECT ON estate_contact FROM fil_rouge_reader;

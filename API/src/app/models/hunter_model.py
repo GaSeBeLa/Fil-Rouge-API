@@ -30,6 +30,9 @@ class Hunter(AbstractPerson, table=True):
 
     id: Optional[int] = Field(description=HUNTER_ID, default=None, primary_key=True)
     id_user: int = Field(description=HUNTER_USER, foreign_key="user.id", unique=True)
+    # PRF6 : le rôle porté par la fiche. CHECK côté base : toujours 'Hunter' ;
+    # une autre valeur rend 409.
+    role_wording: str = Field(default="Hunter", max_length=20, foreign_key="role.wording")
     company_name: Optional[str] = Field(default=None, max_length=80)
     # hire_date : NOT NULL en base. Pour les 6 chasseurs migres, la valeur
     # retenue est la date de creation du compte — hypothese assumee,

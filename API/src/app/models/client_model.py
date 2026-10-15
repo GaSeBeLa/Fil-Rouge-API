@@ -28,6 +28,9 @@ class Client(AbstractPerson, table=True):
 
     id: Optional[int] = Field(description=CLIENT_ID, default=None, primary_key=True)
     id_user: int = Field(description=CLIENT_USER, foreign_key="user.id", unique=True)
+    # PRF6 : le rôle porté par la fiche. CHECK côté base : toujours 'Client' ;
+    # une autre valeur rend 409.
+    role_wording: str = Field(default="Client", max_length=20, foreign_key="role.wording")
     # Adresse, code postal, ville et pays : obligatoires (ADR-053, P3). Les
     # clients repris ont 'non renseigne' et '00000' (Q-SCH-18) ; un client
     # rendu anonyme, 'anonyme', '00000', 'anonyme', 'FR' (ADR-049).

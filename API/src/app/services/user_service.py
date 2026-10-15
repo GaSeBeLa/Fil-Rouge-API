@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from ..utils.roles import Principal
 
 # ADR-027, annexe § 1 : « R U le sien, sauf rôle et activation ».
-ADMIN_ONLY_FIELDS = ("id_role", "is_activated")
+ADMIN_ONLY_FIELDS = ("id_role", "system_role", "is_activated")  # system_role : PRF6
 
 
 class UserService(BaseService[User]):
@@ -67,6 +67,7 @@ class UserService(BaseService[User]):
             password=hash_password(item.password),
             is_activated=item.is_activated,
             id_role=item.id_role,
+            system_role=item.system_role,
         )
         return self.repository.create(session, user)
 
