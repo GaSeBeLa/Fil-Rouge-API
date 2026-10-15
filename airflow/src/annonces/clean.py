@@ -17,6 +17,7 @@ source ne sont pas lues (ADR-054).
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date, datetime, timezone
 
 # Clé de l'annonce, qui sert au dédoublonnage et à l'import sans doublon.
@@ -167,7 +168,7 @@ def derive_parking_spaces(description: str | None) -> int:
     return 1 if description is not None and "parking" in description.lower() else 0
 
 
-def clean_annonce(row: dict[str, object]) -> dict[str, object]:
+def clean_annonce(row: Mapping[str, object]) -> dict[str, object]:
     """Une ligne brute de annonces.csv -> une ligne aux colonnes de `estate` v3.
 
     Rend aussi `_published_on` (date de publication lue, hors `estate`).

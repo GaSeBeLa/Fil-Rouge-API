@@ -50,6 +50,9 @@ x-airflow-common: &airflow-common
     # FLX2 : les DAG et le code métier, en lecture seule.
     - ../airflow/dags:/opt/airflow/dags:ro
     - ../airflow/src:/opt/airflow/src:ro
+    # FLX4 : la copie du générateur d'annonces du sujet (question flux-17,
+    # oui de Seb le 2026-10-15).
+    - ../airflow/tools:/opt/airflow/tools:ro
   depends_on: &airflow-common-depends-on
     db:
       condition: service_healthy

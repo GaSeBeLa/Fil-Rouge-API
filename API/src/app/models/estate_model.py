@@ -103,3 +103,20 @@ class Estate(SQLModel, table=True):
                 f"{self.nb_bedrooms} chambres pour {self.nb_rooms} pièces : une chambre est une pièce (P16)."
             )
         return self
+
+
+class EstatePriceHistory(SQLModel, table=True):
+    """
+    Historique des prix d'un bien, une ligne par jour où l'import d'annonces
+    l'a vu (chantier FLX, FLX4 ; question flux-12b). Écrit par le DAG
+    annonces_import, pas par l'API : aucune route CRUD.
+    """
+    __tablename__ = "estate_price_history"  # pyright: ignore[reportAssignmentType] -- même motif que les autres modèles SQLModel
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    id_estate: int = Field(foreign_key="estate.id")
+    # Euros (règle 4) ; CHECK (price >= 0) côté base.
+    price: int
+    # UNIQUE (id_estate, seen_at) côté base : uq_estate_price_history_estate_seen.
+    seen_at: date

@@ -1,10 +1,11 @@
 -- ============================================================================
 -- 01_create_fil_rouge_immobilier.sql
--- Schéma cible "Fil_Rouge_Immobilier" — 21 tables
+-- Schéma cible "Fil_Rouge_Immobilier" — 22 tables
 -- Généré depuis « MPD 03 4.drawio.xml » (2026-09-22) ; 19e table,
 -- remuneration_parameters, ajoutée le 2026-10-07 (LOT6, Q-REM-05),
 -- renommée hunter_rate_parameters le 2026-10-08 (G2) ; 20e, review_media,
--- le 2026-10-08 ; 21e, estate_contact, le 2026-10-13 (ADR-054)
+-- le 2026-10-08 ; 21e, estate_contact, le 2026-10-13 (ADR-054) ; 22e,
+-- estate_price_history, le 2026-10-15 (FLX4, flux-12b)
 --
 -- VERSION FUSIONNÉE des deux scripts écrits en parallèle par le groupe.
 -- Testé sur PostgreSQL 16 : création complète sur base vierge, sans erreur.
@@ -838,6 +839,22 @@ CREATE TABLE estate_contact (
             OR phone_number IS NOT NULL OR email IS NOT NULL)
 );
 
+-- Historique des prix d'un bien (chantier FLX, FLX4) : une ligne par bien et
+-- par jour où l'import d'annonces l'a vu. Un réimport avec un autre prix met
+-- estate.price à jour sans perdre l'ancien (question flux-12b, tranchée A par
+-- Seb le 2026-10-15). Colonnes recopiées du MPD de Gabriel (Discord, 2026-10-15).
+CREATE TABLE estate_price_history (
+    id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    created_at TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
+    id_estate  INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT,
+    -- Euros (règle 4).
+    price      INTEGER NOT NULL CHECK (price >= 0),
+    -- Date logique de l'import (ds d'Airflow) : rejouer le même jour
+    -- n'ajoute pas de ligne.
+    seen_at    DATE NOT NULL,
+    CONSTRAINT uq_estate_price_history_estate_seen UNIQUE (id_estate, seen_at)
+);
+
 
 -- ============================================================================
 -- 6. SÉLECTION ET PROPOSITION DE BIENS
@@ -1364,8 +1381,8 @@ COMMENT ON COLUMN real_estate_manager.id IS
 COMMIT;
 
 -- ============================================================================
--- FIN — 21 tables, 270 colonnes (mesuré via information_schema le
--- 2026-10-13, après ADR-054), 1 extension.
+-- FIN — 22 tables, 278 colonnes (mesuré via information_schema le
+-- 2026-10-15, après FLX4), 1 extension.
 --
 -- docker/docker-compose.yml monte ./init-v3 sur /docker-entrypoint-initdb.d.
 -- Les scripts d'init ne rejouent que sur un volume vide : après un
