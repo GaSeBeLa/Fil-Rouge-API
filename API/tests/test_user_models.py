@@ -34,17 +34,17 @@ from src.app.models import (
 
 def test_user_create_rejects_short_password():
     with pytest.raises(ValidationError):
-        UserCreate.model_validate({"email": "a@exemple.fr", "password": "x" * 11, "id_role": 1})
+        UserCreate.model_validate({"email": "a@exemple.fr", "password": "x" * 11})
 
 
 def test_user_create_accepts_twelve_characters():
-    user = UserCreate.model_validate({"email": "a@exemple.fr", "password": "x" * 12, "id_role": 1})
+    user = UserCreate.model_validate({"email": "a@exemple.fr", "password": "x" * 12})
     assert user.password == "x" * 12
 
 
 def test_user_create_requires_password():
     with pytest.raises(ValidationError):
-        UserCreate.model_validate({"email": "a@exemple.fr", "id_role": 1})
+        UserCreate.model_validate({"email": "a@exemple.fr"})
 
 
 def test_user_update_accepts_empty_body():

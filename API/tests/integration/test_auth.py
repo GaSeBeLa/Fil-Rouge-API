@@ -24,7 +24,7 @@ def make_user(db_client: TestClient) -> Callable[..., int]:
     def _make(email: str, is_activated: bool = True) -> int:
         response = db_client.post(
             "/users",
-            json={"email": email, "password": USER_PASSWORD, "id_role": 1, "is_activated": is_activated},
+            json={"email": email, "password": USER_PASSWORD, "is_activated": is_activated},
         )
         assert response.status_code == 201, response.text
         return response.json()["id"]

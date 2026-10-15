@@ -41,7 +41,7 @@ def test_duplicate_email_names_the_constraint_without_the_email(
     db_client: TestClient, create_user: Callable[[str], int]
 ):
     create_user(EMAIL)
-    response = db_client.post("/users", json={"email": EMAIL, "password": USER_PASSWORD, "id_role": 1})
+    response = db_client.post("/users", json={"email": EMAIL, "password": USER_PASSWORD})
     assert response.status_code == 409
     detail = response.json()["detail"]
     assert "user_email_key" in detail

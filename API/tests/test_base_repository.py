@@ -60,7 +60,7 @@ def failing_session() -> MagicMock:
 
 
 def make_user(**overrides: object) -> User:
-    fields: dict[str, object] = {"email": "a@exemple.fr", "password": "empreinte", "id_role": 1}
+    fields: dict[str, object] = {"email": "a@exemple.fr", "password": "empreinte"}
     fields.update(overrides)
     return User(**fields)  # pyright: ignore[reportArgumentType] — champs fournis dynamiquement, validés par SQLModel
 
@@ -75,13 +75,13 @@ def test_create_resets_client_supplied_id(repository: BaseRepository[User], sess
 
 def test_replace_copies_fields_but_keeps_id(repository: BaseRepository[User], session: MagicMock):
     existing = make_user(id=1)
-    data = make_user(id=99, email="nouveau@exemple.fr", id_role=3)
+    data = make_user(id=99, email="nouveau@exemple.fr", system_role="Reader")
 
     result = repository.replace(session, existing, data)
 
     assert result.id == 1
     assert result.email == "nouveau@exemple.fr"
-    assert result.id_role == 3
+    assert result.system_role == "Reader"
 
 
 def test_create_conflict_rolls_back_and_raises(repository: BaseRepository[User], failing_session: MagicMock):

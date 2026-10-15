@@ -10,8 +10,7 @@
 --
 --   1. role : colonne "libelle" -> "wording", et valeurs capitalisées
 --      ('client' -> 'Client'…) car le CHECK du schéma cible n'accepte que
---      'Admin', 'Client', 'Hunter', 'Manager'. 3 lignes migrées, plus
---      'Admin' ajouté le 2026-09-22 : 4 lignes au total.
+--      'Client', 'Hunter', 'Manager' (chantier PRF, PRF8). 3 lignes.
 --   2. criteria : budget_min et budget_max convertis de K€ en EUROS (x 1000).
 --      320.0 devient 320000.00. 17 lignes. budget_min est NULL depuis
 --      LOT8 (point 9).
@@ -76,59 +75,53 @@ SET search_path TO public, "Fil_Rouge_Depart";
 -- Gender : NULL autorisé par défaut en Postgres (un CHECK ne rejette jamais NULL)
 
 -- 0. ROLE
--- Table de référence des rôles (choix du groupe, 2026-09). id_role dans "user"
--- pointe ici : 1=client, 2=hunter, 3=real_estate_manager, 4=admin.
--- 'Admin' ajouté le 2026-09-22 : le CHECK de la table role l'autorisait depuis
--- l'origine, mais la ligne n'existait pas. Aucune table de profil ne lui est
--- rattachée (contrairement à client/hunter/real_estate_manager) : un admin
--- n'a pas de métier, seulement des droits. Aucun compte admin n'est créé ici,
--- tant que le hachage du mot de passe n'est pas en place (ADR-016, Argon2id).
+-- Table de référence des rôles (choix du groupe, 2026-09) : les trois rôles
+-- qui ont une fiche, cités par role_wording (chantier PRF, PRF8). Admin et
+-- Reader n'ont pas de fiche : ils vivent dans "user".system_role. Aucun
+-- compte Admin ni Reader n'est créé ici (scripts/create_admin.py).
 INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (1, 'Client') ON CONFLICT (id) DO NOTHING;
 INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (2, 'Hunter') ON CONFLICT (id) DO NOTHING;
 INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (3, 'Manager') ON CONFLICT (id) DO NOTHING;
-INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (4, 'Admin')   ON CONFLICT (id) DO NOTHING;
--- 'Reader' (Q14, LOT12) : consulte sans écrire ; aucun utilisateur ne l'a encore.
-INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (5, 'Reader')  ON CONFLICT (id) DO NOTHING;
 
 -- 1. USERS
 -- "user" est désormais minimaliste (choix du groupe, 2026-09) : id, email,
--- password, id_role, created_at. first_name/last_name/phone_number/gender/
+-- password, created_at. first_name/last_name/phone_number/gender/
 -- country_iso sont migrés directement dans hunter/client ci-dessous.
 -- password  : NOT NULL côté cible, absent côté source -> placeholder explicite qui
 --             empêche toute connexion tant que le mot de passe n'a pas été réinitialisé
--- id_role   : 1-6 = hunters (id_role=2), 7-24 = clients (id_role=1),
---             25 = manager placeholder (id_role=3, voir 1 bis)
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (1, 'm.roussel@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 2, '2023-03-15'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (2, 't.nguyen@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 2, '2023-06-01'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (3, 'i.delacroix@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 2, '2024-01-10'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (4, 'm.baldini@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 2, '2024-09-22'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (5, 'a.kone@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 2, '2025-02-14'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (6, 'l.perrin@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 2, '2025-11-03'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (7, 'alice.martin@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2025-01-08'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (8, 'karim.benali@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2025-02-19'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (9, 'chloe.dubois@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2025-03-02'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (10, 'jean.petit@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2025-03-27'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (11, 'lucia.garcia@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2025-04-11'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (12, 'paul.moreau@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2025-05-30'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (13, 'emma.lefevre@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2025-06-15'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (14, 'giulia.rossi@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2025-07-04'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (15, 'hugo.fournier@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2025-08-21'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (16, 'sofia.andre@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2025-09-09'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (17, 'louis.mercier@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2025-10-17'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (18, 'lea.blanc@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2025-11-25'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (19, 'nina.girard@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2025-12-12'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (20, 'adam.bonnet@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2026-01-06'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (21, 'zoe.dupont@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2026-02-20'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (22, 'theo.lambert@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2026-03-30'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (23, 'manon.roux@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2026-05-15'::date) ON CONFLICT (id) DO NOTHING;
-INSERT INTO "user" (id, email, password, id_role, created_at) OVERRIDING SYSTEM VALUE VALUES (24, 'ethan.faure@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 1, '2026-06-28'::date) ON CONFLICT (id) DO NOTHING;
+-- comptes   : 1-6 = hunters, 7-24 = clients, 25 = manager placeholder (voir
+--             1 bis) ; leur rôle est celui de leur fiche (role_wording, PRF8)
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (1, 'm.roussel@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2023-03-15'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (2, 't.nguyen@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2023-06-01'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (3, 'i.delacroix@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2024-01-10'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (4, 'm.baldini@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2024-09-22'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (5, 'a.kone@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-02-14'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (6, 'l.perrin@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-11-03'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (7, 'alice.martin@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-01-08'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (8, 'karim.benali@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-02-19'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (9, 'chloe.dubois@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-03-02'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (10, 'jean.petit@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-03-27'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (11, 'lucia.garcia@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-04-11'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (12, 'paul.moreau@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-05-30'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (13, 'emma.lefevre@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-06-15'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (14, 'giulia.rossi@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-07-04'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (15, 'hugo.fournier@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-08-21'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (16, 'sofia.andre@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-09-09'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (17, 'louis.mercier@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-10-17'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (18, 'lea.blanc@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-11-25'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (19, 'nina.girard@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2025-12-12'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (20, 'adam.bonnet@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2026-01-06'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (21, 'zoe.dupont@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2026-02-20'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (22, 'theo.lambert@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2026-03-30'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (23, 'manon.roux@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2026-05-15'::date) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password, created_at) OVERRIDING SYSTEM VALUE VALUES (24, 'ethan.faure@mail.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', '2026-06-28'::date) ON CONFLICT (id) DO NOTHING;
 
 -- 1 bis. MANAGER PLACEHOLDER (point 6 de l'en-tête, README §3.6)
 -- hunter.id_realestatemanager est NOT NULL et la source n'a aucun manager.
--- Un seul compte, id_role = 3 (Manager), nom et téléphone volontairement
+-- Un seul compte, rôle Manager (sa fiche), nom et téléphone volontairement
 -- « bidon » pour qu'on ne le confonde jamais avec une personne réelle.
 -- created_at = date de la migration (valeur par défaut) : aucune date source.
-INSERT INTO "user" (id, email, password, id_role) OVERRIDING SYSTEM VALUE VALUES (25, 'manager.migration@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET', 3) ON CONFLICT (id) DO NOTHING;
+INSERT INTO "user" (id, email, password) OVERRIDING SYSTEM VALUE VALUES (25, 'manager.migration@chassimmo.fr', '$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET') ON CONFLICT (id) DO NOTHING;
 INSERT INTO real_estate_manager (id_user, first_name, last_name, phone_number, gender, country_iso, company_name) VALUES (25, 'Manager', 'Migration', '+33000000000', NULL, NULL, NULL) ON CONFLICT (id_user) DO NOTHING;  -- placeholder, pas une personne
 
 -- 2. HUNTERS
@@ -278,15 +271,5 @@ SELECT 'user' as tbl, COUNT(*) FROM "user" UNION ALL SELECT 'hunter', COUNT(*) F
 UPDATE search_request sr SET status = 'launched'
  WHERE status = 'confirmed'
    AND EXISTS (SELECT 1 FROM mandate m WHERE m.id_search_request = sr.id);
-
--- ----------------------------------------------------------------------------
--- 10. RÔLE D'UN COMPTE SANS FICHE (chantier PRF, PRF6) — "user".system_role
--- reprend id_role pour Admin et Reader. La reprise n'a aucun de ces comptes
--- (0 ligne) : l'UPDATE garde 02 juste si on en ajoute un. Les fiches, elles,
--- reçoivent role_wording par sa valeur par défaut (01).
--- ----------------------------------------------------------------------------
-UPDATE "user" u SET system_role = r.wording
-  FROM role r
- WHERE r.id = u.id_role AND r.wording IN ('Admin', 'Reader');
 
 COMMIT;

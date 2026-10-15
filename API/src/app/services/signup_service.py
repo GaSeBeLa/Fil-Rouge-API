@@ -52,10 +52,9 @@ from sqlmodel import Field, Session, SQLModel
 from ..models import Client, SearchRequest, User
 from ..repositories.base_repository import discarded_writes
 from ..repositories.client_repository import ClientRepository
-from ..repositories.role_repository import RoleRepository
 from ..repositories.search_request_repository import SearchRequestRepository
 from ..repositories.user_repository import UserRepository
-from ..utils.roles import CLIENT, HUNTER, MANAGER, profile_id_of
+from ..utils.roles import HUNTER, MANAGER, profile_id_of
 from ..utils.security import PENDING_SIGNUP_PASSWORD
 
 logger = logging.getLogger(__name__)
@@ -110,20 +109,17 @@ class SignupService:
         self,
         users: UserRepository,
         clients: ClientRepository,
-        roles: RoleRepository,
         requests: SearchRequestRepository,
     ):
         self.users = users
         self.clients = clients
-        self.roles = roles
         self.requests = requests
 
     def submit(self, session: Session, form: SearchRequestSubmission) -> Optional[SearchRequest]:
         """La demande enregistrée, ou None si l'email est celui d'un compte non client."""
-        client_role_id = self._client_role_id(session)
         user = self.users.find_by_email_ignoring_case(session, form.email)
         if user is not None:
-            self._probe_new_signup(session, form, client_role_id)
+            self._probe_new_signup(session, form)
         else:
             user = self.users.insert_pending(
                 session,
@@ -131,7 +127,6 @@ class SignupService:
                     email=form.email,
                     password=PENDING_SIGNUP_PASSWORD,
                     is_activated=False,
-                    id_role=client_role_id,
                 ),
             )
         user_id = user.id
@@ -140,7 +135,7 @@ class SignupService:
 
         client = next(iter(self.clients.list_where(session, id_user=user_id)), None)
         if client is None:
-            # PRF7 : le rôle se lit sur system_role ou sur la fiche, plus sur id_role.
+            # Chantier PRF : le rôle se lit sur system_role ou sur la fiche.
             has_other_role = user.system_role is not None or any(
                 profile_id_of(session, user, role) is not None for role in (HUNTER, MANAGER)
             )
@@ -161,7 +156,7 @@ class SignupService:
         request = SearchRequest(id_author=user_id, id_client=client.id, status=_RECEIVED)
         return self.requests.create(session, request)
 
-    def _probe_new_signup(self, session: Session, form: SearchRequestSubmission, client_role_id: int) -> None:
+    def _probe_new_signup(self, session: Session, form: SearchRequestSubmission) -> None:
         """
         Le chemin d'un email neuf, joué puis annulé (fiche DRO11) : la base
         juge le formulaire comme pour un inconnu. Refus → ConflictError.
@@ -174,15 +169,8 @@ class SignupService:
                     email=f"sonde-{uuid4().hex}@formulaire.invalid",
                     password=PENDING_SIGNUP_PASSWORD,
                     is_activated=False,
-                    id_role=client_role_id,
                 ),
             )
             if probe.id is None:  # posé par la base au flush ; garde pour le typage
                 raise RuntimeError("Le compte de la sonde n'a pas reçu d'id.")
             self.clients.insert_pending(session, Client(id_user=probe.id, **form.model_dump(include=_CLIENT_FIELDS)))
-
-    def _client_role_id(self, session: Session) -> int:
-        role = self.roles.get_by_wording(session, CLIENT)
-        if role is None or role.id is None:
-            raise RuntimeError(f"Rôle '{CLIENT}' absent de la table role (posé par 02_migration.sql).")
-        return role.id

@@ -13,7 +13,7 @@ sans terminal) ou par `getpass` (mode terminal).
 Ce qui est vérifié :
 - le compte créé est Admin, activé, et son mot de passe n'est stocké qu'haché ;
 - un email déjà pris (aux majuscules près), un mot de passe trop court, deux
-  saisies qui diffèrent, un rôle 'Admin' absent : refusés, rien d'écrit ;
+  saisies qui diffèrent : refusés, rien d'écrit ;
 - un refus de la base (ConflictError) devient un message, pas une trace.
 ============================================================================
 """
@@ -28,7 +28,6 @@ from argon2 import PasswordHasher
 from sqlmodel import Session
 
 from src.app.models import User
-from src.app.repositories.role_repository import RoleRepository
 from src.app.repositories.user_repository import UserRepository
 from src.app.scripts import create_admin
 from src.app.services.user_service import UserService
@@ -66,9 +65,7 @@ def accounts(session: Session, email: str = EMAIL) -> list[User]:
 def test_creates_an_activated_admin_with_a_hashed_password(script_session: Session, monkeypatch: pytest.MonkeyPatch):
     run(monkeypatch)
     [user] = accounts(script_session)
-    role = RoleRepository().get_by_wording(script_session, "Admin")
-    assert role is not None
-    assert (user.id_role, user.is_activated) == (role.id, True)
+    assert (user.system_role, user.is_activated) == ("Admin", True)  # chantier PRF
     assert user.password != PASSWORD and user.password.startswith("$argon2")
 
 
@@ -96,13 +93,6 @@ def test_a_taken_email_is_refused_whatever_the_case(script_session: Session, mon
 def test_a_short_password_is_refused(script_session: Session, monkeypatch: pytest.MonkeyPatch):
     with pytest.raises(SystemExit, match="Saisie refusée"):
         run(monkeypatch, stdin=io.StringIO("court\n"))
-    assert accounts(script_session) == []
-
-
-def test_a_missing_admin_role_is_said(script_session: Session, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(RoleRepository, "get_by_wording", lambda _self, _session, _wording: None)
-    with pytest.raises(SystemExit, match="rôle 'Admin' manque"):
-        run(monkeypatch)
     assert accounts(script_session) == []
 
 

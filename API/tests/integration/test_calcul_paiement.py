@@ -268,7 +268,7 @@ def test_a_hunter_whose_id_differs_from_its_account_is_found(db_client: TestClie
         CommissionScaleRepository(), HunterRateParametersRepository(), parametrage_service(),
     )
     account = UserRepository().create(
-        db_session, User(email="chasseur-neuf@example.com", password="-", is_activated=True, id_role=2)  # 'Hunter', posé par 02
+        db_session, User(email="chasseur-neuf@example.com", password="-", is_activated=True)  # Hunter par sa fiche, créée plus bas
     )
     assert account.id is not None
     hunter = HunterRepository().create(

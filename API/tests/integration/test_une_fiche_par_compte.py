@@ -67,7 +67,6 @@ def test_a_profile_on_an_account_with_a_system_role_is_refused(db_client: TestCl
         json={
             "email": "prf6.role-puis-fiche@example.com",
             "password": "un-mot-de-passe-assez-long",
-            "id_role": 5,
             "system_role": "Reader",
         },
     )

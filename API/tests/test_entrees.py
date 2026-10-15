@@ -88,7 +88,7 @@ def with_(base: dict[str, Any]) -> Callable[..., dict[str, Any]]:
 
 # --- P2 : email -----------------------------------------------------------------
 
-user = with_({"email": "alice@example.com", "password": "un-mot-de-passe-assez-long", "id_role": 1})
+user = with_({"email": "alice@example.com", "password": "un-mot-de-passe-assez-long"})
 
 
 def test_p2_bad_email_returns_422(api: TestClient):
@@ -226,7 +226,7 @@ def test_p29_huge_integer_is_a_number(api: TestClient):
     ("url", "body"),
     [
         ("/auth/login", {"email": float("nan"), "password": "x"}),
-        ("/users", {"email": "a@example.com", "password": "un-mot-de-passe-assez-long", "id_role": float("nan")}),
+        ("/users", {"email": "a@example.com", "password": "un-mot-de-passe-assez-long", "is_activated": float("nan")}),
     ],
 )
 def test_nan_in_a_plain_body_returns_422(url: str, body: dict[str, Any]):

@@ -17,7 +17,8 @@
 --   0) mesure : un compte présent dans deux tables de fiche, ou un compte
 --      Admin / Reader qui a une fiche, arrête la migration (ROLLBACK) avec
 --      son numéro — à trancher à la main, jamais en silence ;
---   1) "user".system_role, rempli depuis id_role pour Admin et Reader ;
+--   1) "user".system_role, rempli depuis id_role pour Admin et Reader
+--      (si id_role existe encore : 47, PRF8, le retire) ;
 --   2) role_wording sur les trois fiches, rempli par sa valeur par défaut ;
 --   3) check_one_profile_per_user() et ses quatre triggers ;
 --   4) fil_rouge_reader lit system_role (même liste que init-v3/04).
@@ -60,14 +61,22 @@ BEGIN
         RAISE EXCEPTION '46 : comptes avec plusieurs fiches : %', v_bad;
     END IF;
 
-    SELECT string_agg(u.id::text, ', ') INTO v_bad
-      FROM "user" u JOIN role r ON r.id = u.id_role
-     WHERE r.wording IN ('Admin', 'Reader')
-       AND (EXISTS (SELECT 1 FROM client WHERE id_user = u.id)
-            OR EXISTS (SELECT 1 FROM hunter WHERE id_user = u.id)
-            OR EXISTS (SELECT 1 FROM real_estate_manager WHERE id_user = u.id));
-    IF v_bad IS NOT NULL THEN
-        RAISE EXCEPTION '46 : comptes Admin ou Reader avec une fiche : %', v_bad;
+    -- id_role retiré par 47 (PRF8) : sans lui, rien à mesurer ni à remplir.
+    -- EXECUTE : la colonne n'existe pas toujours à la compilation.
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'user'
+                  AND column_name = 'id_role') THEN
+        EXECUTE $q$
+            SELECT string_agg(u.id::text, ', ')
+              FROM "user" u JOIN role r ON r.id = u.id_role
+             WHERE r.wording IN ('Admin', 'Reader')
+               AND (EXISTS (SELECT 1 FROM client WHERE id_user = u.id)
+                    OR EXISTS (SELECT 1 FROM hunter WHERE id_user = u.id)
+                    OR EXISTS (SELECT 1 FROM real_estate_manager WHERE id_user = u.id))
+        $q$ INTO v_bad;
+        IF v_bad IS NOT NULL THEN
+            RAISE EXCEPTION '46 : comptes Admin ou Reader avec une fiche : %', v_bad;
+        END IF;
     END IF;
 END
 $$;
@@ -76,10 +85,20 @@ $$;
 ALTER TABLE "user" ADD COLUMN IF NOT EXISTS
     system_role VARCHAR(10) CHECK (system_role IN ('Admin', 'Reader'));
 
-UPDATE "user" u SET system_role = r.wording
-  FROM role r
- WHERE r.id = u.id_role AND r.wording IN ('Admin', 'Reader')
-   AND u.system_role IS DISTINCT FROM r.wording;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'user'
+                  AND column_name = 'id_role') THEN
+        EXECUTE $q$
+            UPDATE "user" u SET system_role = r.wording
+              FROM role r
+             WHERE r.id = u.id_role AND r.wording IN ('Admin', 'Reader')
+               AND u.system_role IS DISTINCT FROM r.wording
+        $q$;
+    END IF;
+END
+$$;
 
 -- 2) Le rôle porté par chaque fiche.
 ALTER TABLE client ADD COLUMN IF NOT EXISTS

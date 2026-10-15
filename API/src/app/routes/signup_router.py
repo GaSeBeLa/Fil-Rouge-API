@@ -22,7 +22,6 @@ from sqlmodel import Session
 
 from ..conf.database import get_session
 from ..repositories.client_repository import ClientRepository
-from ..repositories.role_repository import RoleRepository
 from ..repositories.search_request_repository import SearchRequestRepository
 from ..repositories.user_repository import UserRepository
 from ..services.signup_service import SearchRequestSubmission, SignupService, SubmissionReceipt
@@ -35,7 +34,7 @@ router = APIRouter(
     dependencies=[Depends(require_api_key)],
 )
 
-_service = SignupService(UserRepository(), ClientRepository(), RoleRepository(), SearchRequestRepository())
+_service = SignupService(UserRepository(), ClientRepository(), SearchRequestRepository())
 
 
 # Clé d'API sans jeton, par nature : le visiteur n'a pas encore de compte,

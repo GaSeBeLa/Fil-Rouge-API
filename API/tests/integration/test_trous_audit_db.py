@@ -48,7 +48,7 @@ def refused(db_session: Session, sql: str, match: str, **params: Any) -> None:
 def new_user(db_session: Session, email: str) -> int:
     return run(
         db_session,
-        "INSERT INTO \"user\" (email, password, id_role) VALUES (:email, 'x', 1) RETURNING id",
+        "INSERT INTO \"user\" (email, password) VALUES (:email, 'x') RETURNING id",
         email=email,
     ).scalar_one()
 
@@ -60,7 +60,7 @@ def test_p2_same_email_with_other_case_is_refused(db_session: Session):
     new_user(db_session, "Alice@Example.com")
     refused(
         db_session,
-        "INSERT INTO \"user\" (email, password, id_role) VALUES ('alice@example.com', 'x', 1)",
+        "INSERT INTO \"user\" (email, password) VALUES ('alice@example.com', 'x')",
         match="uq_user_email_lower",
     )
 
@@ -68,7 +68,7 @@ def test_p2_same_email_with_other_case_is_refused(db_session: Session):
 def test_p2_malformed_email_is_refused(db_session: Session):
     refused(
         db_session,
-        "INSERT INTO \"user\" (email, password, id_role) VALUES ('pas-un-email', 'x', 1)",
+        "INSERT INTO \"user\" (email, password) VALUES ('pas-un-email', 'x')",
         match="ck_user_email_format",
     )
 

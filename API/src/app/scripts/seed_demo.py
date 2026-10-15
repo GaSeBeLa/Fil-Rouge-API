@@ -72,7 +72,6 @@ from ..repositories.parameters_fees_repository import ParametersFeesRepository
 from ..repositories.payment_repository import PaymentRepository
 from ..repositories.real_estate_manager_repository import RealEstateManagerRepository
 from ..repositories.review_media_repository import ReviewMediaRepository
-from ..repositories.role_repository import RoleRepository
 from ..repositories.sale_repository import SaleRepository
 from ..repositories.search_request_repository import SearchRequestRepository
 from ..repositories.user_repository import UserRepository
@@ -186,19 +185,13 @@ def already_seeded(session: Session) -> bool:
 
 def seed_accounts(session: Session, password: str) -> dict[str, User]:
     """Étape 1 : les 4 comptes de démo, activés, un par rôle."""
-    roles = RoleRepository()
     service = UserService(UserRepository())
     accounts: dict[str, User] = {}
     for wording, email in DEMO_EMAILS.items():
-        role = roles.get_by_wording(session, wording)
-        if role is None or role.id is None:
-            raise SystemExit(f"❌ Le rôle '{wording}' manque dans la table role : la base est-elle initialisée ?")
-        # PRF7 : un compte sans fiche (Reader) porte son rôle dans system_role ;
+        # Chantier PRF : un compte sans fiche (Reader) porte son rôle dans system_role ;
         # les autres le reçoivent de leur fiche (seed_profiles).
         system_role = None if wording in PROFILE_MODELS else wording
-        item = UserCreate(
-            email=email, password=password, is_activated=True, id_role=role.id, system_role=system_role
-        )
+        item = UserCreate(email=email, password=password, is_activated=True, system_role=system_role)
         accounts[wording] = service.create(session, item)
     return accounts
 

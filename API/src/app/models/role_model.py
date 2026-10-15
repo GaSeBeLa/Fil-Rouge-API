@@ -1,9 +1,9 @@
 """
-role_model.py — Table de référence des rôles possibles pour un User
-(Admin / Client / Hunter / Manager / Reader).
+role_model.py — Table de référence des rôles qui ont une fiche :
+Client, Hunter, Manager (chantier PRF, PRF8).
 
-Choix du groupe (2026-09) : plutôt qu'un CHECK figé sur User.id_role, une
-table de lookup pour ajouter/renommer un rôle sans migration de schéma.
+Chaque fiche la cite par role_wording ; Admin et Reader, sans fiche,
+vivent dans User.system_role.
 """
 
 from datetime import datetime, timezone

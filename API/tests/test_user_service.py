@@ -47,11 +47,11 @@ def service(repository: MagicMock) -> UserService:
 
 @pytest.fixture
 def existing_user() -> User:
-    return User(id=1, email="ancien@exemple.fr", password="empreinte-existante", is_activated=True, id_role=2)
+    return User(id=1, email="ancien@exemple.fr", password="empreinte-existante", is_activated=True, system_role="Reader")
 
 
 def test_create_never_sends_plain_password(service: UserService, repository: MagicMock, fast_hasher: PasswordHasher):
-    service.create(MagicMock(), UserCreate(email="a@exemple.fr", password=PLAIN, id_role=1))
+    service.create(MagicMock(), UserCreate(email="a@exemple.fr", password=PLAIN))
 
     sent: User = repository.create.call_args.args[1]
     assert sent.password != PLAIN
@@ -59,10 +59,10 @@ def test_create_never_sends_plain_password(service: UserService, repository: Mag
 
 
 def test_create_copies_other_fields(service: UserService, repository: MagicMock, fast_hasher: PasswordHasher):
-    service.create(MagicMock(), UserCreate(email="a@exemple.fr", password=PLAIN, is_activated=False, id_role=3))
+    service.create(MagicMock(), UserCreate(email="a@exemple.fr", password=PLAIN, is_activated=False, system_role="Reader"))
 
     sent: User = repository.create.call_args.args[1]
-    assert (sent.email, sent.is_activated, sent.id_role) == ("a@exemple.fr", False, 3)
+    assert (sent.email, sent.is_activated, sent.system_role) == ("a@exemple.fr", False, "Reader")
 
 
 def test_replace_changes_only_provided_fields(
@@ -75,7 +75,7 @@ def test_replace_changes_only_provided_fields(
     assert result.email == "nouveau@exemple.fr"
     assert result.password == "empreinte-existante"
     assert result.is_activated is True
-    assert result.id_role == 2
+    assert result.system_role == "Reader"
     repository.save.assert_called_once()
 
 

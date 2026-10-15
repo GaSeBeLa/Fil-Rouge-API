@@ -37,7 +37,6 @@ from sqlmodel import Session
 
 from ..conf.database import engine
 from ..models import UserCreate
-from ..repositories.role_repository import RoleRepository
 from ..repositories.user_repository import UserRepository
 from ..services.user_service import UserService
 from ..utils.exceptions import ConflictError
@@ -61,14 +60,9 @@ def main() -> None:
     password = _read_password()
 
     with Session(engine) as session:
-        role = RoleRepository().get_by_wording(session, ADMIN_ROLE)
-        if role is None or role.id is None:
-            raise SystemExit("❌ Le rôle 'Admin' manque dans la table role : la base est-elle initialisée ?")
         try:
-            # PRF7 : le rôle se lit sur system_role ; id_role s'écrit encore (NOT NULL) jusqu'à PRF8.
-            item = UserCreate(
-                email=email, password=password, is_activated=True, id_role=role.id, system_role=ADMIN_ROLE
-            )
+            # Chantier PRF : un Admin n'a pas de fiche, son rôle est system_role.
+            item = UserCreate(email=email, password=password, is_activated=True, system_role=ADMIN_ROLE)
         except ValidationError as exc:
             problems = "; ".join(f"{'.'.join(map(str, e['loc']))} : {e['msg']}" for e in exc.errors())
             raise SystemExit(f"❌ Saisie refusée ({problems}) : rien n'est créé.") from exc

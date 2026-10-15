@@ -162,10 +162,10 @@ BEGIN;
 CREATE TABLE role (
     id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),  -- Q-SCH-09
-    -- 'Reader' : lecture seule côté application (Q14, LOT12, accord de Jeff
-    -- le 2026-10-07) ; son pendant PostgreSQL est dans 04_role-lecture-seule.sql.
+    -- Les trois rôles qui ont une fiche, cités par role_wording (chantier PRF,
+    -- PRF8). Admin et Reader vivent dans "user".system_role, sans fiche.
     wording    VARCHAR(20) NOT NULL UNIQUE
-            CHECK (wording IN ('Admin', 'Client', 'Hunter', 'Manager', 'Reader'))
+            CHECK (wording IN ('Client', 'Hunter', 'Manager'))
 );
 
 -- "user" est un mot réservé PostgreSQL : il reste quoté partout.
@@ -175,11 +175,10 @@ CREATE TABLE "user" (
     email        VARCHAR(150) NOT NULL UNIQUE,
     password     VARCHAR(255) NOT NULL,
     is_activated BOOLEAN NOT NULL DEFAULT FALSE,
-    id_role      INTEGER NOT NULL REFERENCES role(id) ON DELETE RESTRICT,
     -- Chantier PRF (PRF6, décision de Seb du 2026-10-15) : le rôle d'un compte
     -- SANS fiche. Vide pour un compte qui a une fiche, dont le rôle est
     -- role_wording. Garanti par check_one_profile_per_user() (section 2 bis).
-    -- id_role reste jusqu'à PRF8.
+    -- Il remplace id_role, retiré par PRF8.
     system_role  VARCHAR(10) CHECK (system_role IN ('Admin', 'Reader')),
 
     -- P2 (ADR-053) : une forme d'email, sans viser la RFC entière ; l'API

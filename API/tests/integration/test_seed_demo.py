@@ -30,7 +30,6 @@ from src.app.models import (
     Payment,
     RealEstateManager,
     ReviewMedia,
-    Role,
     Sale,
     SearchRequest,
     User,
@@ -122,7 +121,12 @@ def test_seed_creates_four_activated_accounts_one_per_role(seeded: Session) -> N
     users = _demo_users(db_session)
     assert len(users) == 4
     assert all(user.is_activated for user in users)
-    roles = {db_session.get(Role, user.id_role).wording for user in users}  # pyright: ignore[reportOptionalMemberAccess] -- FK NOT NULL
+    # Chantier PRF : system_role, sinon le rôle de la fiche du compte.
+    roles = {
+        user.system_role
+        or next(role for role in (CLIENT, HUNTER, MANAGER) if profile_id_of(db_session, user, role) is not None)
+        for user in users
+    }
     assert roles == {CLIENT, HUNTER, MANAGER, READER}
 
 

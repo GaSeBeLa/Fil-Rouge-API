@@ -21,7 +21,7 @@ from src.app.utils.security import create_access_token
 
 from .conftest import TEST_API_KEY, TEST_HEADERS
 
-USER = User(id=7, email="cle@test.local", password="-", is_activated=True, id_role=4)
+USER = User(id=7, email="cle@test.local", password="-", is_activated=True)
 ROLE = Role(id=4, wording="Admin")
 
 

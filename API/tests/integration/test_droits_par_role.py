@@ -173,7 +173,7 @@ def two_accounts(db_client: TestClient) -> tuple[int, int]:
     """Deux comptes Client actifs (rôle 1), créés en Admin ; leurs ids."""
     ids = []
     for email in (FIRST_EMAIL, SECOND_EMAIL):
-        account = {"email": email, "password": USER_PASSWORD, "id_role": 1, "is_activated": True}
+        account = {"email": email, "password": USER_PASSWORD, "is_activated": True}
         response = db_client.post("/users", json=account)
         assert response.status_code == 201, response.text
         ids.append(response.json()["id"])

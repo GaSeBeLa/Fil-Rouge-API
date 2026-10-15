@@ -35,7 +35,7 @@ def test_engine_targets_test_database(test_engine: Engine):
 
 def test_reference_roles_are_present(db_session: Session):
     wordings = {role.wording for role in db_session.exec(select(Role)).all()}
-    assert wordings == {"Admin", "Client", "Hunter", "Manager", "Reader"}  # Reader : Q14, LOT12
+    assert wordings == {"Client", "Hunter", "Manager"}  # les rôles à fiche (chantier PRF, PRF8)
 
 
 def test_api_writes_are_invisible_to_other_connections(
@@ -50,7 +50,7 @@ def test_api_writes_are_invisible_to_other_connections(
 
 def test_conflict_does_not_break_the_test_transaction(db_client: TestClient, create_user: Callable[[str], int]):
     create_user(EMAIL)
-    duplicate = db_client.post("/users", json={"email": EMAIL, "password": "x" * 12, "id_role": 1})
+    duplicate = db_client.post("/users", json={"email": EMAIL, "password": "x" * 12})
     assert duplicate.status_code == 409
 
     # Après le 409, la session sert encore : le compte créé avant est toujours là.

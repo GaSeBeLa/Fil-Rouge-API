@@ -263,7 +263,7 @@ def test_client_sees_his_rows_not_the_other_clients(
     assert read_theirs.json() == absent.json()
 
 
-# PRF7 : le rôle protégé est system_role (ADMIN_ONLY_FIELDS), plus id_role.
+# Chantier PRF : le rôle protégé est system_role (ADMIN_ONLY_FIELDS).
 @pytest.mark.parametrize("field", ["system_role", "is_activated"])
 def test_client_changes_neither_his_role_nor_his_activation(db_client: TestClient, field: str):
     before = db_client.get(f"/users/{CLIENT_ID}").json()
@@ -279,7 +279,7 @@ def test_client_changes_neither_his_role_nor_his_activation(db_client: TestClien
 def test_client_updates_his_account_not_another(db_client: TestClient):
     # Renvoyer son propre rôle n'est pas le changer : le corps entier passe.
     with acting_as(CLIENT, CLIENT_ID):
-        mine = db_client.put(f"/users/{CLIENT_ID}", json={"email": "alice.dro5@exemple.fr", "id_role": 1})
+        mine = db_client.put(f"/users/{CLIENT_ID}", json={"email": "alice.dro5@exemple.fr"})
         theirs = db_client.put(f"/users/{OTHER_CLIENT_ID}", json={"email": "autre.dro5@exemple.fr"})
 
     assert mine.status_code == 200, mine.text
@@ -370,7 +370,6 @@ def test_client_cannot_move_his_proposal_to_another_clients_mandate(
 # chasseur 1, client 7, demande 1 ; chasseur 2, client 11, demande 5.
 HUNTER_WORLDS = {HUNTER_ID: (7, 1), OTHER_HUNTER_ID: (11, 5)}
 SEED_MANAGER = 25  # le seul manager du seed 02, celui des deux chasseurs
-MANAGER_ROLE = 3  # id du rôle Manager, table role du seed
 
 # Les 13 tables où la colonne Hunter de l'annexe d'ADR-027 dit « le sien ».
 HUNTER_TABLES = [
@@ -453,7 +452,7 @@ def test_hunter_sees_the_default_scale(db_client: TestClient):
 
 def new_manager(db_client: TestClient, email: str) -> tuple[int, int]:
     """Un second manager, créé par l'Admin : l'id de son compte, celui de sa fiche."""
-    account = {"email": email, "password": USER_PASSWORD, "id_role": MANAGER_ROLE}
+    account = {"email": email, "password": USER_PASSWORD}
     user = db_client.post("/users", json=account)
     assert user.status_code == 201, user.text
     profile = {"id_user": user.json()["id"], "first_name": "Marc", "last_name": "Autre", "phone_number": "+33622222222"}

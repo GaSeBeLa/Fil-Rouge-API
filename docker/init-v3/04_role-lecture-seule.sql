@@ -80,8 +80,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO fil_rouge_re
 
 -- Le mot de passe reste fermé : ce GRANT doit rester après celui de la table.
 REVOKE SELECT ON "user" FROM fil_rouge_reader;
--- system_role ouvert par PRF6 (migration 46_roles-des-fiches.sql).
-GRANT SELECT (id, created_at, email, is_activated, id_role, system_role) ON "user" TO fil_rouge_reader;
+-- system_role ouvert par PRF6 (migration 46), id_role retiré par PRF8 (47).
+GRANT SELECT (id, created_at, email, is_activated, system_role) ON "user" TO fil_rouge_reader;
 
 -- Le contact du vendeur reste fermé (ADR-054) : après le GRANT sur toutes les tables.
 REVOKE SELECT ON estate_contact FROM fil_rouge_reader;

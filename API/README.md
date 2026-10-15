@@ -536,7 +536,7 @@ tous activés, mot de passe `DEMO_PASSWORD` :
   ne lisent les paiements (point 8).
   Écart à l'annexe : elle donne au Client « C son compte » sur `user` ; il le fait par
   `POST /search-requests/submit`, sans jeton (Q-ACC-12). `POST /users` reste à
-  `Admin` : ouvert au Client, il lui laisserait choisir `id_role`, donc se créer un Admin.
+  `Admin` : ouvert au Client, il lui laisserait choisir `system_role`, donc se créer un Admin.
   La description « Qui peut » de chaque route, dans `/docs`, suit ces rôles seule.
   Routes à part (fiche DRO3) : `GET /` ouverte à tous ; `POST /auth/login` et
   `POST /search-requests/submit`, clé d'API sans jeton ; `GET /auth/me`, tout compte

@@ -248,8 +248,8 @@ def test_client_without_address_is_refused_by_the_database(db_session: Session):
     # une-fiche-par-compte (PRF6) le refuserait avant le NOT NULL.
     user_id = db_session.execute(
         text(
-            "INSERT INTO \"user\" (email, password, id_role) "
-            "VALUES ('ada.sans-adresse@exemple.fr', 'x', 1) RETURNING id"
+            "INSERT INTO \"user\" (email, password) "
+            "VALUES ('ada.sans-adresse@exemple.fr', 'x') RETURNING id"
         )
     ).scalar_one()
     with pytest.raises(IntegrityError, match="violates not-null constraint"):
@@ -1084,9 +1084,9 @@ def test_hunter_rate_parameters_same_effective_from_returns_409(db_client: TestC
 def test_reader_role_can_select(db_session: Session):
     connection = db_session.connection()
     connection.execute(text("SET LOCAL ROLE fil_rouge_reader"))
-    # 'Reader' : le pendant applicatif du rôle (02_migration.sql).
-    wording = connection.execute(text("SELECT wording FROM role WHERE id = 5")).scalar_one()
-    assert wording == "Reader"
+    # role ne garde que les rôles à fiche (chantier PRF, PRF8) : 3 = Manager (02_migration.sql).
+    wording = connection.execute(text("SELECT wording FROM role WHERE id = 3")).scalar_one()
+    assert wording == "Manager"
 
 
 @pytest.mark.parametrize(

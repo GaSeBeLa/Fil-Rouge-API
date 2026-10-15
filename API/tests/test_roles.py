@@ -127,8 +127,8 @@ def test_hunter_performance_closed_to_writes_even_for_admin(test_app: FastAPI):
 
 @pytest.mark.parametrize("role", [CLIENT, HUNTER, MANAGER, READER])
 def test_only_admin_creates_users(test_app: FastAPI, role: str):
-    # Sinon un compte choisissait son id_role, donc se créait Admin.
-    body = {"email": "x@exemple.fr", "password": "un-mot-de-passe-assez-long", "id_role": 1}
+    # Sinon un compte choisissait son system_role, donc se créait Admin.
+    body = {"email": "x@exemple.fr", "password": "un-mot-de-passe-assez-long"}
 
     assert client_as(test_app, role).post("/users", json=body).status_code == 403
 
@@ -183,8 +183,7 @@ class FakeSession:
 
 
 def account(system_role: Optional[str] = None) -> User:
-    # id_role = 1 (Client) partout : get_principal ne doit plus le lire.
-    return User(id=7, email="compte@test.local", password="-", is_activated=True, id_role=1, system_role=system_role)
+    return User(id=7, email="compte@test.local", password="-", is_activated=True, system_role=system_role)
 
 
 @pytest.mark.parametrize(

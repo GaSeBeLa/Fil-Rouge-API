@@ -12,17 +12,14 @@ from src.app.utils.roles import get_principal
 
 from .conftest import USER_PASSWORD
 
-READER_ROLE_ID = 5  # posé par 02 (LOT12)
-
 
 def test_reader_token_reads_but_cannot_write(db_client: TestClient):
     created = db_client.post(
         "/users",
-        # PRF7 : le rôle se lit sur system_role ; id_role s'écrit encore (NOT NULL).
+        # Chantier PRF : un Reader n'a pas de fiche, son rôle est system_role.
         json={
             "email": "role-reader@example.com",
             "password": USER_PASSWORD,
-            "id_role": READER_ROLE_ID,
             "system_role": "Reader",
             "is_activated": True,
         },

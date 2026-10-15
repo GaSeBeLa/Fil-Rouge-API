@@ -91,7 +91,7 @@ def _paid_on(db_client: TestClient, db_session: Session, paid: date, **overrides
 
 def test_client_without_mandate_is_fully_anonymized(db_client: TestClient, db_session: Session) -> None:
     email = "ada.api10@exemple.fr"
-    account = {"email": email, "password": USER_PASSWORD, "id_role": 1, "is_activated": True}
+    account = {"email": email, "password": USER_PASSWORD, "is_activated": True}
     user_id = db_client.post("/users", json=account).json()["id"]
     with acting_as(CLIENT, user_id):  # lui seul crée sa fiche (ADR-027, annexe § 1)
         created = db_client.post("/clients", json={**CLIENT_RECORD, "id_user": user_id})
@@ -162,7 +162,7 @@ def _hunter_with_an_old_mandate(db_client: TestClient, db_session: Session) -> t
     2024-07-01, et une vente 'client_alone' sur ce mandat : son compte, sa
     fiche et l'id de la vente. Aucun mandat du seed ne lui garde son nom.
     """
-    account = {"email": "paul.martel.api10@exemple.fr", "password": USER_PASSWORD, "id_role": 2}
+    account = {"email": "paul.martel.api10@exemple.fr", "password": USER_PASSWORD}
     hunter_id = db_client.post("/users", json=account).json()["id"]
     profile = {
         "id_user": hunter_id,

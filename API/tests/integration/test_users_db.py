@@ -8,7 +8,7 @@ Ce que les tests unitaires ne pouvaient pas prouver :
 
 - le mot de passe est STOCKÉ haché dans PostgreSQL (lu en base, pas dans
   la réponse) ;
-- UNIQUE(email), la clé étrangère id_role et ON DELETE RESTRICT donnent
+- UNIQUE(email), le CHECK de system_role et ON DELETE RESTRICT donnent
   bien 409, avec le message qui nomme la contrainte (fiche FIN1) ;
 - le PUT partiel ne touche pas les champs omis, une fois écrit en base.
 ============================================================================
@@ -27,7 +27,7 @@ EMAIL = "compte@exemple.fr"
 
 
 def test_post_returns_201_without_password(db_client: TestClient):
-    response = db_client.post("/users", json={"email": EMAIL, "password": USER_PASSWORD, "id_role": 1})
+    response = db_client.post("/users", json={"email": EMAIL, "password": USER_PASSWORD})
     assert response.status_code == 201
     body = response.json()
     assert body["email"] == EMAIL
@@ -36,7 +36,7 @@ def test_post_returns_201_without_password(db_client: TestClient):
 
 def test_post_without_is_activated_stores_false(db_client: TestClient, db_session: Session):
     # NOT NULL DEFAULT FALSE (88ab154, migration 13) : omis, il vaut FALSE en base.
-    response = db_client.post("/users", json={"email": EMAIL, "password": USER_PASSWORD, "id_role": 1})
+    response = db_client.post("/users", json={"email": EMAIL, "password": USER_PASSWORD})
     assert response.status_code == 201, response.text
     stored = db_session.get(User, response.json()["id"])
     assert stored is not None and stored.is_activated is False
@@ -51,13 +51,14 @@ def test_password_is_stored_hashed(create_user: Callable[[str], int], db_session
 
 def test_duplicate_email_returns_409(db_client: TestClient, create_user: Callable[[str], int]):
     create_user(EMAIL)
-    response = db_client.post("/users", json={"email": EMAIL, "password": USER_PASSWORD, "id_role": 1})
+    response = db_client.post("/users", json={"email": EMAIL, "password": USER_PASSWORD})
     assert response.status_code == 409
     assert response.json()["detail"] == "Cet email a déjà un compte (contrainte user_email_key)."
 
 
 def test_unknown_role_returns_409(db_client: TestClient):
-    response = db_client.post("/users", json={"email": EMAIL, "password": USER_PASSWORD, "id_role": 9999})
+    # Chantier PRF : le rôle d'un compte sans fiche est system_role (CHECK Admin, Reader).
+    response = db_client.post("/users", json={"email": EMAIL, "password": USER_PASSWORD, "system_role": "Chef"})
     assert response.status_code == 409
 
 

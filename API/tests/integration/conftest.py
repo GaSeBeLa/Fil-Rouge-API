@@ -122,7 +122,7 @@ def create_user(db_client: TestClient) -> Callable[[str], int]:
     """Crée un compte via l'API (rôle 1 = Client, posé par 02) et renvoie son id."""
 
     def _create(email: str) -> int:
-        response = db_client.post("/users", json={"email": email, "password": USER_PASSWORD, "id_role": 1})
+        response = db_client.post("/users", json={"email": email, "password": USER_PASSWORD})
         assert response.status_code == 201, response.text
         return response.json()["id"]
 

@@ -10,8 +10,8 @@ COMMENT LIRE CE FICHIER
   test remplacent pour se connecter en `Admin` d'office.
 - Le rôle (chantier PRF, PRF7) : user.system_role (Admin, Reader) pour un
   compte sans fiche ; sinon role_wording de sa fiche (client, hunter ou
-  real_estate_manager) ; ni l'un ni l'autre : 403. user.id_role n'est plus
-  lu (il s'écrit encore jusqu'à PRF8). Une fiche au plus par compte, et
+  real_estate_manager) ; ni l'un ni l'autre : 403 (user.id_role, retiré
+  par PRF8, n'est plus lu depuis PRF7). Une fiche au plus par compte, et
   aucune avec un system_role : le trigger check_one_profile_per_user (PRF6).
 - profile_id : client.id, hunter.id ou real_estate_manager.id du compte,
   selon son rôle ; None sans fiche (Admin, Reader). C'est lui que citent

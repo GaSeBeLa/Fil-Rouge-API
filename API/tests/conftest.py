@@ -71,7 +71,7 @@ def api_test_key(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 def test_user(role: str, user_id: int) -> User:
-    return User(id=user_id, email=f"{role.lower()}@test.local", password="-", is_activated=True, id_role=0)
+    return User(id=user_id, email=f"{role.lower()}@test.local", password="-", is_activated=True)
 
 
 def principal_as(role: str, user_id: int = 0, profile_id: Optional[int] = None) -> Callable[[], Principal]:

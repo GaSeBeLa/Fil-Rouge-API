@@ -5,9 +5,11 @@ RealEstateManager en dépendent tous via id_user).
 Choix du groupe (2026-09) : "user" est minimaliste — uniquement
 l'essentiel pour créer un compte. first_name/last_name/phone_number/
 gender/country_iso ont été redescendus dans Hunter/Client/
-RealEstateManager (voir ces fichiers). Le rôle (id_role) est une
-nouveauté : une clé étrangère vers la table role (voir role_model.py),
-qui n'existait pas du tout dans le schéma précédent.
+RealEstateManager (voir ces fichiers).
+
+Le rôle (chantier PRF) : system_role pour un compte sans fiche (Admin,
+Reader), sinon role_wording de sa fiche. L'ancienne clé id_role vers la
+table role est retirée par PRF8.
 """
 
 from datetime import datetime, timezone
@@ -31,10 +33,9 @@ class User(SQLModel, table=True):
     # NOT NULL DEFAULT FALSE en base (88ab154, migration 13) : un None serait
     #   envoyé tel quel, et refusé.
     is_activated: bool = False
-    id_role: int = Field(foreign_key="role.id")
     # PRF6 : le rôle d'un compte SANS fiche, 'Admin' ou 'Reader' (CHECK côté
     # base) ; vide pour un compte qui a une fiche (trigger
-    # check_one_profile_per_user : sinon 409). id_role reste jusqu'à PRF8.
+    # check_one_profile_per_user : sinon 409).
     system_role: Optional[str] = Field(default=None, max_length=10)
 
 
@@ -49,7 +50,6 @@ class UserPublic(SQLModel):
     created_at: datetime
     email: str
     is_activated: Optional[bool] = None
-    id_role: int
     system_role: Optional[str] = None
 
 
@@ -74,7 +74,6 @@ class UserCreate(SQLModel):
     password: str = Field(min_length=12)
     # Omis : le compte n'est pas activé (même défaut que la base).
     is_activated: bool = False
-    id_role: int
     # PRF6 : 'Admin' ou 'Reader' pour un compte sans fiche ; omis, vide.
     system_role: Optional[str] = Field(default=None, max_length=10)
 
@@ -88,5 +87,4 @@ class UserUpdate(SQLModel):
     email: Optional[EmailStr] = Field(default=None, max_length=150)  # P2
     password: Optional[str] = Field(default=None, min_length=12)
     is_activated: Optional[bool] = None
-    id_role: Optional[int] = None
     system_role: Optional[str] = Field(default=None, max_length=10)  # PRF6
