@@ -136,10 +136,43 @@ services en profils. Depuis `docker/` :
 |---|---|
 | `docker compose up -d` | `db`, `api` |
 | `docker compose --profile airflow up -d` | les mêmes, plus `minio`, `minio-setup`, `airflow-init`, `airflow-webserver`, `airflow-scheduler` |
+| `docker compose --profile elk up -d` | `db`, `api`, plus `elasticsearch`, `es-setup`, `kibana` |
 | `docker compose --profile "*" up -d` | tous les services |
 
 ⚠️ **MinIO ne démarre plus seul** : il faut `--profile airflow`. Pareil pour
 l'arrêter ou voir ses logs : `docker compose --profile airflow logs -f minio`.
+
+#### Elasticsearch et Kibana
+
+- Repris du kit du TP1 du cours ELK : version **9.5.4** (`STACK_VERSION`), un
+  seul nœud, sécurité active, TLS coupé — un environnement de laboratoire.
+- Elasticsearch : http://localhost:9200 ; Kibana : http://localhost:5601. Les
+  deux n'écoutent que sur `127.0.0.1`. Compte : `elastic`.
+- `es-setup` fixe le mot de passe du compte interne `kibana_system`, puis
+  s'arrête : « Exited (0) » est normal.
+- Trois lignes de `docker/.env` à remplir (le modèle dit comment) :
+  `ELASTIC_PASSWORD`, `KIBANA_PASSWORD`, `KIBANA_ENCRYPTION_KEY`.
+- Santé, depuis `docker/` (le mot de passe est lu dans `.env`, pas affiché) :
+
+```bash
+( set -a; . ./.env; set +a; curl -s -u "elastic:$ELASTIC_PASSWORD" localhost:9200/_cluster/health )
+curl -s localhost:5601/api/status   # attendre "level":"available"
+```
+
+**Mémoire** : le kit du TP compte **≈ 4 Go** pour Elasticsearch, Kibana et
+Logstash. Les limites du compose : `ES_MEM_LIMIT=2g`, `KB_MEM_LIMIT=1g`. Avec
+Airflow en plus, prévoir 6 Go pour Docker ; sinon, arrêter un profil :
+`docker compose --profile airflow stop`.
+
+Deux erreurs connues :
+
+- **`max virtual memory areas vm.max_map_count [65530] is too low`** :
+  Elasticsearch refuse de démarrer. Sous Docker Desktop (WSL 2) :
+  `wsl -d docker-desktop -u root sysctl -w vm.max_map_count=262144`, à refaire
+  après un redémarrage de Windows.
+- **Code de sortie 137** : le conteneur a été tué, faute de mémoire. Donner
+  plus de mémoire à WSL 2 dans `%UserProfile%\.wslconfig` (section `[wsl2]`,
+  ligne `memory=8GB`), puis `wsl --shutdown` et relancer Docker Desktop.
 
 #### Airflow
 

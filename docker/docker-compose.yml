@@ -4,6 +4,7 @@ name:  fil_rouge_immobilier
 #   - sans profil : db et api. « docker compose up -d » ne lance qu'eux ;
 #   - profil airflow : minio, minio-setup et les trois services d'Airflow.
 #     MinIO ne démarre donc plus seul : « docker compose --profile airflow up -d » ;
+#   - profil elk (FLX7) : es-setup, elasticsearch et kibana ;
 #   - tout : « docker compose --profile "*" up -d ».
 
 # Réglages communs aux trois services d'Airflow, sur le modèle du lab du
@@ -197,7 +198,94 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  # Profil elk (FLX7) : repris du kit du TP1 du cours ELK
+  # (TP-intro-elasticsearch-kibana/.../TP1 - Introduction/kit-TP/docker-compose.yml).
+  # Environnement de LABORATOIRE : un nœud, sécurité active, TLS coupé comme le
+  # TP ; ports sur 127.0.0.1 seulement. Les mots de passe sont lus dans le
+  # conteneur ($$), jamais recopiés dans la configuration rendue.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION:-9.5.4}
+    container_name: fil_rouge_immobilier_elasticsearch
+    profiles: ["elk"]
+    environment:
+      - node.name=es01
+      - cluster.name=fil-rouge
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - xpack.license.self_generated.type=basic
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+    mem_limit: ${ES_MEM_LIMIT:-2g}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -u elastic:$${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 60
+  # Une fois : fixe le mot de passe de l'utilisateur interne kibana_system,
+  # puis s'arrête (le « setup » du kit).
+  es-setup:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION:-9.5.4}
+    container_name: fil_rouge_immobilier_es_setup
+    profiles: ["elk"]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    user: "0"
+    environment:
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
+    # Forme liste : chaque élément est un argv (voir la note du kit sur le
+    # scalaire replié « > »).
+    command:
+      - bash
+      - -c
+      - |
+        echo "Définition du mot de passe kibana_system"
+        until curl -s -X POST -u "elastic:$${ELASTIC_PASSWORD}" \
+              -H "Content-Type: application/json" \
+              http://elasticsearch:9200/_security/user/kibana_system/_password \
+              -d "{\"password\":\"$${KIBANA_PASSWORD}\"}" | grep -q '^{}'
+        do
+          echo "Elasticsearch pas encore prêt, nouvelle tentative dans 5 s..."
+          sleep 5
+        done
+        echo "OK"
+    restart: "no"
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION:-9.5.4}
+    container_name: fil_rouge_immobilier_kibana
+    profiles: ["elk"]
+    depends_on:
+      es-setup:
+        condition: service_completed_successfully
+    environment:
+      - SERVERNAME=kibana
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD}
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=${KIBANA_ENCRYPTION_KEY}
+    ports:
+      - "127.0.0.1:5601:5601"   # http://localhost:5601, compte elastic
+    volumes:
+      - kibana_data:/usr/share/kibana/data
+    mem_limit: ${KB_MEM_LIMIT:-1g}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -I http://localhost:5601 | grep -q 'HTTP/1.1 302 Found'"]
+      interval: 10s
+      timeout: 10s
+      retries: 60
+
 volumes:
   db_data:
   minio_data:
   airflow_logs:
+  es_data:
+  kibana_data:
