@@ -24,7 +24,7 @@ class EstateProposed(SQLModel, table=True):
     # CHECK cote base — 'proposed', 'offer_pending', 'accepted', 'signed'
     # (Q-SCH-04), 'rejected'.
     proposition_status: str = Field(max_length=20)
-    id_hunter: int = Field(description=HUNTER_ACCOUNT, foreign_key="hunter.id_user")
+    id_hunter: int = Field(description=HUNTER_ACCOUNT, foreign_key="hunter.id")
     id_estate: int = Field(foreign_key="estate.id")
     id_mandate: int = Field(foreign_key="mandate.id")
     # Priorite donnee par le client au bien, de 1 a 5 ; vide tant qu'il n'a

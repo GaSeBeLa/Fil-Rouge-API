@@ -121,7 +121,7 @@ class Payment(SQLModel, table=True):
         default=None, sa_type=JSONB(none_as_null=True)  # pyright: ignore[reportArgumentType] -- SQLModel type l'argument en classe ; SQLAlchemy accepte une instance
     )
     id_sale: int = Field(foreign_key="sale.id")
-    id_hunter: int = Field(description=HUNTER_ACCOUNT, foreign_key="hunter.id_user")
+    id_hunter: int = Field(description=HUNTER_ACCOUNT, foreign_key="hunter.id")
     # NULL sur une ligne de refus : un droit ferme ne designe aucune tranche.
     id_commission_scale: Optional[int] = Field(
         default=None, foreign_key="commission_scale.id"

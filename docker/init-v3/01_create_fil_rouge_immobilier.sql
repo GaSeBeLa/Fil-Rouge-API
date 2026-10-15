@@ -14,7 +14,8 @@
 -- NOUVEAU LE 2026-09-22 — CHAQUE CHASSEUR A UN MANAGER
 -- ============================================================================
 --
---   hunter.id_realestatemanager, NOT NULL, FK vers real_estate_manager(id_user).
+--   hunter.id_realestatemanager, NOT NULL, FK vers real_estate_manager(id)
+--   (vers id_user jusqu'au chantier PRF, 2026-10-15).
 --   Relation Hunter (1,1) — RealEstateManager (0,n), libellée « Manages ».
 --
 --   D'OÙ ÇA VIENT : le sujet parle du « manager » d'un chasseur dans l'exemple
@@ -116,7 +117,9 @@
 --   chaque entité pour qu'une migration vers MongoDB reste possible. Ce n'est
 --   pas une PK morte à retirer.
 --
---   Les FK des autres tables pointent vers id_user, jamais vers id. Le nom de
+--   Les FK des autres tables pointent vers id, le numéro de fiche (chantier
+--   PRF, décision de Seb du 2026-10-15 ; vers id_user avant). Seuls les
+--   id_user des trois fiches et les id_author citent "user"(id). Le nom de
 --   colonne (id_client, id_hunter) est conservé tel quel pour rester aligné
 --   sur le drawio, sur l'ancien script et sur les tests du groupe ; ce qu'il
 --   contient réellement est documenté par COMMENT ON COLUMN en fin de script.
@@ -301,7 +304,7 @@ CREATE TABLE hunter (
     -- Le manager du chasseur (MPD 03 4, 2026-09-22). NOT NULL : un chasseur
     -- a toujours un manager. Voir l'en-tête « CHAQUE CHASSEUR A UN MANAGER ».
     id_realestatemanager INTEGER NOT NULL
-                         REFERENCES real_estate_manager(id_user) ON DELETE RESTRICT,
+                         REFERENCES real_estate_manager(id) ON DELETE RESTRICT,
 
     CONSTRAINT ck_hunter_phone_number_format                     -- ADR-007, Q-PRO-08
         CHECK (phone_number ~ '^\+[1-9]([ -]?[0-9]){1,14}$')
@@ -318,11 +321,11 @@ CREATE TABLE search_request (
     id_author            INTEGER NOT NULL
                          REFERENCES "user"(id) ON DELETE RESTRICT,
     id_client            INTEGER NOT NULL
-                         REFERENCES client(id_user) ON DELETE RESTRICT,
+                         REFERENCES client(id) ON DELETE RESTRICT,
     id_hunter            INTEGER
-                         REFERENCES hunter(id_user) ON DELETE RESTRICT,
+                         REFERENCES hunter(id) ON DELETE RESTRICT,
     id_realestatemanager INTEGER
-                         REFERENCES real_estate_manager(id_user) ON DELETE RESTRICT,
+                         REFERENCES real_estate_manager(id) ON DELETE RESTRICT,
     -- Correction 7 : VARCHAR(9) dans le MPD, au ras de 'confirmed'.
     status               VARCHAR(20) NOT NULL
                          CHECK (status IN ('confirmed', 'accepted', 'rejected', 'launched')),
@@ -489,9 +492,9 @@ CREATE TABLE mandate (
     ends_at           DATE,
     is_exclusive      BOOLEAN NOT NULL,
     id_hunter         INTEGER NOT NULL
-                      REFERENCES hunter(id_user) ON DELETE RESTRICT,
+                      REFERENCES hunter(id) ON DELETE RESTRICT,
     id_client         INTEGER NOT NULL
-                      REFERENCES client(id_user) ON DELETE RESTRICT,
+                      REFERENCES client(id) ON DELETE RESTRICT,
     id_search_request INTEGER NOT NULL
                       REFERENCES search_request(id) ON DELETE RESTRICT,
     -- Renouvellement : le NOUVEAU mandat pointe vers le précédent, et lui seul.
@@ -776,7 +779,7 @@ CREATE TABLE estate_searchrequest (
     review_hunter     TEXT CHECK (char_length(review_hunter) <= 2000),
     id_estate         INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT,
     id_search_request INTEGER NOT NULL REFERENCES search_request(id) ON DELETE RESTRICT,
-    id_hunter         INTEGER NOT NULL REFERENCES hunter(id_user) ON DELETE RESTRICT,
+    id_hunter         INTEGER NOT NULL REFERENCES hunter(id) ON DELETE RESTRICT,
 
     CONSTRAINT uq_estate_search UNIQUE (id_estate, id_search_request)
 );
@@ -806,7 +809,7 @@ CREATE TABLE estate_proposed (
     proposition_status VARCHAR(20) NOT NULL
                        CHECK (proposition_status IN ('proposed', 'offer_pending',
                                                      'accepted', 'signed', 'rejected')),
-    id_hunter          INTEGER NOT NULL REFERENCES hunter(id_user) ON DELETE RESTRICT,
+    id_hunter          INTEGER NOT NULL REFERENCES hunter(id) ON DELETE RESTRICT,
     id_estate          INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT,
     id_mandate         INTEGER NOT NULL REFERENCES mandate(id) ON DELETE RESTRICT,
 
@@ -930,7 +933,7 @@ CREATE TABLE commission_scale (
     rate        NUMERIC(5,4) NOT NULL CHECK (rate > 0 AND rate <= 1),
     valid_from  DATE NOT NULL,
     valid_until DATE,
-    id_hunter   INTEGER REFERENCES hunter(id_user) ON DELETE RESTRICT,
+    id_hunter   INTEGER REFERENCES hunter(id) ON DELETE RESTRICT,
 
     CONSTRAINT chk_scale_amounts
         CHECK (amount_max IS NULL OR amount_max > amount_min),
@@ -1069,7 +1072,7 @@ CREATE TABLE payment (
     --   confirmée par Sébastien le 2026-10-09 ; migration 20).
     calculation_details JSONB,
     id_sale             INTEGER NOT NULL UNIQUE REFERENCES sale(id) ON DELETE RESTRICT,
-    id_hunter           INTEGER NOT NULL REFERENCES hunter(id_user) ON DELETE RESTRICT,
+    id_hunter           INTEGER NOT NULL REFERENCES hunter(id) ON DELETE RESTRICT,
     -- NULL sur une ligne de refus : un droit fermé ne désigne aucune tranche.
     id_commission_scale INTEGER REFERENCES commission_scale(id) ON DELETE RESTRICT,
     -- G1 (groupe, 2026-10-08) : la version des réglages du taux qui a servi
@@ -1157,7 +1160,7 @@ CREATE TABLE hunter_performance (
     scored_at    TIMESTAMP NOT NULL,
     trigger_type VARCHAR(20) NOT NULL
                  CHECK (trigger_type IN ('initial', 'payment', 'mandate_expired')),
-    id_hunter    INTEGER NOT NULL REFERENCES hunter(id_user) ON DELETE RESTRICT,
+    id_hunter    INTEGER NOT NULL REFERENCES hunter(id) ON DELETE RESTRICT,
     id_payment   INTEGER REFERENCES payment(id) ON DELETE RESTRICT,
     id_mandate   INTEGER REFERENCES mandate(id) ON DELETE RESTRICT,
 
@@ -1248,34 +1251,34 @@ COMMENT ON COLUMN hunter_rate_parameters.mandate_success_rate_for_max_score IS
 
 -- Clés étrangères : ce que la colonne contient réellement.
 COMMENT ON COLUMN mandate.id_client IS
-  'Reference client(id_user) — donc un id de "user", PAS client.id.';
+  'Reference client(id) — le numero de fiche, PAS un id de "user" (chantier PRF).';
 COMMENT ON COLUMN mandate.id_hunter IS
-  'Reference hunter(id_user) — donc un id de "user", PAS hunter.id.';
+  'Reference hunter(id) — le numero de fiche, PAS un id de "user" (chantier PRF).';
 COMMENT ON COLUMN search_request.id_client IS
-  'Reference client(id_user) — donc un id de "user".';
+  'Reference client(id) — le numero de fiche, pas un id de "user".';
 COMMENT ON COLUMN search_request.id_hunter IS
-  'Reference hunter(id_user) — donc un id de "user".';
+  'Reference hunter(id) — le numero de fiche, pas un id de "user".';
 COMMENT ON COLUMN search_request.id_realestatemanager IS
-  'Reference real_estate_manager(id_user) — donc un id de "user". Le manager qui traite la demande.';
+  'Reference real_estate_manager(id) — le numero de fiche, pas un id de "user". Le manager qui traite la demande.';
 COMMENT ON COLUMN hunter.id_realestatemanager IS
-  'Reference real_estate_manager(id_user) — donc un id de "user". Le manager du chasseur (choix du groupe, 2026-09-22).';
+  'Reference real_estate_manager(id) — le numero de fiche, pas un id de "user". Le manager du chasseur (choix du groupe, 2026-09-22).';
 COMMENT ON COLUMN payment.id_hunter IS
-  'Reference hunter(id_user) — donc un id de "user".';
+  'Reference hunter(id) — le numero de fiche, pas un id de "user".';
 COMMENT ON COLUMN commission_scale.id_hunter IS
-  'Reference hunter(id_user) ; NULL = bareme par defaut, commun a tous.';
+  'Reference hunter(id), le numero de fiche ; NULL = bareme par defaut, commun a tous.';
 COMMENT ON COLUMN hunter_performance.id_hunter IS
-  'Reference hunter(id_user) — donc un id de "user".';
+  'Reference hunter(id) — le numero de fiche, pas un id de "user".';
 COMMENT ON COLUMN estate_proposed.id_hunter IS
-  'Reference hunter(id_user) — donc un id de "user".';
+  'Reference hunter(id) — le numero de fiche, pas un id de "user".';
 COMMENT ON COLUMN estate_searchrequest.id_hunter IS
-  'Reference hunter(id_user) — donc un id de "user".';
+  'Reference hunter(id) — le numero de fiche, pas un id de "user".';
 
 COMMENT ON COLUMN hunter.id IS
-  'Cle technique propre, conservee pour permettre une migration MongoDB. Les FK pointent vers id_user, pas vers elle.';
+  'Cle technique propre, conservee pour permettre une migration MongoDB. Les FK des autres tables pointent vers elle (chantier PRF).';
 COMMENT ON COLUMN client.id IS
-  'Cle technique propre, conservee pour permettre une migration MongoDB. Les FK pointent vers id_user, pas vers elle.';
+  'Cle technique propre, conservee pour permettre une migration MongoDB. Les FK des autres tables pointent vers elle (chantier PRF).';
 COMMENT ON COLUMN real_estate_manager.id IS
-  'Cle technique propre, conservee pour permettre une migration MongoDB. Les FK pointent vers id_user, pas vers elle.';
+  'Cle technique propre, conservee pour permettre une migration MongoDB. Les FK des autres tables pointent vers elle (chantier PRF).';
 
 COMMIT;
 

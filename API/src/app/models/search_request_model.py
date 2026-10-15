@@ -16,13 +16,13 @@ class SearchRequest(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     id_author: int = Field(description=AUTHOR_ACCOUNT, foreign_key="user.id")
-    id_client: int = Field(description=CLIENT_ACCOUNT, foreign_key="client.id_user")
-    id_hunter: Optional[int] = Field(description=HUNTER_ACCOUNT, default=None, foreign_key="hunter.id_user")
+    id_client: int = Field(description=CLIENT_ACCOUNT, foreign_key="client.id")
+    id_hunter: Optional[int] = Field(description=HUNTER_ACCOUNT, default=None, foreign_key="hunter.id")
     # "id_realestatemanager" tout en minuscules côté base, malgré le
     # "camelCase" du diagramme source : PostgreSQL replie en minuscules
     # les identifiants non "quotés".
     id_realestatemanager: Optional[int] = Field(description=MANAGER_ACCOUNT, 
-        default=None, foreign_key="real_estate_manager.id_user"
+        default=None, foreign_key="real_estate_manager.id"
     )
     # status : NOT NULL + CHECK côté base — 'confirmed', 'accepted',
     # 'rejected', 'launched'. 'confirmed' = demande reçue, sans chasseur

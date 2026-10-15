@@ -5,8 +5,9 @@ Rappel du choix de modélisation du groupe : "id" est une clé primaire
 technique indépendante, "id_user" est le lien logique vers User (UNIQUE
 côté base). Objectif : découpler la clé technique de cette table de la
 façon dont "user.id" est généré (portabilité en cas de changement de
-SGBD). Toutes les FK du reste du schéma pointent vers id_user, pas vers
-id — même choix pour Client et RealEstateManager (voir client_model.py,
+SGBD). Toutes les FK du reste du schéma pointent vers id, le numéro de
+fiche (chantier PRF, 2026-10-15 ; vers id_user avant) — même choix pour
+Client et RealEstateManager (voir client_model.py,
 real_estate_manager_model.py).
 
 Les sept champs communs aux trois fiches (created_at, id_user,
@@ -42,7 +43,7 @@ class Hunter(AbstractPerson, table=True):
     # is_hunter_ai : le chasseur est-il l'agent automatique ?
     is_hunter_ai: Optional[bool] = None
     # Le manager du chasseur (MPD 03 4, 2026-09-22). NOT NULL en base, FK
-    # vers real_estate_manager.id_user — donc un id de "user", comme toutes
-    # les autres FK du schema. Meme nom tout en minuscules que dans
+    # vers real_estate_manager.id — le numero de fiche, pas un id de "user",
+    # comme toutes les FK vers les fiches (chantier PRF). Meme nom tout en minuscules que dans
     # search_request_model.py, ou il designe le manager de la demande.
-    id_realestatemanager: int = Field(description=MANAGER_ACCOUNT, foreign_key="real_estate_manager.id_user")
+    id_realestatemanager: int = Field(description=MANAGER_ACCOUNT, foreign_key="real_estate_manager.id")

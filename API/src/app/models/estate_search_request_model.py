@@ -19,4 +19,4 @@ class EstateSearchRequest(SQLModel, table=True):
     review_hunter: Optional[str] = None
     id_estate: int = Field(foreign_key="estate.id")
     id_search_request: int = Field(foreign_key="search_request.id")
-    id_hunter: int = Field(description=HUNTER_ACCOUNT, foreign_key="hunter.id_user")
+    id_hunter: int = Field(description=HUNTER_ACCOUNT, foreign_key="hunter.id")

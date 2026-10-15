@@ -41,4 +41,4 @@ class CommissionScale(SQLModel, table=True):
     valid_from: date
     valid_until: Optional[date] = None
     # id_hunter NULL = bareme general ; renseigne = bareme propre a un chasseur.
-    id_hunter: Optional[int] = Field(description=HUNTER_ACCOUNT, default=None, foreign_key="hunter.id_user")
+    id_hunter: Optional[int] = Field(description=HUNTER_ACCOUNT, default=None, foreign_key="hunter.id")
