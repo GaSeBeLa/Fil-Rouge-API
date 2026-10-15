@@ -179,6 +179,32 @@ et range dans le data stream **`logs-api-default`** (noms ECS :
 ( set -a; . ./.env; set +a; curl -s -u "elastic:$ELASTIC_PASSWORD" localhost:9200/logs-api-default/_count )
 ```
 
+**Tableau de bord Kibana** (FLX11) : `docker/kibana/dashboards.ndjson` porte
+le tableau de bord « Fil Rouge — trafic de l'API et biens » et ce qu'il
+utilise (9 objets) :
+
+- deux vues de données : `logs-api-*` (champ de temps `@timestamp`) et
+  `estates` ;
+- le trafic de l'API : nombre de requêtes, taux d'erreur (code ≥ 400),
+  requêtes par code HTTP dans le temps, routes les plus appelées ;
+- les biens : une carte (champ `location` ; seuls les biens géolocalisés y
+  sont) et le prix moyen par ville.
+
+Il n'est pas chargé tout seul : l'importer une fois, après le premier
+`--profile elk up -d`. Soit dans Kibana (Stack Management → Saved objects →
+Import, cocher l'écrasement), soit depuis `docker/` :
+
+```bash
+( set -a; . ./.env; set +a; curl -s -u "elastic:$ELASTIC_PASSWORD" -H "kbn-xsrf: true" \
+  -F file=@kibana/dashboards.ndjson "localhost:5601/api/saved_objects/_import?overwrite=true" )
+```
+
+Puis Kibana → Dashboards. La période par défaut est les dernières 24 h :
+sans appel à l'API dans ce temps, les graphiques du trafic sont vides. Le
+fond de carte vient d'internet (Elastic Maps Service) ; sans réseau, les
+points s'affichent sur fond vide. Un objet modifié dans Kibana se ré-exporte
+au même endroit (Saved objects → Export, avec les objets liés).
+
 Deux erreurs connues :
 
 - **`max virtual memory areas vm.max_map_count [65530] is too low`** :
