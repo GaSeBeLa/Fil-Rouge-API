@@ -34,7 +34,7 @@ class RealEstateManagerService(BaseService[RealEstateManager]):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == HUNTER:
-            return col(RealEstateManager.id_user).in_(manager_of(viewer.user.id))
+            return col(RealEstateManager.id).in_(manager_of(viewer.profile_id))
         if viewer.role == MANAGER:
             return col(RealEstateManager.id_user) == viewer.user.id
         return None

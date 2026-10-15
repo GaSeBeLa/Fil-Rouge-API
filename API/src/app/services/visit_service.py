@@ -48,13 +48,13 @@ class VisitService(BaseService[Visit]):
         if viewer.role == CLIENT:
             return col(Visit.id_mandate).in_(mandates_of(viewer.profile_id))
         if viewer.role == HUNTER:
-            return col(Visit.id_mandate).in_(mandates_handled_by(viewer.user.id))
+            return col(Visit.id_mandate).in_(mandates_handled_by(viewer.profile_id))
         if viewer.role == MANAGER:
-            return in_team(Visit.id_mandate, team_mandates(viewer.user.id))
+            return in_team(Visit.id_mandate, team_mandates(viewer.profile_id))
         return None
 
     def owns(self, session: Session, item: Visit, viewer: Principal) -> bool:
-        return viewer.role != HUNTER or handles_mandate(session, viewer.user.id, item.id_mandate)
+        return viewer.role != HUNTER or handles_mandate(session, viewer.profile_id, item.id_mandate)
 
     def _check_visit(self, session: Session, item: Visit) -> None:
         mandate = self.mandates.get_by_id(session, item.id_mandate)

@@ -54,7 +54,7 @@ class EstateProposedService(BaseService[EstateProposed]):
         if viewer.role == CLIENT:
             return col(EstateProposed.id_mandate).in_(mandates_of(viewer.profile_id))
         if viewer.role == HUNTER:
-            return col(EstateProposed.id_hunter) == viewer.user.id
+            return col(EstateProposed.id_hunter) == viewer.profile_id
         return None
 
     def owns(self, session: Session, item: EstateProposed, viewer: Principal) -> bool:
@@ -62,7 +62,7 @@ class EstateProposedService(BaseService[EstateProposed]):
             return owns_mandate(session, viewer.profile_id, item.id_mandate)
         if viewer.role == HUNTER:
             # La clé (id_mandate, id_hunter) garde le mandat au même chasseur.
-            return item.id_hunter == viewer.user.id
+            return item.id_hunter == viewer.profile_id
         return True
 
     def _check_proposal(self, session: Session, item: EstateProposed) -> None:

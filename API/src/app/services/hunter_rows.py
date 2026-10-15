@@ -5,8 +5,9 @@ hunter_rows.py — Les lignes d'un chasseur, suivies par les clés du schéma.
 COMMENT LIRE CE FICHIER
 ============================================================================
 « Le sien » du Hunter (ADR-027, annexe, colonne Hunter ; fiche DRO6). Tout
-part de son compte : les `id_hunter` du schéma pointent sur `hunter.id_user`,
-donc sur l'id du compte (`docker/init-v3/01_create_fil_rouge_immobilier.sql`).
+part de sa fiche : les `id_hunter` du schéma pointent sur `hunter.id`, le
+numéro de fiche (chantier PRF, 2026-10-15 ; sur `hunter.id_user` avant), que
+`Principal.profile_id` porte (`docker/init-v3/01_create_fil_rouge_immobilier.sql`).
 
 - ses demandes (search_request.id_hunter) : leurs critères ;
 - ses mandats (mandate.id_hunter) : leurs visites, leur vente ;
@@ -34,7 +35,7 @@ from sqlmodel.sql.expression import SelectOfScalar
 from ..models import EstateSearchRequest, Hunter, Mandate, SearchRequest
 from .client_rows import IdQuery
 
-# Un chasseur (l'id de son compte), ou plusieurs (une sous-requête d'ids).
+# Un chasseur (le numéro de sa fiche), ou plusieurs (une sous-requête d'ids).
 Hunters = Union[Optional[int], IdQuery]
 
 
@@ -55,29 +56,29 @@ def mandates_handled_by(hunters: Hunters) -> IdQuery:
     return select(Mandate.id).where(is_hunter(Mandate.id_hunter, hunters))
 
 
-def reviews_by(user_id: Optional[int]) -> IdQuery:
+def reviews_by(hunter_id: Optional[int]) -> IdQuery:
     """Les ids des notes (estate_searchrequest) écrites par le chasseur (H7)."""
-    return select(EstateSearchRequest.id).where(EstateSearchRequest.id_hunter == user_id)
+    return select(EstateSearchRequest.id).where(EstateSearchRequest.id_hunter == hunter_id)
 
 
-def clients_of(user_id: Optional[int]) -> tuple[IdQuery, IdQuery]:
-    """Les comptes de ses clients : ceux de ses demandes, ceux de ses mandats (H3)."""
+def clients_of(hunter_id: Optional[int]) -> tuple[IdQuery, IdQuery]:
+    """Les fiches (client.id) de ses clients : celles de ses demandes, de ses mandats (H3)."""
     return (
-        select(SearchRequest.id_client).where(SearchRequest.id_hunter == user_id),
-        select(Mandate.id_client).where(Mandate.id_hunter == user_id),
+        select(SearchRequest.id_client).where(SearchRequest.id_hunter == hunter_id),
+        select(Mandate.id_client).where(Mandate.id_hunter == hunter_id),
     )
 
 
-def manager_of(user_id: Optional[int]) -> IdQuery:
-    """Le compte de son manager."""
-    return select(Hunter.id_realestatemanager).where(Hunter.id_user == user_id)
+def manager_of(hunter_id: Optional[int]) -> IdQuery:
+    """La fiche (real_estate_manager.id) de son manager."""
+    return select(Hunter.id_realestatemanager).where(Hunter.id == hunter_id)
 
 
-def handles_request(session: Session, user_id: Optional[int], request_id: Optional[int]) -> bool:
+def handles_request(session: Session, hunter_id: Optional[int], request_id: Optional[int]) -> bool:
     """Vrai si la demande `request_id` est au chasseur."""
-    return session.exec(requests_handled_by(user_id).where(SearchRequest.id == request_id)).first() is not None
+    return session.exec(requests_handled_by(hunter_id).where(SearchRequest.id == request_id)).first() is not None
 
 
-def handles_mandate(session: Session, user_id: Optional[int], mandate_id: Optional[int]) -> bool:
+def handles_mandate(session: Session, hunter_id: Optional[int], mandate_id: Optional[int]) -> bool:
     """Vrai si le mandat `mandate_id` est au chasseur."""
-    return session.exec(mandates_handled_by(user_id).where(Mandate.id == mandate_id)).first() is not None
+    return session.exec(mandates_handled_by(hunter_id).where(Mandate.id == mandate_id)).first() is not None

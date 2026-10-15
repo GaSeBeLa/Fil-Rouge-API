@@ -29,14 +29,14 @@ class CriteriaService(BaseService[Criteria]):
         if viewer.role == CLIENT:
             return col(Criteria.id_search_request).in_(requests_of(viewer.profile_id))
         if viewer.role == HUNTER:
-            return col(Criteria.id_search_request).in_(requests_handled_by(viewer.user.id))
+            return col(Criteria.id_search_request).in_(requests_handled_by(viewer.profile_id))
         if viewer.role == MANAGER:
-            return in_team(Criteria.id_search_request, team_requests(viewer.user.id))
+            return in_team(Criteria.id_search_request, team_requests(viewer.profile_id))
         return None
 
     def owns(self, session: Session, item: Criteria, viewer: Principal) -> bool:
         if viewer.role == CLIENT:
             return owns_request(session, viewer.profile_id, item.id_search_request)
         if viewer.role == HUNTER:
-            return handles_request(session, viewer.user.id, item.id_search_request)
+            return handles_request(session, viewer.profile_id, item.id_search_request)
         return True

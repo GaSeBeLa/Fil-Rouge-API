@@ -24,7 +24,7 @@ class HunterPerformanceService(BaseService[HunterPerformance]):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == HUNTER:
-            return col(HunterPerformance.id_hunter) == viewer.user.id
+            return col(HunterPerformance.id_hunter) == viewer.profile_id
         if viewer.role == MANAGER:
-            return col(HunterPerformance.id_hunter).in_(hunters_of_team(viewer.user.id))
+            return col(HunterPerformance.id_hunter).in_(hunters_of_team(viewer.profile_id))
         return None

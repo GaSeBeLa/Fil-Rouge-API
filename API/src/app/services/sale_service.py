@@ -67,13 +67,13 @@ class SaleService(BaseService[Sale]):
         if viewer.role == CLIENT:
             return col(Sale.id_mandate).in_(mandates_of(viewer.profile_id))
         if viewer.role == HUNTER:
-            return col(Sale.id_mandate).in_(mandates_handled_by(viewer.user.id))
+            return col(Sale.id_mandate).in_(mandates_handled_by(viewer.profile_id))
         if viewer.role == MANAGER:
-            return in_team(Sale.id_mandate, team_mandates(viewer.user.id))
+            return in_team(Sale.id_mandate, team_mandates(viewer.profile_id))
         return None
 
     def owns(self, session: Session, item: Sale, viewer: Principal) -> bool:
-        return viewer.role != MANAGER or team_has_mandate(session, viewer.user.id, item.id_mandate)
+        return viewer.role != MANAGER or team_has_mandate(session, viewer.profile_id, item.id_mandate)
 
     def _check_sale(self, session: Session, item: Sale) -> Mandate:
         mandate = self.mandates.get_by_id(session, item.id_mandate)

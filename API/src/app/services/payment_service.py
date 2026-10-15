@@ -85,9 +85,9 @@ class PaymentService(BaseService[Payment]):
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         """Un Hunter : ses paiements (annexe § 4, H10) ; un Manager : ceux de ses chasseurs (Q-ACC-02)."""
         if viewer.role == HUNTER:
-            return col(Payment.id_hunter) == viewer.user.id
+            return col(Payment.id_hunter) == viewer.profile_id
         if viewer.role == MANAGER:
-            return col(Payment.id_hunter).in_(hunters_of_team(viewer.user.id))
+            return col(Payment.id_hunter).in_(hunters_of_team(viewer.profile_id))
         return None
 
     def create(self, session: Session, item: Payment, actor: Optional[User] = None) -> Payment:

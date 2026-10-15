@@ -40,12 +40,12 @@ class EstateSearchRequestService(BaseService[EstateSearchRequest]):
         if viewer.role == CLIENT:
             return col(EstateSearchRequest.id_search_request).in_(requests_of(viewer.profile_id))
         if viewer.role == HUNTER:
-            return col(EstateSearchRequest.id_hunter) == viewer.user.id
+            return col(EstateSearchRequest.id_hunter) == viewer.profile_id
         return None
 
     def owns(self, session: Session, item: EstateSearchRequest, viewer: Principal) -> bool:
         # id_hunter n'est pas regardé : create et replace le fixent (ADR-051).
-        return viewer.role != HUNTER or handles_request(session, viewer.user.id, item.id_search_request)
+        return viewer.role != HUNTER or handles_request(session, viewer.profile_id, item.id_search_request)
 
     def create(
         self, session: Session, item: EstateSearchRequest, actor: Optional[User] = None

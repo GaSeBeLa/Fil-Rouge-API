@@ -38,22 +38,22 @@ class SearchRequestService(BaseService[SearchRequest]):
         if viewer.role == CLIENT:
             return col(SearchRequest.id_client) == viewer.profile_id
         if viewer.role == HUNTER:
-            return col(SearchRequest.id_hunter) == viewer.user.id
+            return col(SearchRequest.id_hunter) == viewer.profile_id
         if viewer.role == MANAGER:
-            return in_team(SearchRequest.id, team_requests(viewer.user.id))
+            return in_team(SearchRequest.id, team_requests(viewer.profile_id))
         return None
 
     def owns(self, session: Session, item: SearchRequest, viewer: Principal) -> bool:
         if viewer.role == CLIENT:
             return item.id_client == viewer.profile_id
         if viewer.role == HUNTER:
-            return item.id_hunter == viewer.user.id
+            return item.id_hunter == viewer.profile_id
         if viewer.role == MANAGER:
             # Un chasseur affecté : l'un des siens. Sans chasseur, la demande
             # ne reste à son équipe que si elle lui est confiée.
             if item.id_hunter is not None:
-                return leads_hunter(session, viewer.user.id, item.id_hunter)
-            return item.id_realestatemanager == viewer.user.id
+                return leads_hunter(session, viewer.profile_id, item.id_hunter)
+            return item.id_realestatemanager == viewer.profile_id
         return True
 
     def replace_visible(

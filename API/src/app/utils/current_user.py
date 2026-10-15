@@ -11,9 +11,10 @@ son rôle et son activation du moment font foi, pas ce que disait le jeton à
 son émission (ADR-052, décision 3). Un compte désactivé perd donc ses droits
 au prochain appel (ADR-049).
 
-get_current_client : la fiche Client du compte connecté, 403 sans fiche
-(chantier PRF). Son id est le numéro que citent search_request.id_client
-et mandate.id_client, pas user.id.
+get_current_client, get_current_hunter, get_current_manager : la fiche du
+compte connecté, 403 sans fiche (chantier PRF). Son id est le numéro que
+citent les id_client, id_hunter et id_realestatemanager des autres tables,
+pas user.id.
 
 Elle vit dans utils/ et non dans routes/auth_router.py : utils/roles.py en
 dépend, et utils/ n'importe jamais routes/ (les couches ne se lisent que
@@ -28,7 +29,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlmodel import Session, select
 
 from ..conf.database import get_session
-from ..models import Client, User
+from ..models import Client, Hunter, RealEstateManager, User
 from ..repositories.user_repository import UserRepository
 from ..services.user_service import UserService
 from .exceptions import NotFoundError
@@ -76,3 +77,25 @@ def get_current_client(
     if client is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Ce compte n'a pas de fiche client.")
     return client
+
+
+def get_current_hunter(
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> Hunter:
+    """La fiche Hunter du compte connecté ; 403 si le compte n'en a pas (chantier PRF)."""
+    hunter = session.exec(select(Hunter).where(Hunter.id_user == user.id)).first()
+    if hunter is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Ce compte n'a pas de fiche chasseur.")
+    return hunter
+
+
+def get_current_manager(
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> RealEstateManager:
+    """La fiche RealEstateManager du compte connecté ; 403 si le compte n'en a pas (chantier PRF)."""
+    manager = session.exec(select(RealEstateManager).where(RealEstateManager.id_user == user.id)).first()
+    if manager is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Ce compte n'a pas de fiche manager.")
+    return manager

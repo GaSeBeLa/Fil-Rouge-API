@@ -8,7 +8,8 @@ COMMENT LIRE CE FICHIER
 manager » ; fiche DRO7). Son équipe : ses chasseurs
 (`hunter.id_realestatemanager`) et les demandes qui lui sont confiées
 (`search_request.id_realestatemanager`) ; les deux clés pointent sur
-`real_estate_manager.id_user`, donc sur l'id de son compte
+`real_estate_manager.id`, le numéro de sa fiche (chantier PRF, 2026-10-15 ;
+sur `real_estate_manager.id_user` avant), que `Principal.profile_id` porte
 (`docker/init-v3/01_create_fil_rouge_immobilier.sql`).
 
 - les demandes de l'équipe : celles de ses chasseurs, et celles qui lui sont
@@ -38,8 +39,8 @@ from .hunter_rows import mandates_handled_by, requests_handled_by
 
 
 def hunters_of_team(manager_id: Optional[int]) -> IdQuery:
-    """Les comptes de ses chasseurs (Q-ACC-02)."""
-    return select(Hunter.id_user).where(Hunter.id_realestatemanager == manager_id)
+    """Les fiches (hunter.id) de ses chasseurs (Q-ACC-02)."""
+    return select(Hunter.id).where(Hunter.id_realestatemanager == manager_id)
 
 
 def requests_entrusted_to(manager_id: Optional[int]) -> IdQuery:
@@ -65,7 +66,7 @@ def in_team(column: Any, queries: tuple[IdQuery, ...]) -> ColumnElement[bool]:
 
 def leads_hunter(session: Session, manager_id: Optional[int], hunter_id: Optional[int]) -> bool:
     """Vrai si le chasseur `hunter_id` est de son équipe."""
-    return session.exec(hunters_of_team(manager_id).where(Hunter.id_user == hunter_id)).first() is not None
+    return session.exec(hunters_of_team(manager_id).where(Hunter.id == hunter_id)).first() is not None
 
 
 def team_has_mandate(session: Session, manager_id: Optional[int], mandate_id: Optional[int]) -> bool:

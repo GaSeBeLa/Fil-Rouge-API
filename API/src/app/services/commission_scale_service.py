@@ -34,8 +34,8 @@ class CommissionScaleService(FrozenOnceCitedService[CommissionScale]):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == HUNTER:
-            return or_(col(CommissionScale.id_hunter).is_(None), col(CommissionScale.id_hunter) == viewer.user.id)
+            return or_(col(CommissionScale.id_hunter).is_(None), col(CommissionScale.id_hunter) == viewer.profile_id)
         if viewer.role == MANAGER:
-            team = hunters_of_team(viewer.user.id)
+            team = hunters_of_team(viewer.profile_id)
             return or_(col(CommissionScale.id_hunter).is_(None), col(CommissionScale.id_hunter).in_(team))
         return None

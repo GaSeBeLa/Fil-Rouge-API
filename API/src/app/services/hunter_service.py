@@ -53,7 +53,7 @@ class HunterService(BaseService[Hunter]):
         if viewer.role == HUNTER:
             return col(Hunter.id_user) == viewer.user.id
         if viewer.role == MANAGER:
-            return col(Hunter.id_realestatemanager) == viewer.user.id
+            return col(Hunter.id_realestatemanager) == viewer.profile_id
         return None
 
     def replace_visible(self, session: Session, item_id: int, data: Hunter, viewer: Principal) -> Hunter:

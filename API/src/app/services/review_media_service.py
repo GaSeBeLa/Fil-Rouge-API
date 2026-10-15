@@ -46,7 +46,7 @@ class ReviewMediaService(BaseService[ReviewMedia]):
         if viewer.role == CLIENT:
             return col(ReviewMedia.id_estate_searchrequest).in_(reviews_of(viewer.profile_id))
         if viewer.role == HUNTER:
-            return col(ReviewMedia.id_estate_searchrequest).in_(reviews_by(viewer.user.id))
+            return col(ReviewMedia.id_estate_searchrequest).in_(reviews_by(viewer.profile_id))
         return None
 
     def create(self, session: Session, item: ReviewMedia, actor: Optional[User] = None) -> ReviewMedia:

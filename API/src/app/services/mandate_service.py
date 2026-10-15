@@ -46,16 +46,16 @@ class MandateService(BaseService[Mandate]):
         if viewer.role == CLIENT:
             return col(Mandate.id_client) == viewer.profile_id
         if viewer.role == HUNTER:
-            return col(Mandate.id_hunter) == viewer.user.id
+            return col(Mandate.id_hunter) == viewer.profile_id
         if viewer.role == MANAGER:
-            return in_team(Mandate.id, team_mandates(viewer.user.id))
+            return in_team(Mandate.id, team_mandates(viewer.profile_id))
         return None
 
     def owns(self, session: Session, item: Mandate, viewer: Principal) -> bool:
         if viewer.role == CLIENT:
             return item.id_client == viewer.profile_id
         if viewer.role == HUNTER:
-            return item.id_hunter == viewer.user.id and handles_request(session, viewer.user.id, item.id_search_request)
+            return item.id_hunter == viewer.profile_id and handles_request(session, viewer.profile_id, item.id_search_request)
         return True
 
     def _launch_request(self, session: Session, mandate: Mandate) -> None:

@@ -258,8 +258,9 @@ class PaymentCalculationService:
         mandate = self.mandates.get_by_id(session, sale.id_mandate)
         if mandate is None:
             raise NotFoundError(f"Mandat {sale.id_mandate} introuvable")
-        # mandate.id_hunter est le compte du chasseur (hunter.id_user, UNIQUE), pas hunter.id.
-        hunter = next(iter(self.hunters.list_where(session, id_user=mandate.id_hunter)), None)
+        # mandate.id_hunter est le numéro de la fiche du chasseur (hunter.id),
+        # depuis le chantier PRF (2026-10-15) ; c'était hunter.id_user avant.
+        hunter = next(iter(self.hunters.list_where(session, id=mandate.id_hunter)), None)
         if hunter is None:
             raise NotFoundError(f"Chasseur {mandate.id_hunter} introuvable")
         if mandate.ends_at is None:

@@ -139,6 +139,23 @@ class DemoProfiles(NamedTuple):
     hunter: Hunter
     manager: RealEstateManager
 
+    # Les numéros de fiche que citent id_client, id_hunter et
+    # id_realestatemanager (chantier PRF) ; id_author cite le compte (id_user).
+    @property
+    def client_id(self) -> int:
+        assert self.client.id is not None
+        return self.client.id
+
+    @property
+    def hunter_id(self) -> int:
+        assert self.hunter.id is not None
+        return self.hunter.id
+
+    @property
+    def manager_id(self) -> int:
+        assert self.manager.id is not None
+        return self.manager.id
+
 
 class DemoRequest(NamedTuple):
     request: SearchRequest
@@ -197,6 +214,7 @@ def seed_profiles(session: Session, fake: Faker, accounts: dict[str, User]) -> D
             company_name=fake.company(),
         ),
     )
+    assert manager.id is not None
     hunter = HunterService(HunterRepository()).create(
         session,
         Hunter(
@@ -207,7 +225,7 @@ def seed_profiles(session: Session, fake: Faker, accounts: dict[str, User]) -> D
             country_iso="FR",
             hire_date=HIRE_DATE,
             is_carte_t=True,
-            id_realestatemanager=manager_user.id,
+            id_realestatemanager=manager.id,
         ),
     )
     client = ClientService(ClientRepository()).create(
@@ -233,9 +251,9 @@ def seed_request(session: Session, profiles: DemoProfiles) -> tuple[SearchReques
         session,
         SearchRequest(
             id_author=profiles.client.id_user,
-            id_client=profiles.client.id_user,
-            id_hunter=profiles.hunter.id_user,
-            id_realestatemanager=profiles.manager.id_user,
+            id_client=profiles.client_id,
+            id_hunter=profiles.hunter_id,
+            id_realestatemanager=profiles.manager_id,
             status="accepted",
         ),
     )
@@ -278,7 +296,7 @@ def seed_selection(session: Session, profiles: DemoProfiles, request: SearchRequ
         assert estate.id is not None
         selections.create(
             session,
-            EstateSearchRequest(id_estate=estate.id, id_search_request=request.id, id_hunter=profiles.hunter.id_user),
+            EstateSearchRequest(id_estate=estate.id, id_search_request=request.id, id_hunter=profiles.hunter_id),
         )
     return estates
 
@@ -295,8 +313,8 @@ def seed_mandate(session: Session, profiles: DemoProfiles, request: SearchReques
             signature_type="electronic",
             ends_at=MANDATE_ENDS,
             is_exclusive=True,
-            id_hunter=profiles.hunter.id_user,
-            id_client=profiles.client.id_user,
+            id_hunter=profiles.hunter_id,
+            id_client=profiles.client_id,
             id_search_request=request.id,
         ),
     )
@@ -318,7 +336,7 @@ def seed_proposals(
                     proposition_status="proposed",
                     comment_hunter=fake.sentence(nb_words=10),
                     client_priority=priority,
-                    id_hunter=profiles.hunter.id_user,
+                    id_hunter=profiles.hunter_id,
                     id_estate=estate.id,
                     id_mandate=mandate.id,
                 ),

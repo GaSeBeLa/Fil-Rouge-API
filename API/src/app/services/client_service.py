@@ -35,7 +35,7 @@ class ClientService(BaseService[Client]):
         if viewer.role == CLIENT:
             return col(Client.id_user) == viewer.user.id
         if viewer.role == HUNTER:
-            return or_(*(col(Client.id_user).in_(clients) for clients in clients_of(viewer.user.id)))
+            return or_(*(col(Client.id).in_(clients) for clients in clients_of(viewer.profile_id)))
         return None
 
     def owns(self, session: Session, item: Client, viewer: Principal) -> bool:
