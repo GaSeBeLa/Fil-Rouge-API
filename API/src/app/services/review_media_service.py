@@ -44,7 +44,7 @@ class ReviewMediaService(BaseService[ReviewMedia]):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
-            return col(ReviewMedia.id_estate_searchrequest).in_(reviews_of(viewer.user.id))
+            return col(ReviewMedia.id_estate_searchrequest).in_(reviews_of(viewer.profile_id))
         if viewer.role == HUNTER:
             return col(ReviewMedia.id_estate_searchrequest).in_(reviews_by(viewer.user.id))
         return None

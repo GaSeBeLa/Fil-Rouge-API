@@ -49,7 +49,7 @@ class HunterService(BaseService[Hunter]):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
-            return or_(*(col(Hunter.id_user).in_(hunters) for hunters in hunters_of(viewer.user.id)))
+            return or_(*(col(Hunter.id).in_(hunters) for hunters in hunters_of(viewer.profile_id)))
         if viewer.role == HUNTER:
             return col(Hunter.id_user) == viewer.user.id
         if viewer.role == MANAGER:

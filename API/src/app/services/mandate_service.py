@@ -44,7 +44,7 @@ class MandateService(BaseService[Mandate]):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
-            return col(Mandate.id_client) == viewer.user.id
+            return col(Mandate.id_client) == viewer.profile_id
         if viewer.role == HUNTER:
             return col(Mandate.id_hunter) == viewer.user.id
         if viewer.role == MANAGER:
@@ -53,7 +53,7 @@ class MandateService(BaseService[Mandate]):
 
     def owns(self, session: Session, item: Mandate, viewer: Principal) -> bool:
         if viewer.role == CLIENT:
-            return item.id_client == viewer.user.id
+            return item.id_client == viewer.profile_id
         if viewer.role == HUNTER:
             return item.id_hunter == viewer.user.id and handles_request(session, viewer.user.id, item.id_search_request)
         return True

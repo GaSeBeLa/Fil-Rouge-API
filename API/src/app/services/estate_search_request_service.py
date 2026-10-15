@@ -38,7 +38,7 @@ class EstateSearchRequestService(BaseService[EstateSearchRequest]):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
-            return col(EstateSearchRequest.id_search_request).in_(requests_of(viewer.user.id))
+            return col(EstateSearchRequest.id_search_request).in_(requests_of(viewer.profile_id))
         if viewer.role == HUNTER:
             return col(EstateSearchRequest.id_hunter) == viewer.user.id
         return None

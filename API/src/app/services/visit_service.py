@@ -46,7 +46,7 @@ class VisitService(BaseService[Visit]):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
-            return col(Visit.id_mandate).in_(mandates_of(viewer.user.id))
+            return col(Visit.id_mandate).in_(mandates_of(viewer.profile_id))
         if viewer.role == HUNTER:
             return col(Visit.id_mandate).in_(mandates_handled_by(viewer.user.id))
         if viewer.role == MANAGER:

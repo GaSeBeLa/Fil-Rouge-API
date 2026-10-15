@@ -52,14 +52,14 @@ class EstateProposedService(BaseService[EstateProposed]):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
-            return col(EstateProposed.id_mandate).in_(mandates_of(viewer.user.id))
+            return col(EstateProposed.id_mandate).in_(mandates_of(viewer.profile_id))
         if viewer.role == HUNTER:
             return col(EstateProposed.id_hunter) == viewer.user.id
         return None
 
     def owns(self, session: Session, item: EstateProposed, viewer: Principal) -> bool:
         if viewer.role == CLIENT:
-            return owns_mandate(session, viewer.user.id, item.id_mandate)
+            return owns_mandate(session, viewer.profile_id, item.id_mandate)
         if viewer.role == HUNTER:
             # La clé (id_mandate, id_hunter) garde le mandat au même chasseur.
             return item.id_hunter == viewer.user.id

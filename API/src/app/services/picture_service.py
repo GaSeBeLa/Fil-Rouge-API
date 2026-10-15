@@ -23,5 +23,5 @@ class PictureService(BaseService[Picture]):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
-            return col(Picture.id_estate).in_(estates_proposed_to(viewer.user.id))
+            return col(Picture.id_estate).in_(estates_proposed_to(viewer.profile_id))
         return None

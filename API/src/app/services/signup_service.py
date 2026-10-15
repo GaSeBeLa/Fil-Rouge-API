@@ -138,19 +138,23 @@ class SignupService:
         if user_id is None:  # posé par la base au flush ; garde pour le typage
             raise RuntimeError("Le compte n'a pas reçu d'id.")
 
-        if not self.clients.exists_with(session, "id_user", user_id):
+        client = next(iter(self.clients.list_where(session, id_user=user_id)), None)
+        if client is None:
             if user.id_role != client_role_id:
                 # P1 : pas de fiche client pour un chasseur, un manager… Rien
                 # n'est écrit, et rien n'est dit au visiteur. Le log garde
                 # l'id du compte, pas l'email.
                 logger.warning("Demande écartée : le compte %s n'est pas un compte client.", user_id)
                 return None
-            self.clients.insert_pending(
+            client = self.clients.insert_pending(
                 session, Client(id_user=user_id, **form.model_dump(include=_CLIENT_FIELDS))
             )
 
         # Le commit de la demande valide aussi le compte et la fiche en attente.
-        request = SearchRequest(id_author=user_id, id_client=user_id, status=_RECEIVED)
+        # id_client cite la fiche (client.id), id_author le compte (chantier PRF).
+        if client.id is None:  # posé par la base au flush ; garde pour le typage
+            raise RuntimeError("La fiche client n'a pas reçu d'id.")
+        request = SearchRequest(id_author=user_id, id_client=client.id, status=_RECEIVED)
         return self.requests.create(session, request)
 
     def _probe_new_signup(self, session: Session, form: SearchRequestSubmission, client_role_id: int) -> None:

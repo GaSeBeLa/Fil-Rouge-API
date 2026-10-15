@@ -36,7 +36,7 @@ class SearchRequestService(BaseService[SearchRequest]):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
-            return col(SearchRequest.id_client) == viewer.user.id
+            return col(SearchRequest.id_client) == viewer.profile_id
         if viewer.role == HUNTER:
             return col(SearchRequest.id_hunter) == viewer.user.id
         if viewer.role == MANAGER:
@@ -45,7 +45,7 @@ class SearchRequestService(BaseService[SearchRequest]):
 
     def owns(self, session: Session, item: SearchRequest, viewer: Principal) -> bool:
         if viewer.role == CLIENT:
-            return item.id_client == viewer.user.id
+            return item.id_client == viewer.profile_id
         if viewer.role == HUNTER:
             return item.id_hunter == viewer.user.id
         if viewer.role == MANAGER:

@@ -32,7 +32,7 @@ class EstateService(BaseService[Estate]):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
-            return col(Estate.id).in_(estates_proposed_to(viewer.user.id))
+            return col(Estate.id).in_(estates_proposed_to(viewer.profile_id))
         return None
 
     def create(self, session: Session, item: Estate, actor: Optional[User] = None) -> Estate:

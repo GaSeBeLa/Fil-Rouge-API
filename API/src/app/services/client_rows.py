@@ -5,8 +5,9 @@ client_rows.py — Les lignes d'un client, suivies par les clés du schéma.
 COMMENT LIRE CE FICHIER
 ============================================================================
 « Le sien » du Client (ADR-027, annexe, colonne Client ; fiche DRO5). Tout
-part de son compte : `search_request.id_client` et `mandate.id_client`
-pointent sur `client.id_user`, donc sur l'id du compte (schéma
+part de sa fiche : `search_request.id_client` et `mandate.id_client`
+pointent sur `client.id`, le numéro de fiche (chantier PRF, 2026-10-15 ;
+sur `client.id_user` avant), que `Principal.profile_id` porte (schéma
 `docker/init-v3/01_create_fil_rouge_immobilier.sql`). Le reste descend de
 là :
 
@@ -35,39 +36,39 @@ from ..models import EstateProposed, EstateSearchRequest, Mandate, SearchRequest
 IdQuery = SelectOfScalar[Any]
 
 
-def requests_of(user_id: Optional[int]) -> IdQuery:
+def requests_of(client_id: Optional[int]) -> IdQuery:
     """Les ids des demandes du client."""
-    return select(SearchRequest.id).where(SearchRequest.id_client == user_id)
+    return select(SearchRequest.id).where(SearchRequest.id_client == client_id)
 
 
-def mandates_of(user_id: Optional[int]) -> IdQuery:
+def mandates_of(client_id: Optional[int]) -> IdQuery:
     """Les ids des mandats du client."""
-    return select(Mandate.id).where(Mandate.id_client == user_id)
+    return select(Mandate.id).where(Mandate.id_client == client_id)
 
 
-def reviews_of(user_id: Optional[int]) -> IdQuery:
+def reviews_of(client_id: Optional[int]) -> IdQuery:
     """Les ids des avis (estate_searchrequest) posés sur ses demandes (P5)."""
-    return select(EstateSearchRequest.id).where(col(EstateSearchRequest.id_search_request).in_(requests_of(user_id)))
+    return select(EstateSearchRequest.id).where(col(EstateSearchRequest.id_search_request).in_(requests_of(client_id)))
 
 
-def estates_proposed_to(user_id: Optional[int]) -> IdQuery:
+def estates_proposed_to(client_id: Optional[int]) -> IdQuery:
     """Les ids des biens proposés sur un de ses mandats (Q-ACC-05)."""
-    return select(EstateProposed.id_estate).where(col(EstateProposed.id_mandate).in_(mandates_of(user_id)))
+    return select(EstateProposed.id_estate).where(col(EstateProposed.id_mandate).in_(mandates_of(client_id)))
 
 
-def hunters_of(user_id: Optional[int]) -> tuple[IdQuery, IdQuery]:
-    """Les comptes de ses chasseurs : ceux de ses mandats, ceux de ses demandes (P2)."""
+def hunters_of(client_id: Optional[int]) -> tuple[IdQuery, IdQuery]:
+    """Les fiches (hunter.id) de ses chasseurs : ceux de ses mandats, ceux de ses demandes (P2)."""
     return (
-        select(Mandate.id_hunter).where(Mandate.id_client == user_id),
-        select(SearchRequest.id_hunter).where(SearchRequest.id_client == user_id),
+        select(Mandate.id_hunter).where(Mandate.id_client == client_id),
+        select(SearchRequest.id_hunter).where(SearchRequest.id_client == client_id),
     )
 
 
-def owns_request(session: Session, user_id: Optional[int], request_id: Optional[int]) -> bool:
+def owns_request(session: Session, client_id: Optional[int], request_id: Optional[int]) -> bool:
     """Vrai si la demande `request_id` est au client."""
-    return session.exec(requests_of(user_id).where(SearchRequest.id == request_id)).first() is not None
+    return session.exec(requests_of(client_id).where(SearchRequest.id == request_id)).first() is not None
 
 
-def owns_mandate(session: Session, user_id: Optional[int], mandate_id: Optional[int]) -> bool:
+def owns_mandate(session: Session, client_id: Optional[int], mandate_id: Optional[int]) -> bool:
     """Vrai si le mandat `mandate_id` est au client."""
-    return session.exec(mandates_of(user_id).where(Mandate.id == mandate_id)).first() is not None
+    return session.exec(mandates_of(client_id).where(Mandate.id == mandate_id)).first() is not None

@@ -38,16 +38,20 @@ objets factices (unittest.mock).
 """
 
 from collections.abc import Callable, Iterator
+from typing import Optional
 from contextlib import contextmanager
 
 import pytest
 from argon2 import PasswordHasher
+from fastapi import Depends
 from fastapi.testclient import TestClient
+from sqlmodel import Session
 
+from src.app.conf.database import get_session
 from src.app.main import app
 from src.app.models import User
 from src.app.utils import api_keys, security
-from src.app.utils.roles import ADMIN, Principal, get_principal
+from src.app.utils.roles import ADMIN, Principal, get_principal, profile_id_of
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -66,21 +70,39 @@ def api_test_key(monkeypatch: pytest.MonkeyPatch) -> str:
     return TEST_API_KEY
 
 
-def principal_as(role: str, user_id: int = 0) -> Callable[[], Principal]:
+def test_user(role: str, user_id: int) -> User:
+    return User(id=user_id, email=f"{role.lower()}@test.local", password="-", is_activated=True, id_role=0)
+
+
+def principal_as(role: str, user_id: int = 0, profile_id: Optional[int] = None) -> Callable[[], Principal]:
     """Remplaçant de get_principal : un compte activé du rôle donné, sans base."""
-    user = User(id=user_id, email=f"{role.lower()}@test.local", password="-", is_activated=True, id_role=0)
-    return lambda: Principal(user=user, role=role)
+    user = test_user(role, user_id)
+    return lambda: Principal(user=user, role=role, profile_id=profile_id)
+
+
+def principal_read_as(role: str, user_id: int) -> Callable[..., Principal]:
+    """
+    Remplaçant de get_principal pour les tests sur base : le compte n'est
+    pas relu, le numéro de sa fiche (profile_id) si, par user_id, comme
+    dans get_principal (chantier PRF).
+    """
+    user = test_user(role, user_id)
+
+    def _principal(session: Session = Depends(get_session)) -> Principal:
+        return Principal(user=user, role=role, profile_id=profile_id_of(session, user, role))
+
+    return _principal
 
 
 @contextmanager
 def acting_as(role: str, user_id: int = 0) -> Iterator[None]:
     """
     Le temps du bloc, l'app se présente sous ce compte, puis reprend le
-    précédent. `user_id` doit exister en base quand la route l'écrit
+    précédent. Le numéro de sa fiche est lu dans la base de la requête. `user_id` doit exister en base quand la route l'écrit
     (estate.id_author) : 1 et 2 sont des chasseurs, 25 un manager (seed 02).
     """
     previous = app.dependency_overrides.get(get_principal)
-    app.dependency_overrides[get_principal] = principal_as(role, user_id)
+    app.dependency_overrides[get_principal] = principal_read_as(role, user_id)
     try:
         yield
     finally:

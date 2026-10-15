@@ -107,16 +107,21 @@ class AnonymizationService:
         if user is None:
             raise NotFoundError("Utilisateur introuvable")
 
-        until = names_kept_until(self._retention_dates(session, user_id, today))
+        # Les fiches d'abord : mandats et paiements citent leur numéro
+        # (client.id, hunter.id), pas user.id (chantier PRF).
+        client = _first(self.clients.list_where(session, id_user=user_id))
+        hunter = _first(self.hunters.list_where(session, id_user=user_id))
+        manager = _first(self.managers.list_where(session, id_user=user_id))
+        client_id = client.id if client is not None else None
+        hunter_id = hunter.id if hunter is not None else None
+
+        until = names_kept_until(self._retention_dates(session, client_id, hunter_id, today))
         names_free = until is None or until <= today
 
         user.is_activated = False
         user.email = f"anonyme-{user_id}@exemple.invalid"  # unique par construction
         user.password = ANONYMIZED_PASSWORD
 
-        client = _first(self.clients.list_where(session, id_user=user_id))
-        hunter = _first(self.hunters.list_where(session, id_user=user_id))
-        manager = _first(self.managers.list_where(session, id_user=user_id))
         for profile in (client, hunter, manager):
             if profile is not None:
                 profile.phone_number = ANONYMOUS_PHONE
@@ -140,7 +145,7 @@ class AnonymizationService:
             client.is_civil_solidarity_pact = None
             client.nb_children = None
 
-        self._clear_written_texts(session, user_id)
+        self._clear_written_texts(session, user_id, client_id)
         self.users.save(session, user)  # le commit écrit tout, ou rien
         return AnonymizationReport(
             id_user=user_id,
@@ -148,12 +153,17 @@ class AnonymizationService:
             names_kept_until=None if names_free else until,
         )
 
-    def _retention_dates(self, session: Session, user_id: int, today: date) -> List[date]:
-        """Les dates d'où part un délai de 10 ans pour cette personne (Décision 5)."""
+    def _retention_dates(
+        self, session: Session, client_id: Optional[int], hunter_id: Optional[int], today: date
+    ) -> List[date]:
+        """
+        Les dates d'où part un délai de 10 ans pour cette personne (Décision 5).
+        client_id et hunter_id : les numéros de ses fiches, None sans fiche.
+        """
         dates: List[date] = []
         mandates = [
-            *self.mandates.list_where(session, id_client=user_id),
-            *self.mandates.list_where(session, id_hunter=user_id),
+            *(self.mandates.list_where(session, id_client=client_id) if client_id is not None else []),
+            *(self.mandates.list_where(session, id_hunter=hunter_id) if hunter_id is not None else []),
         ]
         for mandate in mandates:
             # Toute la chaîne, renouvellements compris : chaque maillon SIGNÉ
@@ -161,7 +171,8 @@ class AnonymizationService:
             # signature) n'a pas de fin et n'entre pas au registre ; il ne
             # doit pas effacer la fin du maillon signé d'avant.
             dates.extend(link.ends_at for link in self._chain_from(session, mandate) if link.ends_at is not None)
-        for payment in self.payments.list_where(session, id_hunter=user_id):
+        payments = self.payments.list_where(session, id_hunter=hunter_id) if hunter_id is not None else []
+        for payment in payments:
             if payment.status == _PAID and payment.paid_at is not None:
                 dates.append(payment.paid_at.date())
             elif payment.status != _REFUSED:
@@ -180,9 +191,14 @@ class AnonymizationService:
             seen.add(child.id)
         return chain
 
-    def _clear_written_texts(self, session: Session, user_id: int) -> None:
-        """Les textes écrits par la personne (Décision 7), vidés tout de suite."""
-        for mandate in self.mandates.list_where(session, id_client=user_id):
+    def _clear_written_texts(self, session: Session, user_id: int, client_id: Optional[int]) -> None:
+        """
+        Les textes écrits par la personne (Décision 7), vidés tout de suite :
+        les mandats par sa fiche client (client_id), les critères par son
+        compte (id_author cite toujours user.id).
+        """
+        client_mandates = self.mandates.list_where(session, id_client=client_id) if client_id is not None else []
+        for mandate in client_mandates:
             for offer in self.offers.list_where(session, id_mandate=mandate.id):
                 offer.comment_client = None
                 self.offers.stage(session, offer)

@@ -27,7 +27,7 @@ class CriteriaService(BaseService[Criteria]):
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
-            return col(Criteria.id_search_request).in_(requests_of(viewer.user.id))
+            return col(Criteria.id_search_request).in_(requests_of(viewer.profile_id))
         if viewer.role == HUNTER:
             return col(Criteria.id_search_request).in_(requests_handled_by(viewer.user.id))
         if viewer.role == MANAGER:
@@ -36,7 +36,7 @@ class CriteriaService(BaseService[Criteria]):
 
     def owns(self, session: Session, item: Criteria, viewer: Principal) -> bool:
         if viewer.role == CLIENT:
-            return owns_request(session, viewer.user.id, item.id_search_request)
+            return owns_request(session, viewer.profile_id, item.id_search_request)
         if viewer.role == HUNTER:
             return handles_request(session, viewer.user.id, item.id_search_request)
         return True
