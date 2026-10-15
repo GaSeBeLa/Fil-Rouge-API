@@ -13,6 +13,9 @@ pyjwt==2.15.1
 email-validator==2.3.0
 # seed de démo (chantier DEM) : version lue sur PyPI le 2026-10-14
 faker==40.43.0
+# recherche de biens, GET /estates/search (FLX9) : version du kit du TP1
+# ELK et dernière parue sur PyPI (2026-09-09, lu le 2026-10-15)
+elasticsearch==9.5.1
 
 # tests
 pytest==9.1.1

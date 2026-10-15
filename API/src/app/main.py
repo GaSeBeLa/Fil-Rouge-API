@@ -54,6 +54,7 @@ from .routes import (
     estate_proposed_router,
     estate_router,
     estate_search_request_router,
+    estate_search_router,
     hunter_router,
     mandate_router,
     picture_router,
@@ -187,6 +188,8 @@ app.include_router(real_estate_manager_router.router)
 app.include_router(search_request_router.router)
 app.include_router(criteria_router.router)
 app.include_router(mandate_router.router)
+# FLX9 : AVANT estate_router, sinon GET /estates/{id} capte « search » (422).
+app.include_router(estate_search_router.router)
 app.include_router(estate_router.router)
 # ADR-054 : contact du vendeur, réservé à Admin, Hunter et Manager.
 app.include_router(estate_contact_router.router)

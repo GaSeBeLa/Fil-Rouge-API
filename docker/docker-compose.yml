@@ -48,7 +48,7 @@ x-airflow-common: &airflow-common
     AIRFLOW_CONN_FIL_ROUGE_DB: '{"conn_type": "postgres", "host": "db", "port": 5432, "schema": "${POSTGRES_DB}", "login": "${POSTGRES_USER}", "password": "${POSTGRES_PASSWORD}"}'
     # FLX8 : le DAG estates_index écrit dans Elasticsearch (profil elk) avec
     # le compte dédié airflow_indexer, créé par es-setup ; jamais elastic.
-    AIRFLOW_CONN_ELASTICSEARCH_DEFAULT: '{"conn_type": "generic", "host": "http://elasticsearch:9200", "login": "airflow_indexer", "password": "${ES_INDEXER_PASSWORD}"}'
+    AIRFLOW_CONN_ELASTICSEARCH_DEFAULT: '{"conn_type": "generic", "host": "http://elasticsearch:9200", "login": "airflow_indexer", "password": "${ES_INDEXER_PASSWORD:-}"}'
   volumes:
     - airflow_logs:/opt/airflow/logs
     # FLX2 : les DAG et le code métier, en lecture seule.
@@ -109,6 +109,11 @@ services:
       API_KEY_INTERNAL: ${API_KEY_INTERNAL}
       API_KEY_APP_BACKEND: ${API_KEY_APP_BACKEND}
       DEMO_PASSWORD: ${DEMO_PASSWORD:-}   # comptes de demo (seed_demo.py, chantier DEM) ; valeur dans docker/.env
+      # GET /estates/search (FLX9) : compte en lecture seule api_search, créé
+      # par es-setup (profil elk). Vide ou Elasticsearch arrêté : la route rend 503.
+      ES_URL: http://elasticsearch:9200
+      ES_API_USER: api_search
+      ES_API_PASSWORD: ${ES_API_PASSWORD:-}
     ports:
       - "8000:8000"   # Swagger : http://localhost:8000/docs
     volumes:
@@ -247,7 +252,8 @@ services:
     environment:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       KIBANA_PASSWORD: ${KIBANA_PASSWORD}
-      ES_INDEXER_PASSWORD: ${ES_INDEXER_PASSWORD}
+      ES_INDEXER_PASSWORD: ${ES_INDEXER_PASSWORD:-}
+      ES_API_PASSWORD: ${ES_API_PASSWORD:-}
     # Forme liste : chaque élément est un argv (voir la note du kit sur le
     # scalaire replié « > »).
     command:
@@ -264,17 +270,31 @@ services:
           sleep 5
         done
         echo "OK"
-        echo "Rôle estates_writer et compte airflow_indexer (FLX8)"
-        curl -sf -X PUT -u "elastic:$${ELASTIC_PASSWORD}" \
-             -H "Content-Type: application/json" \
-             http://elasticsearch:9200/_security/role/estates_writer \
-             -d '{"indices":[{"names":["estates"],"privileges":["create_index","view_index_metadata","read","write","maintenance"]}]}' || exit 1
-        echo
-        curl -sf -X PUT -u "elastic:$${ELASTIC_PASSWORD}" \
-             -H "Content-Type: application/json" \
-             http://elasticsearch:9200/_security/user/airflow_indexer \
-             -d "{\"password\":\"$${ES_INDEXER_PASSWORD}\",\"roles\":[\"estates_writer\"]}" || exit 1
-        echo
+        # account <rôle> <privilèges JSON> <compte> <mot de passe> : crée ou
+        # remplace le rôle (index estates seul) et son compte. Mot de passe
+        # vide : compte non créé, et Kibana démarre quand même.
+        account() {
+          if [ -z "$$4" ]; then
+            echo "Mot de passe vide : compte $$3 non créé"
+            return 0
+          fi
+          echo "Rôle $$1 et compte $$3"
+          curl -sf -X PUT -u "elastic:$${ELASTIC_PASSWORD}" \
+               -H "Content-Type: application/json" \
+               http://elasticsearch:9200/_security/role/$$1 \
+               -d "{\"indices\":[{\"names\":[\"estates\"],\"privileges\":$$2}]}" || exit 1
+          echo
+          curl -sf -X PUT -u "elastic:$${ELASTIC_PASSWORD}" \
+               -H "Content-Type: application/json" \
+               http://elasticsearch:9200/_security/user/$$3 \
+               -d "{\"password\":\"$$4\",\"roles\":[\"$$1\"]}" || exit 1
+          echo
+        }
+        # FLX8 : le DAG estates_index écrit l'index.
+        account estates_writer '["create_index","view_index_metadata","read","write","maintenance"]' \
+                airflow_indexer "$${ES_INDEXER_PASSWORD}"
+        # FLX9 : l'API le lit seulement (GET /estates/search).
+        account estates_reader '["read"]' api_search "$${ES_API_PASSWORD}"
     restart: "no"
   kibana:
     image: docker.elastic.co/kibana/kibana:${STACK_VERSION:-9.5.4}

@@ -35,9 +35,11 @@ from sqlmodel import Session
 
 from src.app.main import app
 from src.app.models import UserPublic
-from src.app.utils.roles import ADMIN, ALL_ROLES, CLIENT, HUNTER, MANAGER, READER
+from src.app.routes import estate_search_router
+from src.app.utils.roles import ADMIN, ALL_ROLES, CLIENT, HUNTER, MANAGER, READER, get_principal
 
 from ..conftest import acting_as
+from ..test_estate_search import FakeES
 from .conftest import USER_PASSWORD
 from .test_demande_avant_compte import FORM, SEED_CLIENT_EMAIL, SEED_HUNTER_EMAIL, SUBMIT, _counts
 
@@ -128,6 +130,23 @@ def test_payment_calculation_is_admin_only(db_client: TestClient, role: str):
     assert response.status_code == (404 if role == ADMIN else 403), response.text
 
 
+# FLX9 : GET /estates/search lit l'index Elasticsearch (faux client ici) ; mêmes
+# rôles que la lecture des biens (ADR-027, annexe § 3) : tous, et 401 sans jeton.
+# L'index ne porte aucun champ de contact (airflow/tests/test_search_documents.py).
+@pytest.mark.parametrize("role", ALL_ROLES)
+def test_estate_search_reads_like_estates(db_client: TestClient, role: str):
+    app.dependency_overrides[estate_search_router._es] = lambda: FakeES()
+    previous = app.dependency_overrides[get_principal]
+    try:
+        with acting_as(role):
+            assert db_client.get("/estates/search").status_code == 200
+        del app.dependency_overrides[get_principal]  # le vrai contrôle du jeton
+        assert db_client.get("/estates/search").status_code == 401
+    finally:
+        app.dependency_overrides[get_principal] = previous
+        app.dependency_overrides.pop(estate_search_router._es, None)
+
+
 # --- Les routes à part (DRO3) ---------------------------------------------------
 
 # (méthode, chemin) -> "module.test" qui la juge.
@@ -139,6 +158,7 @@ SPECIAL_ROUTES: dict[tuple[str, str], str] = {
     ("POST", "/users/{item_id}/anonymize"): "test_anonymisation.test_only_admin_anonymizes",
     ("POST", "/estate-contacts/anonymize-expired"): "test_contact_vendeur.test_only_admin_runs_the_anonymization",
     ("POST", "/sales/{item_id}/payment"): "test_droits_par_role.test_payment_calculation_is_admin_only",
+    ("GET", "/estates/search"): "test_droits_par_role.test_estate_search_reads_like_estates",
 }
 
 # Les quatre routes que build_crud_router pose par table (pas de DELETE, ADR-049).

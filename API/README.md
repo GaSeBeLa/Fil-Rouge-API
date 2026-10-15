@@ -560,6 +560,34 @@ docker compose exec api python -m src.app.scripts.seed_volume --sales 100  # au 
 - Une fois par base, comme le seed de démo : `volume-manager-1@example.com`
   sert de marqueur. Plan des ventes testé sans base : `tests/test_seed_volume.py`.
 
+### Recherche de biens — `GET /estates/search` (FLX9)
+
+Cherche dans l'index Elasticsearch `estates`, rempli chaque nuit par le DAG
+`estates_index` (`airflow/README.md`). Mêmes droits que la lecture des biens :
+tous les rôles connectés. Le détail d'un bien reste `GET /estates/{id}`.
+
+| Paramètre | Effet |
+|---|---|
+| `q` | texte libre, dans le texte de l'annonce (analyseur français) |
+| `city`, `postal_code`, `type` | filtres exacts (`type` : une valeur de `estate_type`) |
+| `price_min`, `price_max`, `surface_min` | intervalles, en euros et en m² |
+| `lat`, `lon`, `radius_km` | autour d'un point ; les trois ensemble, ou aucun |
+| `page`, `size` | pagination (`size` : 100 au plus) |
+
+Réponse : `total`, `page`, `size`, et `items` (l'`id` et les champs de l'index).
+
+- Il faut le profil `elk` lancé et l'index rempli (`airflow dags test estates_index <date>`).
+- Elasticsearch arrêté, ou `ES_API_PASSWORD` vide : **`503`**, et l'erreur
+  part dans les logs de l'API. Jamais une liste vide trompeuse.
+- L'API lit l'index avec le compte `api_search`, en lecture seule ; Airflow
+  l'écrit avec `airflow_indexer`. Les deux sont créés par `es-setup` quand
+  leur mot de passe est rempli.
+
+**Après un pull** qui apporte ce chantier : ajouter à `docker/.env`
+`ELASTIC_PASSWORD`, `KIBANA_PASSWORD`, `KIBANA_ENCRYPTION_KEY`,
+`ES_INDEXER_PASSWORD` et `ES_API_PASSWORD` (le modèle dit comment), puis,
+depuis `docker/` : `docker compose --profile "*" up -d --build`.
+
 ### Connexion — `/auth` (ADR-052)
 
 | Route | Ce qu'elle fait |
