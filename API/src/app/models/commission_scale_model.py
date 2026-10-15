@@ -24,7 +24,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
-from .field_descriptions import HUNTER_ACCOUNT
+from .field_descriptions import HUNTER_PROFILE
 
 
 class CommissionScale(SQLModel, table=True):
@@ -41,4 +41,4 @@ class CommissionScale(SQLModel, table=True):
     valid_from: date
     valid_until: Optional[date] = None
     # id_hunter NULL = bareme general ; renseigne = bareme propre a un chasseur.
-    id_hunter: Optional[int] = Field(description=HUNTER_ACCOUNT, default=None, foreign_key="hunter.id")
+    id_hunter: Optional[int] = Field(description=HUNTER_PROFILE, default=None, foreign_key="hunter.id")

@@ -256,8 +256,8 @@ SELECT setval(pg_get_serial_sequence('"user"', 'id'), COALESCE((SELECT MAX(id) F
 SELECT setval(pg_get_serial_sequence('search_request', 'id'), COALESCE((SELECT MAX(id) FROM search_request), 0));
 SELECT setval(pg_get_serial_sequence('mandate', 'id'), COALESCE((SELECT MAX(id) FROM mandate), 0));
 SELECT setval(pg_get_serial_sequence('criteria', 'id'), COALESCE((SELECT MAX(id) FROM criteria), 0));
--- Pas de setval pour client/hunter : leur clé primaire (id_user) vient de user.id,
--- ce ne sont pas des colonnes IDENTITY avec leur propre séquence.
+-- Pas de setval pour client, hunter, real_estate_manager : leur id est
+-- IDENTITY, jamais forcé ici (OVERRIDING absent), leur séquence suit seule.
 
 -- 8. VERIF
 SELECT 'user' as tbl, COUNT(*) FROM "user" UNION ALL SELECT 'hunter', COUNT(*) FROM hunter UNION ALL SELECT 'client', COUNT(*) FROM client UNION ALL SELECT 'real_estate_manager', COUNT(*) FROM real_estate_manager UNION ALL SELECT 'search_request', COUNT(*) FROM search_request UNION ALL SELECT 'criteria', COUNT(*) FROM criteria UNION ALL SELECT 'mandate', COUNT(*) FROM mandate;

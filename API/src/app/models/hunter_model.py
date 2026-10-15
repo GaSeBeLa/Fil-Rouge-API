@@ -22,7 +22,7 @@ from typing import Optional
 from sqlmodel import Field
 
 from .abstract_person_model import AbstractPerson
-from .field_descriptions import HUNTER_ID, HUNTER_USER, MANAGER_ACCOUNT
+from .field_descriptions import HUNTER_ID, HUNTER_USER, MANAGER_PROFILE
 
 
 class Hunter(AbstractPerson, table=True):
@@ -49,4 +49,4 @@ class Hunter(AbstractPerson, table=True):
     # vers real_estate_manager.id — le numero de fiche, pas un id de "user",
     # comme toutes les FK vers les fiches (chantier PRF). Meme nom tout en minuscules que dans
     # search_request_model.py, ou il designe le manager de la demande.
-    id_realestatemanager: int = Field(description=MANAGER_ACCOUNT, foreign_key="real_estate_manager.id")
+    id_realestatemanager: int = Field(description=MANAGER_PROFILE, foreign_key="real_estate_manager.id")

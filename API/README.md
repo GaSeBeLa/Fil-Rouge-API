@@ -238,6 +238,8 @@ et ses 13 tests ; les 8 tests du seed des paramètres (`test_seed_parametres.py`
 depuis BAN2.
 Puis **961 passed, 0 skipped, 7 xfailed** (2026-10-14) : 2 tests du Swagger des fiches
 de profil, 7 de `create_admin.py`, 4 des refus du paiement (`test_calcul_paiement.py`).
+Puis **975 passed, 0 skipped, 7 xfailed** (chantier PRF, 2026-10-15) : les FK visent la
+fiche, le rôle vit sur la fiche ou sur `system_role`, une fiche au plus par compte (ADR-057).
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -467,6 +469,15 @@ tous activés, mot de passe `DEMO_PASSWORD` :
 * Jeton JWT `HS256`, valable **60 minutes**, sans jeton de rafraîchissement.
 * La dépendance `get_current_user` ([`current_user.py`](src/app/utils/current_user.py))
   **relit le compte en base à chaque appel** : rôle et activation du moment font foi.
+* 🎭 **Le rôle** (chantier PRF, ADR-057) : `get_principal`
+  ([`roles.py`](src/app/utils/roles.py)) lit `user.system_role` (`Admin`, `Reader`,
+  un compte sans fiche), sinon le `role_wording` de la fiche du compte (`client`,
+  `hunter` ou `real_estate_manager`) ; ni l'un ni l'autre → `403`. **Une fiche au plus
+  par compte**, et aucune pour un compte à `system_role` : le trigger
+  `check_one_profile_per_user` (`docker/init-v3/01`) refuse le reste → `409`. Les
+  `id_client`, `id_hunter`, `id_realestatemanager` des autres tables citent le
+  **numéro de la fiche** (`client.id`…), pas le compte ; `id_author` cite le compte.
+  La table `role` ne garde que `Client`, `Hunter`, `Manager`.
 * 🔒 **Toutes les routes CRUD exigent le jeton** (fiche API2, ADR-028) : sans jeton
   `401`.
 * 🚪 **Fermé par défaut** (fiche DRO1) : une table ne s'ouvre qu'aux rôles qu'elle

@@ -98,7 +98,11 @@ OPENAPI_TAGS = [
     {"name": "auth", "description": "Se connecter : recevoir le jeton que demandent les autres routes."},
     {"name": "formulaire-du-site", "description": "Le formulaire du site : un visiteur sans compte dépose sa demande."},
     {"name": "user", "description": "Les comptes de connexion (email, mot de passe, rôle). `Admin` seul écrit."},
-    {"name": "role", "description": "Les cinq rôles : `Admin`, `Client`, `Hunter`, `Manager`, `Reader`."},
+    {
+        "name": "role",
+        "description": "Les rôles qui ont une fiche : `Client`, `Hunter`, `Manager`. "
+        "`Admin` et `Reader`, sans fiche, vivent dans `user.system_role`.",
+    },
     {"name": "hunter", "description": "Les chasseurs : ils cherchent des biens pour leurs clients."},
     {"name": "client", "description": "Les clients : les personnes qui cherchent un bien."},
     {"name": "real_estate_manager", "description": "Les managers : ils encadrent des chasseurs."},

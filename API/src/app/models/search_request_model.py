@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
-from .field_descriptions import AUTHOR_ACCOUNT, CLIENT_ACCOUNT, HUNTER_ACCOUNT, MANAGER_ACCOUNT
+from .field_descriptions import AUTHOR_ACCOUNT, CLIENT_PROFILE, HUNTER_PROFILE, MANAGER_PROFILE
 
 
 class SearchRequest(SQLModel, table=True):
@@ -16,12 +16,12 @@ class SearchRequest(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     id_author: int = Field(description=AUTHOR_ACCOUNT, foreign_key="user.id")
-    id_client: int = Field(description=CLIENT_ACCOUNT, foreign_key="client.id")
-    id_hunter: Optional[int] = Field(description=HUNTER_ACCOUNT, default=None, foreign_key="hunter.id")
+    id_client: int = Field(description=CLIENT_PROFILE, foreign_key="client.id")
+    id_hunter: Optional[int] = Field(description=HUNTER_PROFILE, default=None, foreign_key="hunter.id")
     # "id_realestatemanager" tout en minuscules côté base, malgré le
     # "camelCase" du diagramme source : PostgreSQL replie en minuscules
     # les identifiants non "quotés".
-    id_realestatemanager: Optional[int] = Field(description=MANAGER_ACCOUNT, 
+    id_realestatemanager: Optional[int] = Field(description=MANAGER_PROFILE, 
         default=None, foreign_key="real_estate_manager.id"
     )
     # status : NOT NULL + CHECK côté base — 'confirmed', 'accepted',

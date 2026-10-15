@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
-from .field_descriptions import HUNTER_ACCOUNT
+from .field_descriptions import HUNTER_PROFILE
 
 
 class EstateProposed(SQLModel, table=True):
@@ -24,7 +24,7 @@ class EstateProposed(SQLModel, table=True):
     # CHECK cote base — 'proposed', 'offer_pending', 'accepted', 'signed'
     # (Q-SCH-04), 'rejected'.
     proposition_status: str = Field(max_length=20)
-    id_hunter: int = Field(description=HUNTER_ACCOUNT, foreign_key="hunter.id")
+    id_hunter: int = Field(description=HUNTER_PROFILE, foreign_key="hunter.id")
     id_estate: int = Field(foreign_key="estate.id")
     id_mandate: int = Field(foreign_key="mandate.id")
     # Priorite donnee par le client au bien, de 1 a 5 ; vide tant qu'il n'a

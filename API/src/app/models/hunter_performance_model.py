@@ -23,7 +23,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlmodel import SQLModel, Field
-from .field_descriptions import HUNTER_ACCOUNT
+from .field_descriptions import HUNTER_PROFILE
 
 
 class HunterPerformance(SQLModel, table=True):
@@ -38,7 +38,7 @@ class HunterPerformance(SQLModel, table=True):
     # trigger_type : NOT NULL + CHECK cote base — 'initial', 'payment',
     # 'mandate_expired'.
     trigger_type: str = Field(max_length=20)
-    id_hunter: int = Field(description=HUNTER_ACCOUNT, foreign_key="hunter.id")
+    id_hunter: int = Field(description=HUNTER_PROFILE, foreign_key="hunter.id")
     # Renseigne selon le declencheur, NULL sinon ; UNIQUE chacun (Q-SCH-06).
     id_payment: Optional[int] = Field(default=None, foreign_key="payment.id")
     id_mandate: Optional[int] = Field(default=None, foreign_key="mandate.id")

@@ -135,7 +135,7 @@ Jeff a dit oui sur Discord le 2026-10-07, **à condition** que le choix soit exp
 | Niveau | Nom | Ce qu'il peut faire |
 |---|---|---|
 | PostgreSQL | `fil_rouge_reader` | lire les 21 tables (`SELECT`), sauf `"user".password`, `estate_contact` (ADR-054) et `payment` (ADR-027, point 8), sans les comptes désactivés (ADR-027, point 7 : politique par ligne sur `"user"`, `client`, `hunter`, `real_estate_manager`), et rien d'autre : ni `INSERT`, ni `UPDATE`, ni `DELETE` |
-| Application | `'Reader'` dans `role` (id 5) | consulter dans l'API sans modifier ; aucun utilisateur ne l'a encore |
+| Application | `'Reader'` dans `"user".system_role` (depuis PRF6 ; avant, `role` id 5) | consulter dans l'API sans modifier ; aucun utilisateur ne l'a encore |
 
 **À quoi ça sert**
 - Un projet Data-IA **lit** la base : requêtes d'analyse, notebook, outil de rapport. Sans ce rôle, il faut leur donner le compte `postgres`, qui peut tout effacer par erreur.
@@ -152,9 +152,19 @@ Jeff a dit oui sur Discord le 2026-10-07, **à condition** que le choix soit exp
 - Un rôle vit dans le serveur, partagé par toutes ses bases : sa création est **idempotente**. Ses droits, eux, se donnent base par base, y compris pour les tables futures (`ALTER DEFAULT PRIVILEGES`).
 
 **Mesuré le 2026-10-07**
-- Connecté avec ce rôle : `SELECT` accepté (5 rôles lus), `INSERT` refusé (`permission denied for table role`).
+- Connecté avec ce rôle : `SELECT` accepté (5 rôles lus ce jour-là ; 3 depuis PRF8), `INSERT` refusé (`permission denied for table role`).
 - Base de dev : **19** tables lisibles sur **19**, **0** modifiable.
 - Tests `test_reader_role_can_select` et `test_reader_role_cannot_write` (insert, update, delete). Avec `GRANT INSERT` ajouté au script, `[insert]` échoue : le test voit bien le défaut.
+
+### Fiches et rôles — chantier PRF, `45_cles-vers-les-fiches.sql`, `46_roles-des-fiches.sql`, `47_sans-id-role.sql`
+
+Décidé par Seb le 2026-10-15 (chantier « Refacto des profils », ADR-057).
+
+- **Les 11 FK** `id_client`, `id_hunter`, `id_realestatemanager` visent la PK de la fiche (`client.id`, `hunter.id`, `real_estate_manager.id`), plus `id_user` (PRF2, migration 45). `id_author` vise toujours `"user".id`.
+- **Une casquette par compte** : soit une fiche, qui porte son rôle dans `role_wording` (`DEFAULT`, `CHECK` et FK vers `role(wording)`) ; soit un **`"user".system_role`** (`Admin` ou `Reader`), sans fiche (PRF6, migration 46).
+- **`check_one_profile_per_user()`** et ses 4 triggers refusent une 2ᵉ fiche, ou une fiche sur un compte à `system_role` : `23514`, contrainte `one_profile_per_user`, renvoyé en `409` par l'API.
+- **`"user".id_role` retiré** (PRF8, migration 47) ; `role` ne garde que `Client`, `Hunter`, `Manager` (3 lignes). La migration s'arrête si un compte `Admin` ou `Reader` n'a pas de `system_role` : on ne devine pas.
+- L'API lit le rôle sur `system_role`, sinon sur la fiche ; ni l'un ni l'autre : `403` (PRF7, `API/src/app/utils/roles.py`).
 
 ---
 
@@ -238,15 +248,17 @@ colonne a simplement été retirée des `INSERT`.
 
 ### 3.1 `role` : `libelle` → `wording`, valeurs capitalisées
 
-Le schéma cible nomme la colonne `wording` et son `CHECK` n'accepte que
-`'Admin'`, `'Client'`, `'Hunter'`, `'Manager'`.
+Le schéma cible nomme la colonne `wording`. Depuis PRF8 (2026-10-15), son
+`CHECK` n'accepte que `'Client'`, `'Hunter'`, `'Manager'` : `Admin` et
+`Reader` vivent dans `"user".system_role` (ADR-057). Ce qui suit est
+l'historique de la migration.
 
 | source | cible |
 |---|---|
 | `client` | `Client` |
 | `hunter` | `Hunter` |
 | `real_estate_manager` | `Manager` |
-| — | `Admin` (ajouté le 2026-09-22) |
+| — | `Admin` (ajouté le 2026-09-22, retiré par PRF8) |
 
 ⚠️ **`Admin` n'a aucune source** : le rôle était autorisé par le `CHECK` depuis
 l'origine, mais sa ligne n'avait jamais été insérée. Corrigé le 2026-09-22 —

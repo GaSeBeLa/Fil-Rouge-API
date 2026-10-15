@@ -132,7 +132,7 @@ def build_crud_router(
     write_roles: Sequence[str] = (),
     create_roles: Optional[Sequence[str]] = None,
     # Phrase du Swagger sous `{item_id}`, quand l'id de la table prête à confusion
-    # (fiches de profil : `id` n'est pas le `user.id` que citent les autres tables).
+    # (fiches de profil : `id` est le numéro de fiche que citent les autres tables, pas `user.id`).
     item_id_description: Optional[str] = None,
 ) -> APIRouter:
     router = APIRouter(prefix=prefix, tags=[tag], dependencies=[Depends(require_api_key)])

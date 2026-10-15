@@ -148,7 +148,7 @@ def test_reader_does_not_update_users(test_app: FastAPI):
 def test_nobody_writes_roles(test_app: FastAPI, role: str):
     # Sinon un Client supprimait le rôle Admin vide, puis renommait le sien
     # en « Admin » : tous les Clients devenaient Admin. Depuis DRO1, l'Admin
-    # non plus (ADR-027, annexe § 1) : les 5 rôles viennent du seed.
+    # non plus (ADR-027, annexe § 1) : les 3 rôles à fiche viennent du seed.
     client = client_as(test_app, role)
 
     assert client.post("/roles", json={"wording": "Admin"}).status_code == 403

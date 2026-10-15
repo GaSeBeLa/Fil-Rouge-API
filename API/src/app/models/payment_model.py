@@ -34,7 +34,7 @@ from pydantic import Field as PydanticField
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import SQLModel, Field
 from .input_check import is_input
-from .field_descriptions import HUNTER_ACCOUNT
+from .field_descriptions import HUNTER_PROFILE
 
 
 # --- Le détail du calcul (P32, ADR-033 Décision 2) ---------------------------
@@ -121,7 +121,7 @@ class Payment(SQLModel, table=True):
         default=None, sa_type=JSONB(none_as_null=True)  # pyright: ignore[reportArgumentType] -- SQLModel type l'argument en classe ; SQLAlchemy accepte une instance
     )
     id_sale: int = Field(foreign_key="sale.id")
-    id_hunter: int = Field(description=HUNTER_ACCOUNT, foreign_key="hunter.id")
+    id_hunter: int = Field(description=HUNTER_PROFILE, foreign_key="hunter.id")
     # NULL sur une ligne de refus : un droit ferme ne designe aucune tranche.
     id_commission_scale: Optional[int] = Field(
         default=None, foreign_key="commission_scale.id"
