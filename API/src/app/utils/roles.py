@@ -33,6 +33,7 @@ from typing import NamedTuple, Optional
 from fastapi import Depends, HTTPException, status
 from sqlmodel import Session, select
 
+from ..conf.logging import note_role
 from ..conf.database import get_session
 from ..models import Client, Hunter, RealEstateManager, User
 from .current_user import get_current_user
@@ -72,11 +73,13 @@ def get_principal(
 ) -> Principal:
     # PRF7 : system_role d'abord (compte sans fiche), puis la fiche du compte.
     if user.system_role is not None:
+        note_role(user.system_role)  # FLX10 : le rôle, pour le log d'accès
         return Principal(user=user, role=user.system_role)
     for model in PROFILE_MODELS.values():
         row = session.exec(select(model.id, model.role_wording).where(model.id_user == user.id)).first()
         if row is not None:
             profile_id, role = row
+            note_role(role)
             return Principal(user=user, role=role, profile_id=profile_id)
     # Ni fiche ni system_role : aucun droit plutôt qu'un droit au hasard.
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Compte sans rôle : ni fiche, ni system_role.")

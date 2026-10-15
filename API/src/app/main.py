@@ -41,11 +41,14 @@ une interface interactive (Swagger UI) pour tester chaque route sans rien
 import logging
 from uuid import uuid4
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from .conf.logging import access_log_middleware, setup_access_log
 from .routes import (
     auth_router,
     client_router,
@@ -125,12 +128,23 @@ OPENAPI_TAGS = [
     {"name": "hunter_performance", "description": "Le journal des notes du chasseur. L'API l'écrit seule, au paiement."},
 ]
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # FLX10 : log d'accès JSON (console, et fichier lu par Logstash). Posé au
+    # démarrage d'uvicorn seulement : les tests n'écrivent pas dans le fichier.
+    setup_access_log()
+    yield
+
+
 app = FastAPI(
     title="Fil Rouge Immobilier — API",
     description=OPENAPI_DESCRIPTION,
     version="0.1.0",
     openapi_tags=OPENAPI_TAGS,
+    lifespan=lifespan,
 )
+# FLX10 : une ligne JSON par requête (conf/logging.py), sans secret ni e-mail.
+app.middleware("http")(access_log_middleware)
 
 
 @app.exception_handler(RequestValidationError)

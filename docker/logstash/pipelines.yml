@@ -1,0 +1,5 @@
+# Un pipeline par flux, sur le modèle du kit du TP2 du cours ELK (FLX10).
+# Sans ce fichier, tous les .conf du dossier seraient concaténés en un seul
+# pipeline "main".
+- pipeline.id: api
+  path.config: "/usr/share/logstash/pipeline/api.conf"

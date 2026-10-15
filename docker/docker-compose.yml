@@ -4,7 +4,7 @@ name:  fil_rouge_immobilier
 #   - sans profil : db et api. « docker compose up -d » ne lance qu'eux ;
 #   - profil airflow : minio, minio-setup et les trois services d'Airflow.
 #     MinIO ne démarre donc plus seul : « docker compose --profile airflow up -d » ;
-#   - profil elk (FLX7) : es-setup, elasticsearch et kibana ;
+#   - profil elk (FLX7, FLX10) : es-setup, elasticsearch, kibana et logstash ;
 #   - tout : « docker compose --profile "*" up -d ».
 
 # Réglages communs aux trois services d'Airflow, sur le modèle du lab du
@@ -114,6 +114,8 @@ services:
       ES_URL: http://elasticsearch:9200
       ES_API_USER: api_search
       ES_API_PASSWORD: ${ES_API_PASSWORD:-}
+      # Log d'accès JSON (FLX10), dans le volume api_logs, lu par Logstash.
+      ACCESS_LOG_FILE: /var/log/api/access.json
     ports:
       - "8000:8000"   # Swagger : http://localhost:8000/docs
     volumes:
@@ -129,6 +131,8 @@ services:
       - ./init-v2:/api/sql/init-v2:ro
       - ./init-v3:/api/sql/init-v3:ro
       - ./migrations/v2-vers-v3:/api/sql/v2-vers-v3:ro
+      # FLX10 : volume nommé, jamais un dossier du dépôt.
+      - api_logs:/var/log/api
 
   minio:
     image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
@@ -254,6 +258,7 @@ services:
       KIBANA_PASSWORD: ${KIBANA_PASSWORD}
       ES_INDEXER_PASSWORD: ${ES_INDEXER_PASSWORD:-}
       ES_API_PASSWORD: ${ES_API_PASSWORD:-}
+      LOGSTASH_INTERNAL_PASSWORD: ${LOGSTASH_INTERNAL_PASSWORD:-}
     # Forme liste : chaque élément est un argv (voir la note du kit sur le
     # scalaire replié « > »).
     command:
@@ -295,6 +300,23 @@ services:
                 airflow_indexer "$${ES_INDEXER_PASSWORD}"
         # FLX9 : l'API le lit seulement (GET /estates/search).
         account estates_reader '["read"]' api_search "$${ES_API_PASSWORD}"
+        # FLX10 : Logstash écrit le data stream logs-api-default. Rôle du
+        # TP2 (logstash_writer), restreint à logs-api-*.
+        if [ -z "$${LOGSTASH_INTERNAL_PASSWORD}" ]; then
+          echo "Mot de passe vide : compte logstash_internal non créé"
+        else
+          echo "Rôle logstash_writer et compte logstash_internal"
+          curl -sf -X PUT -u "elastic:$${ELASTIC_PASSWORD}" \
+               -H "Content-Type: application/json" \
+               http://elasticsearch:9200/_security/role/logstash_writer \
+               -d '{"cluster":["monitor","manage_index_templates"],"indices":[{"names":["logs-api-*"],"privileges":["write","create","create_index","auto_configure"]}]}' || exit 1
+          echo
+          curl -sf -X PUT -u "elastic:$${ELASTIC_PASSWORD}" \
+               -H "Content-Type: application/json" \
+               http://elasticsearch:9200/_security/user/logstash_internal \
+               -d "{\"password\":\"$${LOGSTASH_INTERNAL_PASSWORD}\",\"roles\":[\"logstash_writer\"]}" || exit 1
+          echo
+        fi
     restart: "no"
   kibana:
     image: docker.elastic.co/kibana/kibana:${STACK_VERSION:-9.5.4}
@@ -320,9 +342,37 @@ services:
       timeout: 10s
       retries: 60
 
+  # FLX10 : relit le log d'accès de l'API (volume api_logs, en lecture seule)
+  # et l'écrit dans le data stream logs-api-default. Repris du kit du TP2
+  # (docker-compose.override.yml) : heap 512m, mem_limit 1g.
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${STACK_VERSION:-9.5.4}
+    container_name: fil_rouge_immobilier_logstash
+    profiles: ["elk"]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      es-setup:
+        condition: service_completed_successfully
+    environment:
+      - ES_HOSTS=http://elasticsearch:9200
+      - ES_USER=logstash_internal
+      - ES_PASSWORD=${LOGSTASH_INTERNAL_PASSWORD:-}
+      - LS_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "127.0.0.1:9600:9600"   # API de supervision de Logstash
+    volumes:
+      - ./logstash/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - api_logs:/data/api:ro
+      - ls_data:/usr/share/logstash/data
+    mem_limit: 1g
+
 volumes:
   db_data:
   minio_data:
   airflow_logs:
   es_data:
   kibana_data:
+  api_logs:
+  ls_data:

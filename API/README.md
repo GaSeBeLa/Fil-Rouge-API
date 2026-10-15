@@ -136,7 +136,7 @@ services en profils. Depuis `docker/` :
 |---|---|
 | `docker compose up -d` | `db`, `api` |
 | `docker compose --profile airflow up -d` | les mêmes, plus `minio`, `minio-setup`, `airflow-init`, `airflow-webserver`, `airflow-scheduler` |
-| `docker compose --profile elk up -d` | `db`, `api`, plus `elasticsearch`, `es-setup`, `kibana` |
+| `docker compose --profile elk up -d` | `db`, `api`, plus `elasticsearch`, `es-setup`, `kibana`, `logstash` |
 | `docker compose --profile "*" up -d` | tous les services |
 
 ⚠️ **MinIO ne démarre plus seul** : il faut `--profile airflow`. Pareil pour
@@ -160,9 +160,24 @@ curl -s localhost:5601/api/status   # attendre "level":"available"
 ```
 
 **Mémoire** : le kit du TP compte **≈ 4 Go** pour Elasticsearch, Kibana et
-Logstash. Les limites du compose : `ES_MEM_LIMIT=2g`, `KB_MEM_LIMIT=1g`. Avec
+Logstash. Les limites du compose : `ES_MEM_LIMIT=2g`, `KB_MEM_LIMIT=1g`,
+Logstash `1g`. Avec
 Airflow en plus, prévoir 6 Go pour Docker ; sinon, arrêter un profil :
 `docker compose --profile airflow stop`.
+
+**Logs de l'API** (FLX10) : l'API écrit une ligne JSON par requête
+(`src/app/conf/logging.py`) — méthode, chemin, code, durée, rôle ; jamais le
+jeton, le mot de passe, un e-mail, ni la chaîne de requête. En console, et
+dans le volume `api_logs` (`/var/log/api/access.json`), que `logstash` relit
+et range dans le data stream **`logs-api-default`** (noms ECS :
+`http.request.method`, `url.path`, `http.response.status_code`,
+`event.duration` en nanosecondes, `user.roles`). Compte dédié
+`logstash_internal`, limité à `logs-api-*` (rôle du TP2). Le fichier n'est
+écrit qu'au démarrage d'uvicorn : `pytest` n'y ajoute rien.
+
+```bash
+( set -a; . ./.env; set +a; curl -s -u "elastic:$ELASTIC_PASSWORD" localhost:9200/logs-api-default/_count )
+```
 
 Deux erreurs connues :
 
@@ -585,7 +600,8 @@ Réponse : `total`, `page`, `size`, et `items` (l'`id` et les champs de l'index)
 
 **Après un pull** qui apporte ce chantier : ajouter à `docker/.env`
 `ELASTIC_PASSWORD`, `KIBANA_PASSWORD`, `KIBANA_ENCRYPTION_KEY`,
-`ES_INDEXER_PASSWORD` et `ES_API_PASSWORD` (le modèle dit comment), puis,
+`ES_INDEXER_PASSWORD`, `ES_API_PASSWORD` et `LOGSTASH_INTERNAL_PASSWORD`
+(le modèle dit comment), puis,
 depuis `docker/` : `docker compose --profile "*" up -d --build`.
 
 ### Connexion — `/auth` (ADR-052)
