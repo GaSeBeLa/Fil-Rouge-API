@@ -25,12 +25,18 @@ def conn():
                        f"{columns}, id_author INTEGER)"))
         c.execute(text("CREATE TABLE estate_price_history (id INTEGER PRIMARY KEY, id_estate INTEGER NOT NULL, "
                        "price INTEGER NOT NULL, seen_at DATE NOT NULL, UNIQUE (id_estate, seen_at))"))
+        c.execute(text("CREATE TABLE estate_contact (id INTEGER PRIMARY KEY, is_private BOOLEAN NOT NULL, "
+                       "agency_name TEXT, contact_name TEXT, phone_number TEXT, email TEXT, "
+                       "id_estate INTEGER NOT NULL UNIQUE, id_author INTEGER)"))
         yield c
 
 
-def _row(reference: str, price: str = "250000") -> dict[str, object]:
+def _row(reference: str, price: str = "250000", **contact: str) -> dict[str, object]:
     return clean_annonce({"reference": reference, "type_bien": "Maison", "ville": "Toulouse",
-                          "code_postal": "31000", "surface": "100", "prix": price})
+                          "code_postal": "31000", "surface": "100", "prix": price, **contact})
+
+
+CONTACT = {"contact.nom": "Claire Martin", "contact.telephone": "0453775236", "particulier": "True"}
 
 
 def _count(conn, table: str) -> int:
@@ -94,3 +100,58 @@ def test_construction_date_read_back_from_json_is_a_date(conn):
     load_estates(conn, [row], DAY1)
 
     assert conn.execute(text("SELECT construction_date FROM estate")).scalar_one() == "1888-01-01"
+
+
+def _contacts(conn) -> list[tuple]:
+    return conn.execute(text("SELECT contact_name, phone_number, is_private, id_author "
+                             "FROM estate_contact ORDER BY id")).all()
+
+
+def test_full_contact_is_written_with_its_estate(conn):
+    report = load_estates(conn, [_row("AN-1", **CONTACT)], DAY1)
+
+    assert (report.contacts_added, report.contacts_updated) == (1, 0)
+    assert _contacts(conn) == [("Claire Martin", "+33453775236", 1, None)]
+
+
+def test_empty_contact_writes_no_line(conn):
+    report = load_estates(conn, [_row("AN-1")], DAY1)
+
+    assert report.contacts_added == 0
+    assert _count(conn, "estate_contact") == 0
+
+
+def test_replaying_the_same_day_adds_no_contact(conn):
+    rows = [_row("AN-1", **CONTACT)]
+    load_estates(conn, rows, DAY1)
+
+    report = load_estates(conn, rows, DAY1)
+
+    assert (report.contacts_added, report.contacts_updated) == (0, 1)
+    assert _count(conn, "estate_contact") == 1
+
+
+def test_manual_contact_is_never_overwritten(conn):
+    load_estates(conn, [_row("AN-1", **CONTACT)], DAY1)
+    conn.execute(text("UPDATE estate_contact SET contact_name = 'Saisi main', id_author = 7"))
+
+    report = load_estates(conn, [_row("AN-1", **{**CONTACT, "contact.nom": "Autre"})], DAY2)
+
+    assert (report.contacts_added, report.contacts_updated) == (0, 0)
+    assert _contacts(conn) == [("Saisi main", "+33453775236", 1, 7)]
+
+
+def test_manual_estate_gets_no_imported_contact(conn):
+    conn.execute(text(f"INSERT INTO estate ({KEY}, price, id_author) VALUES ('AN-1', 90000, 7)"))
+
+    report = load_estates(conn, [_row("AN-1", **CONTACT)], DAY1)
+
+    assert (report.skipped_manual, report.contacts_added) == (1, 0)
+    assert _count(conn, "estate_contact") == 0
+
+
+def test_dropped_contact_fields_are_counted(conn):
+    report = load_estates(conn, [_row("AN-1", **{**CONTACT, "contact.telephone": "04-53"})], DAY1)
+
+    assert report.contact_fields_dropped == 1
+    assert _contacts(conn) == [("Claire Martin", None, 1, None)]

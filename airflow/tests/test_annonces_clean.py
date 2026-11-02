@@ -87,11 +87,67 @@ def test_dpe_letter_goes_to_energy_class_and_country_is_fr():
     assert (row["energy_class"], row["country_iso"]) == ("C", "FR")
 
 
-def test_never_any_seller_contact():
-    row = clean_annonce(_raw(**{"contact.nom": "Claire Martin", "contact.telephone": "0453775236",
-                                "contact.email": "c@example.com", "contact.agence": "Nid Doré"}))
-    assert not any("contact" in key for key in row)
-    assert "Claire Martin" not in row.values()
+def _contact(**fields: str) -> dict[str, object]:
+    """La ligne nettoyée d'une annonce brute portant ces colonnes contact.*."""
+    return clean_annonce(_raw(**fields))
+
+
+def _contact_of(row: dict[str, object]) -> dict[str, object]:
+    """Le contact de la ligne ; échoue s'il est absent (None)."""
+    contact = row["contact"]
+    assert isinstance(contact, dict)
+    return contact
+
+
+FULL_CONTACT = {"contact.nom": "Claire Martin", "contact.telephone": "0453775236",
+                "contact.email": "c@example.com", "contact.agence": "Nid Doré", "particulier": "True"}
+
+
+def test_full_contact_follows_the_estate():
+    row = _contact(**FULL_CONTACT)
+    assert row["contact"] == {"is_private": True, "agency_name": "Nid Doré", "contact_name": "Claire Martin",
+                              "phone_number": "+33453775236", "email": "c@example.com"}
+    assert row["_contact_fields_dropped"] == 0
+
+
+def test_contact_never_enters_estate_columns():
+    # Le contact voyage à côté du bien, jamais dans les colonnes de estate.
+    assert "contact" not in ESTATE_COLUMNS
+
+
+def test_no_contact_when_the_four_fields_are_empty():
+    row = _contact(**{"contact.nom": " ", "contact.telephone": "", "particulier": "True"})
+    assert row["contact"] is None
+    assert row["_contact_fields_dropped"] == 0
+
+
+def test_blank_field_becomes_none():
+    contact = _contact_of(_contact(**{"contact.nom": "  ", "contact.agence": "Nid Doré"}))
+    assert (contact["contact_name"], contact["agency_name"]) == (None, "Nid Doré")
+
+
+def test_is_private_is_never_empty():
+    contact = _contact_of(_contact(**{"contact.agence": "Nid Doré"}))
+    assert contact["is_private"] is False
+
+
+def test_dirty_phone_is_dropped_alone():
+    row = _contact(**{**FULL_CONTACT, "contact.telephone": "04-53"})
+    contact = _contact_of(row)
+    assert (contact["phone_number"], contact["contact_name"]) == (None, "Claire Martin")
+    assert row["_contact_fields_dropped"] == 1
+
+
+def test_international_phone_is_kept():
+    contact = _contact_of(_contact(**{**FULL_CONTACT, "contact.telephone": "+33453775236"}))
+    assert contact["phone_number"] == "+33453775236"
+
+
+def test_dirty_email_and_long_name_are_dropped_and_counted():
+    row = _contact(**{**FULL_CONTACT, "contact.email": "pas-un-email", "contact.nom": "x" * 101})
+    contact = _contact_of(row)
+    assert (contact["email"], contact["contact_name"]) == (None, None)
+    assert row["_contact_fields_dropped"] == 2
 
 
 def test_output_has_every_estate_column():

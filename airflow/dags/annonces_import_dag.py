@@ -10,10 +10,11 @@ Chaque nuit à 2 h (question flux-15), pour la date logique ds :
   2. clean_validate   : nettoie et valide (src/annonces, FLX3) ; valides dans
                         silver/annonces/{ds}.json, rejets dans
                         quarantine/annonces/{ds}.json ;
-  3. load             : charge silver dans estate (clé : reference, flux-16) et
-                        note le prix du jour dans estate_price_history.
+  3. load             : charge silver dans estate (clé : reference, flux-16),
+                        note le prix du jour dans estate_price_history et
+                        range le contact du vendeur dans estate_contact (FLX14).
 
-Rejouer une date ne crée ni bien ni prix en double.
+Rejouer une date ne crée ni bien, ni prix, ni contact en double.
 
 Lancer à la main, depuis docker/ :
     docker compose exec airflow-scheduler airflow dags test annonces_import 2026-10-15
@@ -96,13 +97,16 @@ def _clean_validate(ds: str, **_) -> dict[str, int]:
 
 
 def _load(ds: str, **_) -> dict[str, int]:
-    """silver -> estate et estate_price_history ; rend le rapport."""
+    """silver -> estate, estate_price_history et estate_contact ; rend le
+    rapport, contacts ajoutés, mis à jour et champs vidés compris."""
     s3, buckets = S3Hook(aws_conn_id=MINIO_CONN_ID), Buckets.from_env()
     rows = json.loads(s3.read_key(f"annonces/{ds}.json", bucket_name=buckets.silver))
     engine = PostgresHook(postgres_conn_id=FIL_ROUGE_DB_CONN_ID).get_sqlalchemy_engine()
     with engine.begin() as conn:
         report = load_estates(conn, rows, seen_at=date.fromisoformat(ds))
     logger.info("Chargement : %s", report)
+    logger.info("Contacts : %d ajoutés, %d mis à jour, %d champs vidés (refusés par estate_contact)",
+                report.contacts_added, report.contacts_updated, report.contact_fields_dropped)
     return report.__dict__
 
 

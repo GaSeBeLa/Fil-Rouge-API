@@ -12,11 +12,15 @@ qui visait l'ancien schéma `docker/init/01`. Ce qui change pour le schéma v3
   - country_iso vaut 'FR' (comme init-v3/03 : toutes les annonces sont
     françaises), sinon le CHECK du code postal refuse la ligne (Q-SCH-11).
 
-Jamais de contact du vendeur dans la ligne : les colonnes contact.* de la
-source ne sont pas lues (ADR-054).
+Le contact du vendeur (colonnes contact.* et particulier) voyage à côté de la
+ligne, sous la clé `contact`, jamais dans les colonnes de `estate` : load.py
+l'écrit dans `estate_contact` (fiche FLX14, option A tranchée par Seb le
+2026-10-19). L'ADR-054 ne l'interdit pas : sa minimisation vise la lecture
+par le rôle Reader.
 """
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from datetime import date, datetime, timezone
 
@@ -168,13 +172,64 @@ def derive_parking_spaces(description: str | None) -> int:
     return 1 if description is not None and "parking" in description.lower() else 0
 
 
+# Mêmes formes que les CHECK et les VARCHAR de estate_contact
+# (init-v3/01) et que docker/tools/generate_estate_contact.py.
+PHONE_RE = re.compile(r"^\+[1-9]([ -]?[0-9]){1,14}$")
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+NATIONAL_PHONE_RE = re.compile(r"^0[0-9]{9}$")
+MAX_TEXT, MAX_PHONE, MAX_EMAIL = 100, 20, 150
+
+
+def clean_phone(v: object) -> str | None:
+    """'0453775236' -> '+33453775236' (ADR-007) ; un numéro déjà
+    international passe tel quel ; tout ce que le CHECK de la table
+    refuserait rend None."""
+    s = clean_str(v)
+    if s is None:
+        return None
+    if NATIONAL_PHONE_RE.match(s):
+        s = "+33" + s[1:]
+    return s if PHONE_RE.match(s) and len(s) <= MAX_PHONE else None
+
+
+def clean_contact(row: Mapping[str, object]) -> tuple[dict[str, object] | None, int]:
+    """Le contact du vendeur aux colonnes de estate_contact, et le nombre de
+    champs vidés parce que la table les refuserait.
+
+    Champ vide ou blanc -> None ; aucun contact (None) si les quatre champs
+    sont vides à la source. Un champ sale est vidé seul : le bien et le reste
+    du contact sont gardés. is_private vaut la case particulier, jamais vide.
+    """
+    raw = {
+        "agency_name": clean_str(row.get("contact.agence")),
+        "contact_name": clean_str(row.get("contact.nom")),
+        "phone_number": clean_str(row.get("contact.telephone")),
+        "email": clean_str(row.get("contact.email")),
+    }
+    if all(v is None for v in raw.values()):
+        return None, 0
+
+    cleaned: dict[str, object] = dict(raw)
+    cleaned["phone_number"] = clean_phone(raw["phone_number"])
+    email = raw["email"]
+    cleaned["email"] = email if email and EMAIL_RE.match(email) and len(email) <= MAX_EMAIL else None
+    for key in ("agency_name", "contact_name"):
+        text = raw[key]
+        cleaned[key] = text if text is None or len(text) <= MAX_TEXT else None
+
+    dropped = sum(1 for k in raw if raw[k] is not None and cleaned[k] is None)
+    return {"is_private": parse_bool_presence(row.get("particulier")), **cleaned}, dropped
+
+
 def clean_annonce(row: Mapping[str, object]) -> dict[str, object]:
     """Une ligne brute de annonces.csv -> une ligne aux colonnes de `estate` v3.
 
-    Rend aussi `_published_on` (date de publication lue, hors `estate`).
+    Rend aussi, hors `estate` : `_published_on` (date de publication lue),
+    `contact` (dict ou None, voir clean_contact) et `_contact_fields_dropped`.
     Relancer sur la même ligne rend la même sortie.
     """
     street_number, street = split_address(row.get("adresse"))
+    contact, contact_fields_dropped = clean_contact(row)
     description = clean_str(row.get("description"))
     title = clean_str(row.get("titre"))
     year = parse_int(row.get("annee_construction"))
@@ -217,4 +272,6 @@ def clean_annonce(row: Mapping[str, object]) -> dict[str, object]:
         "postal_code": clean_str(row.get("code_postal")),
         "information": description,
         "_published_on": parse_date(row.get("date_publication")),
+        "contact": contact,
+        "_contact_fields_dropped": contact_fields_dropped,
     }
