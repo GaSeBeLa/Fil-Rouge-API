@@ -91,6 +91,34 @@ def test_updating_a_proposal_in_place_is_accepted(db_client: TestClient):
     assert response.status_code == 200, response.text
 
 
+# --- Le client ne change que sa note et son commentaire (fiche SUG1) --------------
+
+
+def test_client_cannot_accept_a_proposal_himself(db_client: TestClient):
+    payload = proposal(selected_estate(db_client))
+    created = post_as_hunter(db_client, "/estate-proposed", payload).json()
+
+    # Avec un montant : sans lui, la contrainte chk_offer de la base rendrait
+    # 409 et cacherait le trou (une offre acceptée porte son montant).
+    accepted = {**payload, "proposition_status": "accepted", "amount_proposition": 250000}
+    with acting_as(CLIENT, ACTIVE_MANDATE_CLIENT):
+        response = db_client.put(f"/estate-proposed/{created['id']}", json=accepted)
+    assert response.status_code == 403, response.text
+    assert "proposition_status" in response.text
+    # La ligne n'a pas bougé en base.
+    assert db_client.get(f"/estate-proposed/{created['id']}").json()["proposition_status"] == "proposed"
+
+
+def test_client_can_set_his_priority(db_client: TestClient):
+    payload = proposal(selected_estate(db_client))
+    created = post_as_hunter(db_client, "/estate-proposed", payload).json()
+
+    with acting_as(CLIENT, ACTIVE_MANDATE_CLIENT):
+        response = db_client.put(f"/estate-proposed/{created['id']}", json={**payload, "client_priority": 2})
+    assert response.status_code == 200, response.text
+    assert response.json()["client_priority"] == 2
+
+
 # --- P20 : seulement sur un mandat actif ------------------------------------------
 
 

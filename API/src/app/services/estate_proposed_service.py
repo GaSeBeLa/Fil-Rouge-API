@@ -16,7 +16,10 @@ commentaire) ne les rejuge pas.
 
 « Le sien » (ADR-027, annexe § 3 ; fiche DRO5) : un Client voit les biens
 proposés sur ses mandats, et ne modifie (commenter, prioriser, offrir ;
-H6, H8) que ceux-là : `id_mandate` reste un de ses mandats.
+H6, H8) que ceux-là : `id_mandate` reste un de ses mandats. Sur un PUT, il
+ne change que sa note et son commentaire (`CLIENT_FIELDS`, fiche SUG1) :
+tout autre champ changé lève ForbiddenError (403) — le statut, le montant et
+le commentaire du chasseur restent au chasseur.
 
 Le Hunter (fiche DRO6) voit ses propositions, et n'en écrit qu'à son nom
 (H5, H9) ; la clé (id_mandate, id_hunter) garde le mandat au même chasseur.
@@ -31,12 +34,15 @@ from ..models import EstateProposed, User
 from ..repositories.estate_proposed_repository import EstateProposedRepository
 from ..repositories.estate_search_request_repository import EstateSearchRequestRepository
 from ..repositories.mandate_repository import MandateRepository
-from ..utils.exceptions import ConflictError
+from ..utils.exceptions import ConflictError, ForbiddenError
 from ..utils.roles import CLIENT, HUNTER, Principal
-from .base_service import BaseService
+from .base_service import BaseService, fields_changed_outside
 from .client_rows import mandates_of, owns_mandate
 
 ACTIVE = "active"
+
+# Fiche SUG1 (H6, H8) : ce que le client change sur un bien proposé.
+CLIENT_FIELDS = ("client_priority", "comment_client")
 
 
 class EstateProposedService(BaseService[EstateProposed]):
@@ -80,6 +86,26 @@ class EstateProposedService(BaseService[EstateProposed]):
     def create(self, session: Session, item: EstateProposed, actor: Optional[User] = None) -> EstateProposed:
         self._check_proposal(session, item)
         return super().create(session, item, actor)
+
+    def replace_visible(
+        self, session: Session, item_id: int, data: EstateProposed, viewer: Principal
+    ) -> EstateProposed:
+        """
+        Le PUT : la proposition d'un autre lève NotFoundError (404), une
+        proposition déplacée hors de ses mandats ConflictError (409, « le
+        sien », vu d'abord) ; puis le Client ne change que `CLIENT_FIELDS`,
+        sinon ForbiddenError (403), la ligne intacte. Les autres rôles gardent
+        la règle commune.
+        """
+        existing = self.get_by_id(session, item_id, viewer)
+        if viewer.role == CLIENT:
+            self._check_owner(session, data, viewer)
+            changed = fields_changed_outside(existing, data, CLIENT_FIELDS)
+            if changed:
+                raise ForbiddenError(
+                    f"Le client ne change que sa note et son commentaire, pas {', '.join(changed)} (fiche SUG1)."
+                )
+        return super().replace_visible(session, item_id, data, viewer)
 
     def replace(self, session: Session, item_id: int, data: EstateProposed) -> EstateProposed:
         existing = self.get_by_id(session, item_id)
