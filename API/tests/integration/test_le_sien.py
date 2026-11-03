@@ -213,7 +213,8 @@ def world(db_client: TestClient, client: int, request: int, hunter: int, grid: i
     estate_id = rows["/estates"] = created(db_client, "/estates", estate, HUNTER, hunter)
     picture = {"url": "https://exemple.test/p.jpg", "id_estate": estate_id}
     rows["/pictures"] = created(db_client, "/pictures", picture, HUNTER, hunter)
-    selection = {"id_estate": estate_id, "id_search_request": request, "id_hunter": hunter_profile(hunter)}
+    # 'kept' : seul un bien gardé par le chasseur se propose (P19, fiche SUG4).
+    selection = {"id_estate": estate_id, "id_search_request": request, "id_hunter": hunter_profile(hunter), "status": "kept"}
     review_id = rows["/estate-search-requests"] = created(db_client, "/estate-search-requests", selection, HUNTER, hunter)
     media = {"media_url": "https://exemple.test/a.mp3", "media_type": "audio", "id_estate_searchrequest": review_id}
     rows["/review-media"] = created(db_client, "/review-media", media, HUNTER, hunter)

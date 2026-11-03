@@ -380,7 +380,9 @@ def seed_one_sale(
     proposed_ids = (plan.sold_estate_id, *plan.other_estate_ids)
     for estate_id in proposed_ids:
         svc.selections.create(
-            session, EstateSearchRequest(id_estate=estate_id, id_search_request=request.id, id_hunter=hunter.id)
+            # Choisis par le chasseur, puis proposés : 'kept' (P19, fiche SUG4).
+            session,
+            EstateSearchRequest(id_estate=estate_id, id_search_request=request.id, id_hunter=hunter.id, status="kept"),
         )
     mandate = svc.mandates.create(
         session,

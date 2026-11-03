@@ -870,6 +870,11 @@ CREATE TABLE estate_searchrequest (
     id_estate         INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT,
     id_search_request INTEGER NOT NULL REFERENCES search_request(id) ON DELETE RESTRICT,
     id_hunter         INTEGER NOT NULL REFERENCES hunter(id) ON DELETE RESTRICT,
+    -- État du bien dans la sélection (fiche SUG4, 2026-11-03) : 'suggested'
+    -- (proposé par la machine), 'kept' (gardé par le chasseur), 'dismissed'
+    -- (écarté). On ne propose au client qu'un bien 'kept' (P19, dans le service).
+    status            VARCHAR(20) NOT NULL DEFAULT 'suggested'
+                      CHECK (status IN ('suggested', 'kept', 'dismissed')),
 
     CONSTRAINT uq_estate_search UNIQUE (id_estate, id_search_request)
 );

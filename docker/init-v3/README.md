@@ -179,6 +179,14 @@ Décidé par Seb le 2026-10-15 (questions flux-12b, flux-13, flux-16).
 - Tables **vides** à la création : le DAG `olap_refresh` les remplit chaque nuit (FLX6).
 - ⚠️ `fil_rouge_reader` ne lit **pas** `olap` : `commission_chasseur` vient de `payment`, que la migration 43 lui a fermé.
 
+### État de la sélection — chantier SUG, `50_etat-de-la-selection.sql`
+
+Acceptée par Seb le 2026-11-03 (P19 renforcée, `md/journal/2026-11-02-suggestion-de-biens.md`).
+
+- **`estate_searchrequest.status`** (SUG4, migration 50) : `'suggested'` (proposé par la machine), `'kept'` (gardé par le chasseur), `'dismissed'` (écarté) ; `NOT NULL`, défaut `'suggested'`, `CHECK` sur les trois valeurs.
+- Une base migrée passe ses lignes d'avant à `'kept'` : un chasseur les avait choisies.
+- L'API ne propose au client qu'un bien `'kept'` (P19, `services/estate_proposed_service.py`).
+
 ---
 
 ## 1. Pourquoi les euros, et pas les K€

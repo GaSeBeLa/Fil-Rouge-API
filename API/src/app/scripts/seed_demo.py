@@ -294,7 +294,10 @@ def seed_selection(session: Session, profiles: DemoProfiles, request: SearchRequ
         assert estate.id is not None
         selections.create(
             session,
-            EstateSearchRequest(id_estate=estate.id, id_search_request=request.id, id_hunter=profiles.hunter_id),
+            # Choisis par le chasseur, puis proposés : 'kept' (P19, fiche SUG4).
+            EstateSearchRequest(
+                id_estate=estate.id, id_search_request=request.id, id_hunter=profiles.hunter_id, status="kept"
+            ),
         )
     return estates
 

@@ -571,12 +571,17 @@ ACTIVE_REQUEST = 15
 ACTIVE_MANDATE_CLIENT = 21  # son client : lui seul modifie ses propositions (DRO5)
 
 
-def selected_estate(db_client: TestClient, search_request: int = ACTIVE_REQUEST, reference: str = "TEST-0001") -> int:
-    """Un bien neuf, mis par le chasseur 1 dans la sélection de la demande (P19)."""
+def selected_estate(
+    db_client: TestClient, search_request: int = ACTIVE_REQUEST, reference: str = "TEST-0001", status: str = "kept"
+) -> int:
+    """
+    Un bien neuf, mis par le chasseur 1 dans la sélection de la demande (P19),
+    à l'état `status` : `kept` par défaut, le seul qu'on propose (fiche SUG4).
+    """
     estate = post_as_hunter(db_client, "/estates", {**ESTATE, "reference": reference})
     assert estate.status_code == 201, estate.text
     estate_id = estate.json()["id"]
-    selection = {"id_estate": estate_id, "id_search_request": search_request, "id_hunter": HUNTER_PROFILE}
+    selection = {"id_estate": estate_id, "id_search_request": search_request, "id_hunter": HUNTER_PROFILE, "status": status}
     response = post_as_hunter(db_client, "/estate-search-requests", selection)
     assert response.status_code == 201, response.text
     return estate_id
@@ -1156,3 +1161,39 @@ def test_criteria_has_no_renovation_budget(db_session: Session):
         )
     ).scalars().all()
     assert names == []
+
+
+# --- estate_searchrequest.status (fiche SUG4) ------------------------------------
+# suggested : proposé par la machine ; kept : gardé par le chasseur ;
+# dismissed : écarté. P19 renforcée : on ne propose qu'un bien `kept`.
+
+
+def test_selection_status_out_of_list_returns_409(db_client: TestClient):
+    with pytest.raises(AssertionError, match="409"):
+        selected_estate(db_client, status="archived")
+
+
+def test_selection_without_status_is_suggested(db_client: TestClient):
+    estate = post_as_hunter(db_client, "/estates", {**ESTATE, "reference": "TEST-SUG4"}).json()
+    selection = {"id_estate": estate["id"], "id_search_request": ACTIVE_REQUEST, "id_hunter": HUNTER_PROFILE}
+    response = post_as_hunter(db_client, "/estate-search-requests", selection)
+    assert response.status_code == 201, response.text
+    assert response.json()["status"] == "suggested"
+
+
+@pytest.mark.parametrize("status", ["suggested", "dismissed"])
+def test_proposing_an_estate_not_kept_returns_409(db_client: TestClient, status: str):
+    estate_id = selected_estate(db_client, status=status)
+    payload = {"proposition_status": "proposed", "id_hunter": HUNTER_PROFILE, "id_estate": estate_id, "id_mandate": ACTIVE_MANDATE}
+
+    response = post_as_hunter(db_client, "/estate-proposed", payload)
+    assert response.status_code == 409, response.text
+    assert "P19" in response.text
+
+
+def test_proposing_a_kept_estate_is_accepted(db_client: TestClient):
+    estate_id = selected_estate(db_client, status="kept")
+    payload = {"proposition_status": "proposed", "id_hunter": HUNTER_PROFILE, "id_estate": estate_id, "id_mandate": ACTIVE_MANDATE}
+
+    response = post_as_hunter(db_client, "/estate-proposed", payload)
+    assert response.status_code == 201, response.text

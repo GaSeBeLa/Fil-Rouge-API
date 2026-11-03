@@ -8,7 +8,9 @@ refus lève ConflictError (409) :
   statut change dans le temps : aucune contrainte de la base ne peut le dire.
 - P19 (audit, ADR-053) : le bien est dans la sélection (`estate_searchrequest`)
   de la demande du mandat — le chasseur transmet SA sélection au client
-  (`05_…feature`, @transmission-client).
+  (`05_…feature`, @transmission-client). Renforcée par la fiche SUG4 : le
+  bien y est à l'état `'kept'`, gardé par le chasseur ; un bien `'suggested'`
+  (la machine) ou `'dismissed'` (écarté) ne se propose pas.
 
 Un PUT qui change le bien ou le mandat est une nouvelle proposition : il
 repasse les deux règles. Un PUT qui garde les deux (statut, montant,
@@ -40,6 +42,8 @@ from .base_service import BaseService, fields_changed_outside
 from .client_rows import mandates_of, owns_mandate
 
 ACTIVE = "active"
+# Fiche SUG4 : le seul état de la sélection qu'on propose au client (P19).
+KEPT = "kept"
 
 # Fiche SUG1 (H6, H8) : ce que le client change sur un bien proposé.
 CLIENT_FIELDS = ("client_priority", "comment_client")
@@ -78,10 +82,12 @@ class EstateProposedService(BaseService[EstateProposed]):
         if mandate.status != ACTIVE:
             raise ConflictError(f"On ne propose que sur un mandat 'active', pas '{mandate.status}' (P20).")
         in_selection = self.selections.exists_where(
-            session, id_search_request=mandate.id_search_request, id_estate=item.id_estate
+            session, id_search_request=mandate.id_search_request, id_estate=item.id_estate, status=KEPT
         )
         if not in_selection:
-            raise ConflictError("Ce bien n'est pas dans la sélection de la demande du mandat (P19).")
+            raise ConflictError(
+                "Ce bien n'est pas dans la sélection de la demande du mandat, à l'état 'kept' (P19)."
+            )
 
     def create(self, session: Session, item: EstateProposed, actor: Optional[User] = None) -> EstateProposed:
         self._check_proposal(session, item)
