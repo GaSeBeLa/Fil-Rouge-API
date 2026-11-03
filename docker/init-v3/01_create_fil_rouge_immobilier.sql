@@ -926,7 +926,29 @@ CREATE TABLE estate_proposed (
     -- Décision D6 : priorité donnée par le client à un bien proposé, de 1 à
     -- 5 (Q-SCH-05, Jeff : Q-JEF-18 ; LOT7). Vide tant que le client n'a pas
     -- donné son avis.
-    client_priority    SMALLINT CHECK (client_priority BETWEEN 1 AND 5)
+    client_priority    SMALLINT CHECK (client_priority BETWEEN 1 AND 5),
+
+    -- Décision du client sur le bien proposé (fiche SUG5, vote M4 du
+    -- 2026-11-03, ajouts de Gabriel § 8.1) : 'pending' tant qu'il n'a rien dit.
+    -- client_decided_at garde la DERNIÈRE décision, pas un historique.
+    client_decision    VARCHAR(20) NOT NULL DEFAULT 'pending'
+                       CHECK (client_decision IN ('pending', 'interested', 'declined')),
+    client_decided_at  TIMESTAMP,
+    decline_reason     VARCHAR(20)
+                       CHECK (decline_reason IN ('too_expensive', 'too_far', 'too_small',
+                                                 'wrong_type', 'other')),
+
+    -- Un motif de refus seulement sur un refus.
+    CONSTRAINT chk_decline_reason_if_declined
+        CHECK (decline_reason IS NULL OR client_decision = 'declined'),
+    -- Une décision prise porte sa date.
+    CONSTRAINT chk_decided_at_once_decided
+        CHECK (client_decision = 'pending' OR client_decided_at IS NOT NULL),
+    -- Gabriel (§ 8.1) : une offre suppose un client intéressé. 'rejected' ne
+    -- dit donc plus que « le vendeur refuse l'offre » ; un client qui retire
+    -- son offre repasse d'abord par 'proposed' (limite connue).
+    CONSTRAINT chk_offer_needs_interest
+        CHECK (proposition_status = 'proposed' OR client_decision = 'interested')
 );
 
 -- Visites (décision D10 : la table manquait, le MPD 03 la crée).

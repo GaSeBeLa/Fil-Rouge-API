@@ -221,6 +221,7 @@ def world(db_client: TestClient, client: int, request: int, hunter: int, grid: i
     offer = {
         "proposition_status": "accepted", "amount_proposition": 350000,
         "id_hunter": hunter_profile(hunter), "id_estate": estate_id, "id_mandate": mandate_id,
+        "client_decision": "interested", "client_decided_at": "2026-03-01T09:00:00Z",  # une offre suppose un client intéressé (fiche SUG5)
     }
     rows["/estate-proposed"] = created(db_client, "/estate-proposed", offer, HUNTER, hunter)
     visit = {"visit_date": "2026-02-10", "visitor_type": "client", "id_estate": estate_id, "id_mandate": mandate_id}

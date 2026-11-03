@@ -30,3 +30,12 @@ class EstateProposed(SQLModel, table=True):
     # Priorite donnee par le client au bien, de 1 a 5 ; vide tant qu'il n'a
     # pas donne son avis. CHECK cote base (D6, Q-SCH-05, Q-JEF-18).
     client_priority: Optional[int] = None
+    # Décision du client (fiche SUG5, vote M4, § 8.1) : 'pending',
+    # 'interested', 'declined' ; la date de la dernière, et le motif d'un
+    # refus ('too_expensive', 'too_far', 'too_small', 'wrong_type', 'other').
+    # Trois CHECK côté base : chk_decline_reason_if_declined,
+    # chk_decided_at_once_decided, chk_offer_needs_interest (une offre suppose
+    # un client 'interested').
+    client_decision: str = Field(default="pending", max_length=20)
+    client_decided_at: Optional[datetime] = None
+    decline_reason: Optional[str] = Field(default=None, max_length=20)

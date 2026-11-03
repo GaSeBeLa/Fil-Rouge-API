@@ -587,14 +587,19 @@ def selected_estate(
     return estate_id
 
 
+# Une offre suppose un client intéressé (chk_offer_needs_interest, fiche SUG5).
+CLIENT_INTERESTED: dict[str, Any] = {"client_decision": "interested", "client_decided_at": "2026-03-01T09:00:00Z"}
+
+
 def proposition_payload(db_client: TestClient, status: str) -> dict[str, Any]:
-    """Une offre sur un bien neuf de la sélection, pour le mandat actif 15."""
+    """Une offre sur un bien neuf de la sélection, pour le mandat actif 15, le client intéressé."""
     return {
         "proposition_status": status,
         "amount_proposition": 350000,
         "id_hunter": HUNTER_PROFILE,
         "id_estate": selected_estate(db_client),
         "id_mandate": ACTIVE_MANDATE,
+        **CLIENT_INTERESTED,
     }
 
 
@@ -678,7 +683,10 @@ SALE_MANDATE: dict[str, Any] = {
 
 
 def offered_estate(db_client: TestClient, mandate_id: int, status: str = "accepted", reference: str = "TEST-0001") -> int:
-    """Un bien de la sélection de la demande 1, avec une offre sur ce mandat (P19, P27)."""
+    """
+    Un bien de la sélection de la demande 1, avec une offre sur ce mandat (P19,
+    P27) ; au-delà de 'proposed', le client est intéressé (fiche SUG5).
+    """
     estate_id = selected_estate(db_client, MANDATE["id_search_request"], reference)
     offer = {
         "proposition_status": status,
@@ -686,6 +694,7 @@ def offered_estate(db_client: TestClient, mandate_id: int, status: str = "accept
         "id_hunter": HUNTER_PROFILE,
         "id_estate": estate_id,
         "id_mandate": mandate_id,
+        **({} if status == "proposed" else CLIENT_INTERESTED),
     }
     response = post_as_hunter(db_client, "/estate-proposed", offer)
     assert response.status_code == 201, response.text
@@ -1197,3 +1206,76 @@ def test_proposing_a_kept_estate_is_accepted(db_client: TestClient):
 
     response = post_as_hunter(db_client, "/estate-proposed", payload)
     assert response.status_code == 201, response.text
+
+
+# --- estate_proposed : la décision du client (fiche SUG5, vote M4, § 8.1) --------
+# client_decision : 'pending' (défaut), 'interested', 'declined' ; sa date,
+# client_decided_at ; un motif de refus, decline_reason, en liste fermée.
+DECIDED = "2026-11-03T10:00:00Z"  # avec son fuseau, comme toute date de l'API
+
+
+def proposed_payload(db_client: TestClient, **decision: Any) -> dict[str, Any]:
+    """Un bien neuf de la sélection, proposé sur le mandat 15, avec cette décision du client."""
+    return {
+        "proposition_status": "proposed", "id_hunter": HUNTER_PROFILE,
+        "id_estate": selected_estate(db_client), "id_mandate": ACTIVE_MANDATE, **decision,
+    }
+
+
+def test_proposal_decision_defaults_to_pending(db_client: TestClient):
+    response = post_as_hunter(db_client, "/estate-proposed", proposed_payload(db_client))
+    assert response.status_code == 201, response.text
+    assert response.json()["client_decision"] == "pending"
+
+
+@pytest.mark.parametrize("decision", [{"client_decision": "maybe"}, {"client_decision": "declined", "client_decided_at": DECIDED, "decline_reason": "ugly"}])
+def test_proposal_decision_out_of_list_returns_409(db_client: TestClient, decision: dict[str, Any]):
+    assert post_as_hunter(db_client, "/estate-proposed", proposed_payload(db_client, **decision)).status_code == 409
+
+
+def test_decline_reason_without_declined_returns_409(db_client: TestClient):
+    payload = proposed_payload(db_client, client_decision="interested", client_decided_at=DECIDED, decline_reason="too_far")
+    response = post_as_hunter(db_client, "/estate-proposed", payload)
+    assert response.status_code == 409
+    assert "chk_decline_reason_if_declined" in response.text
+
+
+def test_decline_reason_with_declined_is_accepted(db_client: TestClient):
+    payload = proposed_payload(db_client, client_decision="declined", client_decided_at=DECIDED, decline_reason="too_far")
+    response = post_as_hunter(db_client, "/estate-proposed", payload)
+    assert response.status_code == 201, response.text
+
+
+def test_decision_without_date_returns_409(db_client: TestClient):
+    response = post_as_hunter(db_client, "/estate-proposed", proposed_payload(db_client, client_decision="interested"))
+    assert response.status_code == 409
+    assert "chk_decided_at_once_decided" in response.text
+
+
+def test_decision_with_date_is_accepted(db_client: TestClient):
+    payload = proposed_payload(db_client, client_decision="interested", client_decided_at=DECIDED)
+    assert post_as_hunter(db_client, "/estate-proposed", payload).status_code == 201
+
+
+def test_offer_without_interest_returns_409(db_client: TestClient):
+    # CHECK de Gabriel (§ 8.1) : au-delà de 'proposed', le client est 'interested'.
+    payload = {**proposition_payload(db_client, "offer_pending"), "client_decision": "pending"}
+    response = post_as_hunter(db_client, "/estate-proposed", payload)
+    assert response.status_code == 409
+    assert "chk_offer_needs_interest" in response.text
+
+
+def test_offer_with_interest_is_accepted(db_client: TestClient):
+    payload = {**proposition_payload(db_client, "offer_pending"), "client_decision": "interested", "client_decided_at": DECIDED}
+    assert post_as_hunter(db_client, "/estate-proposed", payload).status_code == 201
+
+
+def test_client_records_his_decision_by_put(db_client: TestClient):
+    # SUG1 : la décision, sa date et son motif sont des champs du client.
+    payload = proposed_payload(db_client)
+    created = post_as_hunter(db_client, "/estate-proposed", payload).json()
+    declined = {**payload, "client_decision": "declined", "client_decided_at": DECIDED, "decline_reason": "too_expensive"}
+    with acting_as(CLIENT, ACTIVE_MANDATE_CLIENT):
+        response = db_client.put(f"/estate-proposed/{created['id']}", json=declined)
+    assert response.status_code == 200, response.text
+    assert (response.json()["client_decision"], response.json()["decline_reason"]) == ("declined", "too_expensive")

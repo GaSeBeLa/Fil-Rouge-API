@@ -19,7 +19,8 @@ commentaire) ne les rejuge pas.
 « Le sien » (ADR-027, annexe § 3 ; fiche DRO5) : un Client voit les biens
 proposés sur ses mandats, et ne modifie (commenter, prioriser, offrir ;
 H6, H8) que ceux-là : `id_mandate` reste un de ses mandats. Sur un PUT, il
-ne change que sa note et son commentaire (`CLIENT_FIELDS`, fiche SUG1) :
+ne change que sa note, son commentaire et sa décision (`CLIENT_FIELDS`,
+fiches SUG1 et SUG5) :
 tout autre champ changé lève ForbiddenError (403) — le statut, le montant et
 le commentaire du chasseur restent au chasseur.
 
@@ -45,8 +46,8 @@ ACTIVE = "active"
 # Fiche SUG4 : le seul état de la sélection qu'on propose au client (P19).
 KEPT = "kept"
 
-# Fiche SUG1 (H6, H8) : ce que le client change sur un bien proposé.
-CLIENT_FIELDS = ("client_priority", "comment_client")
+# Fiches SUG1 (H6, H8) et SUG5 (M4) : ce que le client change sur un bien proposé.
+CLIENT_FIELDS = ("client_priority", "comment_client", "client_decision", "client_decided_at", "decline_reason")
 
 
 class EstateProposedService(BaseService[EstateProposed]):
@@ -109,7 +110,7 @@ class EstateProposedService(BaseService[EstateProposed]):
             changed = fields_changed_outside(existing, data, CLIENT_FIELDS)
             if changed:
                 raise ForbiddenError(
-                    f"Le client ne change que sa note et son commentaire, pas {', '.join(changed)} (fiche SUG1)."
+                    f"Le client ne change que sa note, son commentaire et sa décision, pas {', '.join(changed)} (fiche SUG1)."
                 )
         return super().replace_visible(session, item_id, data, viewer)
 

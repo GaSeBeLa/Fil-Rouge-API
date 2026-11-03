@@ -34,7 +34,7 @@ Le domaine `.invalid` est refusé par la validation de `UserCreate`
 """
 
 import os
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import NamedTuple
 
@@ -389,6 +389,9 @@ def seed_sale(session: Session, demo: DemoRequest) -> Sale:
     offers = EstateProposedService(EstateProposedRepository(), MandateRepository(), EstateSearchRequestRepository())
     accepted = EstateProposed(**offer.model_dump(exclude={"id"}))
     accepted.proposition_status, accepted.amount_proposition = "accepted", estate.price
+    # Une offre suppose un client intéressé (chk_offer_needs_interest, fiche SUG5).
+    accepted.client_decision = "interested"
+    accepted.client_decided_at = datetime.combine(SALE_SIGNED, time(), tzinfo=timezone.utc)
     offers.replace(session, offer.id, accepted)
 
     grid = ParametersFeesRepository().in_force_at(session, SALE_SIGNED)

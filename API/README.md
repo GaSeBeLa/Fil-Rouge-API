@@ -741,7 +741,9 @@ depuis `docker/` : `docker compose --profile "*" up -d --build`.
   ADR-040) : on ne propose qu'un bien de la **sélection** de la demande du mandat,
   à l'état **`'kept'`** (P19 ; `estate_searchrequest.status` vaut `'suggested'`,
   `'kept'` ou `'dismissed'`, le chasseur le change par le `PUT`, fiche SUG4), sur un
-  mandat **`'active'`** (P20). Une visite tombe **entre la signature et
+  mandat **`'active'`** (P20). Le client y note sa **décision** (`client_decision` :
+  `'pending'`, `'interested'`, `'declined'`, sa date, un motif de refus) ; une offre
+  suppose un client `'interested'` (`chk_offer_needs_interest`, fiche SUG5). Une visite tombe **entre la signature et
   la fin** du mandat (ADR-044, P25 ; le statut n'est pas regardé), et une visite
   `'client'` porte sur un bien **proposé sur ce mandat** (P23). Refus → `409`.
 * ✒️ **Signature et vente** (fiche API8) : un mandat qui reçoit sa `signature_date`

@@ -429,6 +429,9 @@ def seed_one_sale(
     assert offer.id is not None
     accepted = EstateProposed(**offer.model_dump(exclude={"id"}))
     accepted.proposition_status, accepted.amount_proposition = "accepted", sold.price
+    # Une offre suppose un client intéressé (chk_offer_needs_interest, fiche SUG5).
+    accepted.client_decision = "interested"
+    accepted.client_decided_at = datetime.combine(plan.sale_date, time(), tzinfo=timezone.utc)
     svc.offers.replace(session, offer.id, accepted)
 
     grid = ParametersFeesRepository().in_force_at(session, plan.sale_date)

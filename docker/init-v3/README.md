@@ -187,6 +187,15 @@ Acceptée par Seb le 2026-11-03 (P19 renforcée, `md/journal/2026-11-02-suggesti
 - Une base migrée passe ses lignes d'avant à `'kept'` : un chasseur les avait choisies.
 - L'API ne propose au client qu'un bien `'kept'` (P19, `services/estate_proposed_service.py`).
 
+### Décision du client — chantier SUG, `51_decision-du-client.sql`
+
+Vote M4 du 2026-11-03 et ajouts de Gabriel (§ 8.1 de `md/journal/2026-11-02-suggestion-de-biens.md`).
+
+- **`estate_proposed.client_decision`** (SUG5, migration 51) : `'pending'` (défaut), `'interested'`, `'declined'` ; **`client_decided_at`**, la date de la dernière décision (pas un historique) ; **`decline_reason`**, le motif d'un refus : `too_expensive`, `too_far`, `too_small`, `wrong_type`, `other`.
+- Trois `CHECK` : `chk_decline_reason_if_declined` (un motif seulement sur un refus), `chk_decided_at_once_decided` (une décision porte sa date), `chk_offer_needs_interest` (au-delà de `'proposed'`, le client est `'interested'`).
+- ⚠️ `'rejected'` ne dit donc plus que « le vendeur refuse l'offre » ; un client qui retire son offre repasse d'abord par `'proposed'` (limite connue).
+- Une base migrée passe ses offres d'avant à `'interested'`, datées de leur `created_at`.
+
 ---
 
 ## 1. Pourquoi les euros, et pas les K€
