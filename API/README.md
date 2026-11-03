@@ -492,8 +492,9 @@ Les 21 tables ont les **mêmes 4 routes**, construites par
 [`routes/crud_router.py`](src/app/routes/crud_router.py) : `GET` (liste),
 `GET /{id}`, `POST`, `PUT /{id}`. **Plus de `DELETE`** (ADR-049, fiche API10) : un
 `DELETE` rend `405`. Plus `GET /` (health-check), `/auth`, la demande avant le compte
-et l'anonymisation (d'un compte, des contacts de vendeur), et le calcul du paiement
-d'une vente. Soit **91 opérations** (compté dans `/openapi.json` le 13/10/2026).
+et l'anonymisation (d'un compte, des contacts de vendeur), le calcul du paiement
+d'une vente, la recherche de biens (`GET /estates/search`), l'offre du client et les
+suggestions de biens. Soit **94 opérations** (compté dans `/openapi.json` le 2026-11-03).
 
 Dans le Swagger, **chaque opération a un titre et une description** : ce qu'elle fait,
 qui peut l'appeler, et ce que veut dire chaque code de réponse. Chaque section (table)
