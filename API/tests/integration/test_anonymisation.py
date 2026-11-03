@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from src.app.models import Client, Criteria, EstateProposed, Hunter, Mandate, User
+from src.app.repositories.criteria_repository import CriteriaRepository
 from src.app.repositories.mandate_repository import MandateRepository
 from src.app.repositories.search_request_repository import SearchRequestRepository
 from src.app.services.anonymization_service import (
@@ -183,7 +184,7 @@ def _hunter_with_an_old_mandate(db_client: TestClient, db_session: Session) -> t
     }
     # La demande 1 est au chasseur 1 : l'API refuse ce mandat au chasseur neuf
     # (« le sien », DRO6) ; écrit par le service, sans compte.
-    old_mandate = MandateService(MandateRepository(), SearchRequestRepository()).create(
+    old_mandate = MandateService(MandateRepository(), SearchRequestRepository(), CriteriaRepository()).create(
         db_session, Mandate.model_validate(mandate)
     )
     grid = {"effective_from": "2024-01-01", "fixed_amount": 3000, "rate": "0.0250"}
@@ -265,7 +266,7 @@ def test_renewal_by_another_hunter_extends_the_delay(db_client: TestClient, db_s
         "id_search_request": ACTIVE_REQUEST,
         "id_mandate_parent": ACTIVE_MANDATE,
     }
-    service = MandateService(MandateRepository(), SearchRequestRepository())
+    service = MandateService(MandateRepository(), SearchRequestRepository(), CriteriaRepository())
     assert service.create(db_session, Mandate.model_validate(renewal)).id is not None
 
     body = _anonymize(db_client, HUNTER_ID).json()

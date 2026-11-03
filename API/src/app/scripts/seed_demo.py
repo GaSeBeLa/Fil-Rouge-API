@@ -302,7 +302,7 @@ def seed_selection(session: Session, profiles: DemoProfiles, request: SearchRequ
 def seed_mandate(session: Session, profiles: DemoProfiles, request: SearchRequest) -> Mandate:
     """Étape 5 : le mandat signé ; MandateService passe la demande à `launched`."""
     assert request.id is not None
-    return MandateService(MandateRepository(), SearchRequestRepository()).create(
+    return MandateService(MandateRepository(), SearchRequestRepository(), CriteriaRepository()).create(
         session,
         Mandate(
             reference=MANDATE_REFERENCE,

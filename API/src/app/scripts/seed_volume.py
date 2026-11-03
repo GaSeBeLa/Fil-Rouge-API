@@ -309,7 +309,7 @@ class Services:
             requests=SearchRequestService(SearchRequestRepository()),
             criteria=CriteriaService(CriteriaRepository()),
             selections=EstateSearchRequestService(EstateSearchRequestRepository()),
-            mandates=MandateService(MandateRepository(), SearchRequestRepository()),
+            mandates=MandateService(MandateRepository(), SearchRequestRepository(), CriteriaRepository()),
             offers=EstateProposedService(EstateProposedRepository(), MandateRepository(), EstateSearchRequestRepository()),
             visits=VisitService(VisitRepository(), MandateRepository(), EstateProposedRepository()),
             sales=SaleService(SaleRepository(), MandateRepository(), EstateProposedRepository(), ParametersFeesRepository()),

@@ -8,6 +8,11 @@ lancée »). Même transaction : la demande est préparée (`stage`), puis écri
 par le commit du mandat ; si la base refuse le mandat, la demande reste
 telle quelle.
 
+M1 (voté le 2026-11-03, fiche SUG2) : pas de signature sans critères. Si la
+demande n'a aucune ligne `criteria`, poser `signature_date` lève
+ConflictError (409) et la demande n'est pas lancée. Un mandat non signé
+(`pending_signature`) reste possible sans critères.
+
 « Le sien » (ADR-027, annexe § 2 ; fiche DRO5) : un Client voit ses
 mandats, et ne modifie (signer, P3) que les siens : `id_client` reste son
 compte. La clé (id_search_request, id_client) garde la demande au même client.
@@ -27,8 +32,10 @@ from sqlalchemy import ColumnElement
 from sqlmodel import Session, col
 
 from ..models import Mandate, User
+from ..repositories.criteria_repository import CriteriaRepository
 from ..repositories.mandate_repository import MandateRepository
 from ..repositories.search_request_repository import SearchRequestRepository
+from ..utils.exceptions import ConflictError
 from ..utils.roles import CLIENT, HUNTER, MANAGER, Principal
 from .base_service import BaseService
 from .hunter_rows import handles_request
@@ -38,9 +45,10 @@ LAUNCHED = "launched"
 
 
 class MandateService(BaseService[Mandate]):
-    def __init__(self, repository: MandateRepository, requests: SearchRequestRepository):
+    def __init__(self, repository: MandateRepository, requests: SearchRequestRepository, criteria: CriteriaRepository):
         super().__init__(repository, not_found_detail="Mandat introuvable")
         self.requests = requests
+        self.criteria = criteria
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
@@ -59,6 +67,13 @@ class MandateService(BaseService[Mandate]):
         return True
 
     def _launch_request(self, session: Session, mandate: Mandate) -> None:
+        """
+        La signature : refuse une demande sans critères (M1, 409), puis passe
+        la demande à 'launched'. Une demande introuvable ne lève rien ici : la
+        clé étrangère du mandat refusera l'écriture.
+        """
+        if not self.criteria.exists_where(session, id_search_request=mandate.id_search_request):
+            raise ConflictError("La demande n'a aucun critère : le mandat ne peut pas être signé.")
         request = self.requests.get_by_id(session, mandate.id_search_request)
         if request is None:
             return  # la clé étrangère du mandat refusera l'écriture (409)

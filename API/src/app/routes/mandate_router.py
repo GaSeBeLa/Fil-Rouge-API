@@ -1,4 +1,5 @@
 from ..models import Mandate
+from ..repositories.criteria_repository import CriteriaRepository
 from ..repositories.mandate_repository import MandateRepository
 from ..repositories.search_request_repository import SearchRequestRepository
 from ..services.mandate_service import MandateService
@@ -6,7 +7,7 @@ from ..utils.roles import ADMIN, ALL_ROLES, CLIENT, HUNTER
 from .crud_router import build_crud_router
 
 router = build_crud_router(
-    service=MandateService(MandateRepository(), SearchRequestRepository()),
+    service=MandateService(MandateRepository(), SearchRequestRepository(), CriteriaRepository()),
     prefix="/mandates",
     tag="mandate",
     response_model=Mandate,

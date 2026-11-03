@@ -33,12 +33,21 @@ UNSIGNED = {**MANDATE, "reference": "TEST-M-SIGN", "status": "pending_signature"
 SIGNED = {"status": "active", "signature_date": "2026-02-01", "ends_at": "2026-08-01"}
 
 
-def new_request(db_client: TestClient) -> int:
-    """Une demande neuve du client 7, acceptée par le chasseur 1."""
+def new_request(db_client: TestClient, with_criteria: bool = True) -> int:
+    """
+    Une demande neuve du client 7, acceptée par le chasseur 1. Par défaut
+    avec sa première version de critères : sans elle, la demande ne se
+    signe pas (M1, fiche SUG2) ; `with_criteria=False` la laisse nue.
+    """
     payload = {"id_author": 7, "id_client": client_profile(7), "id_hunter": HUNTER_PROFILE, "status": "accepted"}
     response = post_as_hunter(db_client, "/search-requests", payload)  # Q-ACC-15
     assert response.status_code == 201, response.text
-    return response.json()["id"]
+    request_id = response.json()["id"]
+    if with_criteria:
+        first = {"id_author": HUNTER_ID, "id_search_request": request_id, "estate_type": "Appartement", "budget_max": 300000}
+        created = post_as_hunter(db_client, "/criteria", first)
+        assert created.status_code == 201, created.text
+    return request_id
 
 
 def request_status(db_client: TestClient, request_id: int) -> str:
@@ -87,6 +96,43 @@ def test_refused_mandate_does_not_launch_its_request(db_client: TestClient):
 
     assert post_as_hunter(db_client, "/mandates", payload).status_code == 409
     assert request_status(db_client, request_id) == "accepted"
+
+
+# --- M1 (voté le 2026-11-03, fiche SUG2) : pas de signature sans critères ---------
+
+
+def test_signing_a_request_without_criteria_returns_409(db_client: TestClient):
+    request_id = new_request(db_client, with_criteria=False)
+
+    response = post_as_hunter(db_client, "/mandates", {**UNSIGNED, **SIGNED, "id_search_request": request_id})
+    assert response.status_code == 409, response.text
+    assert "aucun critère" in response.json()["detail"]
+    assert request_status(db_client, request_id) == "accepted"  # pas lancée
+
+
+def test_signing_by_put_a_request_without_criteria_returns_409(db_client: TestClient):
+    request_id = new_request(db_client, with_criteria=False)
+    payload = {**UNSIGNED, "id_search_request": request_id}
+    created = post_as_hunter(db_client, "/mandates", payload)
+    assert created.status_code == 201, created.text  # non signé : permis sans critères
+
+    signed = db_client.put(f"/mandates/{created.json()['id']}", json={**payload, **SIGNED})
+    assert signed.status_code == 409, signed.text
+    assert request_status(db_client, request_id) == "accepted"
+
+
+def test_signing_a_request_with_one_criteria_is_accepted(db_client: TestClient):
+    request_id = new_request(db_client)
+
+    response = post_as_hunter(db_client, "/mandates", {**UNSIGNED, **SIGNED, "id_search_request": request_id})
+    assert response.status_code == 201, response.text
+
+
+def test_unsigned_mandate_without_criteria_is_accepted(db_client: TestClient):
+    request_id = new_request(db_client, with_criteria=False)
+
+    response = post_as_hunter(db_client, "/mandates", {**UNSIGNED, "id_search_request": request_id})
+    assert response.status_code == 201, response.text
 
 
 # --- Q-MAN-06 : un mandat signé ----------------------------------------------------
