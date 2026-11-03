@@ -160,6 +160,7 @@ SPECIAL_ROUTES: dict[tuple[str, str], str] = {
     ("POST", "/sales/{item_id}/payment"): "test_droits_par_role.test_payment_calculation_is_admin_only",
     ("POST", "/estate-proposed/{item_id}/offer"): "test_propositions_visites.test_hunter_cannot_make_an_offer",
     ("GET", "/estates/search"): "test_droits_par_role.test_estate_search_reads_like_estates",
+    ("POST", "/search-requests/{item_id}/suggestions"): "test_suggestions.test_client_cannot_ask_for_suggestions",
 }
 
 # Les quatre routes que build_crud_router pose par table (pas de DELETE, ADR-049).

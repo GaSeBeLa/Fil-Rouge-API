@@ -66,6 +66,7 @@ from .routes import (
     role_router,
     search_request_router,
     signup_router,
+    suggestion_router,
     user_router,
     sale_router,
     commission_scale_router,
@@ -200,6 +201,8 @@ app.include_router(hunter_router.router)
 app.include_router(client_router.router)
 app.include_router(real_estate_manager_router.router)
 app.include_router(search_request_router.router)
+# SUG8 : le moteur de suggestion, POST /search-requests/{id}/suggestions.
+app.include_router(suggestion_router.router)
 app.include_router(criteria_router.router)
 app.include_router(mandate_router.router)
 # FLX9 : AVANT estate_router, sinon GET /estates/{id} capte « search » (422).
