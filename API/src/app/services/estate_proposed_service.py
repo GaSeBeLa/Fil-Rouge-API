@@ -24,10 +24,16 @@ fiches SUG1 et SUG5) :
 tout autre champ changé lève ForbiddenError (403) — le statut, le montant et
 le commentaire du chasseur restent au chasseur.
 
+L'offre du client (fiche SUG6) passe par sa propre route, `make_offer` :
+sur un bien encore `'proposed'` (sinon ConflictError, 409), elle écrit en
+une fois le montant, `'offer_pending'` et sa décision `'interested'`, datée
+de maintenant. Le montant ne passe pas par le PUT du client (SUG1).
+
 Le Hunter (fiche DRO6) voit ses propositions, et n'en écrit qu'à son nom
 (H5, H9) ; la clé (id_mandate, id_hunter) garde le mandat au même chasseur.
 """
 
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import ColumnElement
@@ -43,6 +49,9 @@ from .base_service import BaseService, fields_changed_outside
 from .client_rows import mandates_of, owns_mandate
 
 ACTIVE = "active"
+PROPOSED = "proposed"
+OFFER_PENDING = "offer_pending"
+INTERESTED = "interested"
 # Fiche SUG4 : le seul état de la sélection qu'on propose au client (P19).
 KEPT = "kept"
 
@@ -113,6 +122,26 @@ class EstateProposedService(BaseService[EstateProposed]):
                     f"Le client ne change que sa note, son commentaire et sa décision, pas {', '.join(changed)} (fiche SUG1)."
                 )
         return super().replace_visible(session, item_id, data, viewer)
+
+    def make_offer(self, session: Session, item_id: int, amount: int, viewer: Principal) -> EstateProposed:
+        """
+        L'offre du client sur un bien proposé (fiche SUG6) : la proposition
+        mise à jour. Celle d'un autre lève NotFoundError (404, « le sien ») ;
+        une proposition qui n'est plus `'proposed'`, ConflictError (409) —
+        une offre ne se refait pas, la ligne reste telle quelle.
+        """
+        existing = self.get_by_id(session, item_id, viewer)
+        if existing.proposition_status != PROPOSED:
+            raise ConflictError(
+                f"Une offre se fait sur un bien encore 'proposed', pas '{existing.proposition_status}'."
+            )
+        offer = EstateProposed.model_validate(existing.model_dump())
+        offer.amount_proposition = amount
+        offer.proposition_status = OFFER_PENDING
+        offer.client_decision = INTERESTED
+        offer.client_decided_at = datetime.now(timezone.utc)
+        # Même bien, même mandat : P19 et P20 ne se rejugent pas (replace()).
+        return self.repository.replace(session, existing, offer)
 
     def replace(self, session: Session, item_id: int, data: EstateProposed) -> EstateProposed:
         existing = self.get_by_id(session, item_id)

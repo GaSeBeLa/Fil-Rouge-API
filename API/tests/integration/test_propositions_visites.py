@@ -119,6 +119,64 @@ def test_client_can_set_his_priority(db_client: TestClient):
     assert response.json()["client_priority"] == 2
 
 
+# --- POST /estate-proposed/{id}/offer : l'offre du client (fiche SUG6) -----------
+
+OTHER_CLIENT = 7  # Alice Martin (seed 02) : cliente, pas celle du mandat 15
+
+
+def offer_url(proposal_id: int) -> str:
+    return f"/estate-proposed/{proposal_id}/offer"
+
+
+def test_client_makes_an_offer(db_client: TestClient):
+    created = post_as_hunter(db_client, "/estate-proposed", proposal(selected_estate(db_client))).json()
+
+    with acting_as(CLIENT, ACTIVE_MANDATE_CLIENT):
+        response = db_client.post(offer_url(created["id"]), json={"amount_proposition": 280000})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["amount_proposition"], body["proposition_status"], body["client_decision"]) == (
+        280000, "offer_pending", "interested",
+    )
+    assert body["client_decided_at"] is not None
+
+
+def test_offer_on_another_clients_proposal_returns_404(db_client: TestClient):
+    created = post_as_hunter(db_client, "/estate-proposed", proposal(selected_estate(db_client))).json()
+
+    with acting_as(CLIENT, OTHER_CLIENT):  # « le sien » : la ligne d'un autre n'existe pas pour lui
+        response = db_client.post(offer_url(created["id"]), json={"amount_proposition": 280000})
+    assert response.status_code == 404, response.text
+
+
+def test_second_offer_returns_409(db_client: TestClient):
+    created = post_as_hunter(db_client, "/estate-proposed", proposal(selected_estate(db_client))).json()
+
+    with acting_as(CLIENT, ACTIVE_MANDATE_CLIENT):
+        first = db_client.post(offer_url(created["id"]), json={"amount_proposition": 280000})
+        second = db_client.post(offer_url(created["id"]), json={"amount_proposition": 290000})
+    assert first.status_code == 200, first.text
+    assert second.status_code == 409, second.text
+    assert db_client.get(f"/estate-proposed/{created['id']}").json()["amount_proposition"] == 280000
+
+
+@pytest.mark.parametrize("amount", [0, -1])
+def test_offer_without_a_positive_amount_returns_422(db_client: TestClient, amount: int):
+    created = post_as_hunter(db_client, "/estate-proposed", proposal(selected_estate(db_client))).json()
+
+    with acting_as(CLIENT, ACTIVE_MANDATE_CLIENT):
+        response = db_client.post(offer_url(created["id"]), json={"amount_proposition": amount})
+    assert response.status_code == 422, response.text
+
+
+def test_hunter_cannot_make_an_offer(db_client: TestClient):
+    created = post_as_hunter(db_client, "/estate-proposed", proposal(selected_estate(db_client))).json()
+
+    with acting_as(HUNTER, HUNTER_ID):
+        response = db_client.post(offer_url(created["id"]), json={"amount_proposition": 280000})
+    assert response.status_code == 403, response.text
+
+
 # --- P20 : seulement sur un mandat actif ------------------------------------------
 
 

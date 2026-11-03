@@ -773,6 +773,10 @@ depuis `docker/` : `docker compose --profile "*" up -d --build`.
   Prénom et nom attendent **10 ans** après la fin du dernier mandat de la chaîne, ou après
   le paiement ; la réponse dit jusqu'à quand (`names_kept_until`). Rappelée après ce jour,
   la route finit le travail : pas de tâche planifiée (V2).
+* 🤝 **L'offre du client** (fiche SUG6) : `POST /estate-proposed/{id}/offer`, corps
+  `{"amount_proposition": <euros, > 0>}`, réservée au **client du mandat** (un autre → `404`,
+  un autre rôle → `403`). Sur un bien encore `'proposed'` (sinon `409`), elle écrit en une
+  fois le montant, `'offer_pending'` et la décision `'interested'`, datée de maintenant.
 * 💶 **Calculer le paiement d'une vente** (fiche API12) : `POST /sales/{id}/payment`,
   **Admin** seul (fiche DRO2). Compte en base les visites `'client'` de la chaîne du mandat, les
   ventes et les mandats du chasseur sur la fenêtre (ADR-048), charge le paramétrage à la
