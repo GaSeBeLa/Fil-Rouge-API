@@ -11,6 +11,7 @@ API6 → API10) : les tests retrouvent le compte par son email, en base.
 """
 
 import logging
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,7 +19,7 @@ from sqlalchemy import func
 from sqlmodel import Session, SQLModel, select
 
 from src.app.main import app
-from src.app.models import Client, SearchRequest, User
+from src.app.models import Client, Criteria, SearchRequest, User
 from src.app.services.signup_service import RECEIPT
 from src.app.utils.roles import get_principal
 from src.app.utils.security import PENDING_SIGNUP_PASSWORD
@@ -26,7 +27,7 @@ from src.app.utils.security import PENDING_SIGNUP_PASSWORD
 SUBMIT = "/search-requests/submit"
 ACCEPTED = (202, {"detail": RECEIPT})
 
-FORM = {
+FORM: dict[str, Any] = {
     "email": "lea.dupont.api9@exemple.fr",
     "first_name": "Léa",
     "last_name": "Dupont",
@@ -35,6 +36,9 @@ FORM = {
     "address": "12 rue de la Roquette",
     "postal_code": "75011",
     "town": "Paris",
+    # M2 (voté le 2026-11-03, fiche SUG3) : la 1re version des critères.
+    "budget_max": 400000,
+    "estate_type": "Appartement",
 }
 
 SEED_CLIENT_EMAIL = "alice.martin@mail.fr"  # user 7, Client, fiche à Montpellier (02_migration.sql)
@@ -50,7 +54,7 @@ def _counts(session: Session) -> tuple[int, int, int]:
     return (_count(session, User), _count(session, Client), _count(session, SearchRequest))
 
 
-def _answer(db_client: TestClient, form: dict[str, str]) -> tuple[int, object]:
+def _answer(db_client: TestClient, form: dict[str, Any]) -> tuple[int, object]:
     response = db_client.post(SUBMIT, json=form)
     return response.status_code, response.json()
 
@@ -174,3 +178,56 @@ def test_submit_needs_the_api_key_but_no_token(db_client: TestClient) -> None:
 
     assert _answer(db_client, FORM) == ACCEPTED
     assert TestClient(app).post(SUBMIT, json=FORM).status_code == 401  # sans X-API-Key
+
+
+# --- M2 (voté le 2026-11-03, fiche SUG3) : la demande naît avec ses critères ---
+
+
+def _criteria_of(session: Session, user_id: int | None) -> list[Criteria]:
+    """Les versions de critères des demandes du client dont le compte est `user_id`."""
+    request_ids = [request.id for request in _requests_of(session, user_id)]
+    return list(session.exec(select(Criteria).where(Criteria.id_search_request.in_(request_ids))).all())  # pyright: ignore[reportAttributeAccessIssue] -- colonne SQLModel
+
+
+def test_form_creates_exactly_one_first_criteria(db_client: TestClient, db_session: Session) -> None:
+    assert _answer(db_client, FORM) == ACCEPTED
+
+    user_id = _user_of(db_session, FORM["email"]).id
+    [criteria] = _criteria_of(db_session, user_id)
+    assert (criteria.budget_max, criteria.estate_type, criteria.country_iso) == (400000, "Appartement", "FR")
+    assert criteria.id_author == user_id  # le compte du visiteur
+    assert criteria.id_previous_version is None  # 1re version
+
+
+def test_known_email_attaches_criteria_to_its_account(db_client: TestClient, db_session: Session) -> None:
+    known = _user_of(db_session, SEED_CLIENT_EMAIL)
+    before = len(_criteria_of(db_session, known.id))
+
+    assert _answer(db_client, {**FORM, "email": SEED_CLIENT_EMAIL, "estate_type": "Maison"}) == ACCEPTED
+
+    after = _criteria_of(db_session, known.id)
+    assert len(after) == before + 1
+    assert any(c.estate_type == "Maison" and c.id_author == known.id for c in after)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [{"budget_max": 0}, {"budget_max": -1}, {"estate_type": "Péniche"}, {"budget_max": None}, {"estate_type": None}],
+)
+def test_bad_budget_or_type_422_nothing_written(
+    db_client: TestClient, db_session: Session, change: dict[str, object]
+) -> None:
+    before = (_counts(db_session), _count(db_session, Criteria))
+    form = {key: value for key, value in {**FORM, **change}.items() if value is not None}
+
+    assert db_client.post(SUBMIT, json=form).status_code == 422
+
+    assert (_counts(db_session), _count(db_session, Criteria)) == before
+
+
+def test_database_refusal_writes_no_criteria(db_client: TestClient, db_session: Session) -> None:
+    before = (_counts(db_session), _count(db_session, Criteria))
+
+    assert db_client.post(SUBMIT, json={**FORM, "postal_code": "3100"}).status_code == 409
+
+    assert (_counts(db_session), _count(db_session, Criteria)) == before

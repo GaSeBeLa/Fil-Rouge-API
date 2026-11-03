@@ -13,9 +13,12 @@ le schéma — en UNE transaction :
   1. le user, inactif, avec un mot de passe factice qui n'est pas une
      empreinte argon2 (PENDING_SIGNUP_PASSWORD : la connexion est refusée) ;
   2. sa fiche client ;
-  3. la search_request, au statut 'confirmed' (demande reçue, sans chasseur).
-Les deux premières lignes sont écrites sans valider (insert_pending) ; le
-commit de la troisième valide les trois. Un refus de la base en chemin
+  3. la search_request, au statut 'confirmed' (demande reçue, sans chasseur) ;
+  4. sa 1re version de criteria (M2, voté le 2026-11-03, fiche SUG3) : le
+     budget et le type du formulaire, le pays de l'adresse, l'auteur = le
+     compte du visiteur, sans version précédente.
+Les trois premières lignes sont écrites sans valider (insert_pending) ; le
+commit de la quatrième valide les quatre. Un refus de la base en chemin
 annule tout : rien n'est écrit.
 
 Un email déjà connu, majuscules comprises (P2), retrouve son compte : la
@@ -49,9 +52,11 @@ from uuid import uuid4
 from pydantic import EmailStr
 from sqlmodel import Field, Session, SQLModel
 
-from ..models import Client, SearchRequest, User
+from ..models import Client, Criteria, SearchRequest, User
+from ..models.estate_model import EstateType
 from ..repositories.base_repository import discarded_writes
 from ..repositories.client_repository import ClientRepository
+from ..repositories.criteria_repository import CriteriaRepository
 from ..repositories.search_request_repository import SearchRequestRepository
 from ..repositories.user_repository import UserRepository
 from ..utils.roles import HUNTER, MANAGER, profile_id_of
@@ -94,6 +99,9 @@ class SearchRequestSubmission(SQLModel):
     address_complement: Optional[str] = Field(default=None, max_length=150)
     postal_code: str = Field(min_length=1, max_length=10)
     town: str = Field(min_length=1, max_length=100)
+    # M2 (fiche SUG3) : la 1re version des critères naît avec la demande.
+    budget_max: int = Field(gt=0, description="Budget maximum, en euros")
+    estate_type: EstateType
 
 
 class SubmissionReceipt(SQLModel):
@@ -110,13 +118,19 @@ class SignupService:
         users: UserRepository,
         clients: ClientRepository,
         requests: SearchRequestRepository,
+        criteria: CriteriaRepository,
     ):
         self.users = users
         self.clients = clients
         self.requests = requests
+        self.criteria = criteria
 
     def submit(self, session: Session, form: SearchRequestSubmission) -> Optional[SearchRequest]:
-        """La demande enregistrée, ou None si l'email est celui d'un compte non client."""
+        """
+        La demande enregistrée, avec sa 1re version de critères, ou None si
+        l'email est celui d'un compte non client (rien n'est alors écrit).
+        Un refus de la base lève ConflictError, et rien n'est écrit.
+        """
         user = self.users.find_by_email_ignoring_case(session, form.email)
         if user is not None:
             self._probe_new_signup(session, form)
@@ -149,12 +163,25 @@ class SignupService:
                 session, Client(id_user=user_id, **form.model_dump(include=_CLIENT_FIELDS))
             )
 
-        # Le commit de la demande valide aussi le compte et la fiche en attente.
         # id_client cite la fiche (client.id), id_author le compte (chantier PRF).
         if client.id is None:  # posé par la base au flush ; garde pour le typage
             raise RuntimeError("La fiche client n'a pas reçu d'id.")
-        request = SearchRequest(id_author=user_id, id_client=client.id, status=_RECEIVED)
-        return self.requests.create(session, request)
+        request = self.requests.insert_pending(
+            session, SearchRequest(id_author=user_id, id_client=client.id, status=_RECEIVED)
+        )
+        if request.id is None:  # posé par la base au flush ; garde pour le typage
+            raise RuntimeError("La demande n'a pas reçu d'id.")
+        # Le commit des critères valide aussi le compte, la fiche et la demande.
+        first = Criteria(
+            id_author=user_id,
+            id_search_request=request.id,
+            country_iso=form.country_iso,
+            estate_type=form.estate_type,
+            budget_max=form.budget_max,
+        )
+        self.criteria.create(session, first)
+        session.refresh(request)
+        return request
 
     def _probe_new_signup(self, session: Session, form: SearchRequestSubmission) -> None:
         """

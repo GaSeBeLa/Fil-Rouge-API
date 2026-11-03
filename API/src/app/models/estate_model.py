@@ -19,17 +19,24 @@ Deux choses à savoir avant d'écrire du code sur cette table :
 
 Les colonnes à liste fermée (`estate_type`, `typology`, `floor`,
 `energy_class`, `country_iso`) portent un CHECK côté base : c'est
-PostgreSQL qui rejette une valeur hors liste, pas SQLModel.
+PostgreSQL qui rejette une valeur hors liste, pas SQLModel. Seuls les
+formulaires d'entrée (la recherche, le dépôt de demande) lisent `EstateType`
+pour rendre 422 avant la base.
 """
 
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import ValidationInfo, model_validator
 from sqlmodel import SQLModel, Field
 from .input_check import is_input
 from .field_descriptions import AUTHOR_ACCOUNT
+
+
+# Valeurs du CHECK de estate.estate_type et de criteria.estate_type (init-v3/01).
+EstateType = Literal["Appartement", "Maison", "Studio", "Loft", "Villa", "Duplex", "Terrain",
+                     "Local commercial", "Chalet", "Château"]
 
 
 class Estate(SQLModel, table=True):

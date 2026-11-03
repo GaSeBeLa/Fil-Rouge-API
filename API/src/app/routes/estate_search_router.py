@@ -12,19 +12,16 @@ La réponse rend l'`id` et les champs de l'index ; le détail d'un bien reste
 `GET /estates/{id}`. Elasticsearch absent ou en panne : 503.
 """
 
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from ..models.estate_model import EstateType
 from ..services import estate_search_service as search
 from ..utils.api_keys import require_api_key
 from ..utils.roles import ALL_ROLES, Principal, require_roles
 
 router = APIRouter(prefix="/estates", tags=["estate"], dependencies=[Depends(require_api_key)])
-
-# Valeurs du CHECK de estate.estate_type (init-v3/01).
-EstateType = Literal["Appartement", "Maison", "Studio", "Loft", "Villa", "Duplex", "Terrain",
-                     "Local commercial", "Chalet", "Château"]
 
 UNAVAILABLE = "La recherche de biens est indisponible : Elasticsearch ne répond pas. Réessayer plus tard."
 
