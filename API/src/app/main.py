@@ -11,18 +11,17 @@ séparées, dans l'ordre où une requête les traverse :
 
     routes/<table>_router.py        → HTTP : reçoit la requête, traduit les
                                       erreurs métier en codes HTTP (404, 409)
-    services/<table>_service.py    → métier : c'est ici qu'irait une règle
-                                      comme "hasher le mot de passe avant de
-                                      créer un User" (pas encore nécessaire
-                                      aujourd'hui, mais l'emplacement existe)
+    services/<table>_service.py    → métier : les règles, comme "hasher le
+                                      mot de passe avant de créer un User"
+                                      (UserService.create)
     repositories/<table>_repository.py → données : parle à la Session
                                       SQLModel/PostgreSQL, rien d'autre
 
 Chacune de ces trois couches hérite d'une classe de base générique
 (routes/crud_router.py, services/base_service.py,
 repositories/base_repository.py) qui porte le comportement CRUD commun aux
-21 tables — évite de le dupliquer 11 fois, comme le faisaient déjà
-list_all/get_one_or_404/create_one/... dans l'ancienne version de ce
+21 tables qui ont un routeur CRUD (le schéma en a 22) : il est écrit une
+fois, au lieu d'une fois par table comme dans l'ancienne version de ce
 fichier.
 
 Il n'y a volontairement pas de PATCH (mise à jour partielle) : PUT

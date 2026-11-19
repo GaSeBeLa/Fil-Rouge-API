@@ -50,6 +50,8 @@ from src.app.services.remuneration import calculer_remuneration
 from src.app.services.visit_service import VisitService
 from src.app.utils.roles import CLIENT, HUNTER, MANAGER, READER, Principal, profile_id_of
 
+from .test_seed_parametres import without_transaction
+
 DEMO_PASSWORD = "mot-de-passe-de-demo"
 # Mandat actif posé par 02 (chasseur 1, du 2026-03-25 au 2026-09-25) : une visite d'un autre client.
 OTHER_MANDATE = 15
@@ -83,11 +85,16 @@ PARAMETERS_SQL = [
 
 
 def apply_parameters(db_session: Session) -> None:
-    """Rejoue 05_parametres.sql par le curseur du pilote (ses `%` ne sont pas des paramètres)."""
+    """
+    Rejoue 05_parametres.sql par le curseur du pilote (ses `%` ne sont pas des
+    paramètres), sans ses lignes `BEGIN;` et `COMMIT;` : le COMMIT validerait
+    la transaction du test, que la fixture doit pouvoir annuler.
+    """
     found = [path for path in PARAMETERS_SQL if path.exists()]
     if not found:
         pytest.skip(f"05_parametres.sql introuvable ({', '.join(map(str, PARAMETERS_SQL))}).")
-    db_session.connection().connection.cursor().execute(found[0].read_text(encoding="utf-8"))
+    sql = without_transaction(found[0].read_text(encoding="utf-8"))
+    db_session.connection().connection.cursor().execute(sql)
 
 
 @pytest.fixture

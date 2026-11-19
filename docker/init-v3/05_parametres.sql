@@ -25,7 +25,13 @@
 --
 -- LA BASE DE TEST ne rejoue pas ce script (create_test_db.sh : 01, 02, 04) :
 --   les tests créent leurs propres lignes sans collision de date.
+--
+-- TRANSACTION (2026-11-19) : les trois insertions passent ensemble, ou aucune.
+--   test_seed_parametres.py rejoue ce fichier dans SA transaction, annulée à la
+--   fin : il en retire les deux lignes BEGIN; et COMMIT; avant de l'exécuter.
 -- ============================================================================
+
+BEGIN;
 
 -- 1) Honoraires : 3 000 € fixes + 2,5 % du prix (D1, sujet l. 649).
 INSERT INTO parameters_fees (effective_from, fixed_amount, rate)
@@ -83,3 +89,5 @@ VALUES (
     0.20, 0.60
 )
 ON CONFLICT (effective_from) DO NOTHING;
+
+COMMIT;

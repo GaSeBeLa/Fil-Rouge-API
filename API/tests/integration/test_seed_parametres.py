@@ -59,12 +59,32 @@ def apply_seed(db_session: Session) -> None:
 
     Passe par le curseur du pilote, sans paramètres : le fichier contient des `%`
     (dans ses commentaires) qu'une exécution paramétrée tenterait d'interpréter.
+    Ses lignes `BEGIN;` et `COMMIT;` sont retirées : le COMMIT validerait la
+    transaction du test, que la fixture doit pouvoir annuler.
     """
+    cursor = db_session.connection().connection.cursor()
+    cursor.execute(without_transaction(_seed_text()))
+
+
+def _seed_text() -> str:
+    """Le texte du seed ; saute le test si le fichier est introuvable."""
     found = [seed for seed in SEEDS if seed.exists()]
     if not found:
         pytest.skip(f"Seed introuvable ({', '.join(map(str, SEEDS))}).")
-    cursor = db_session.connection().connection.cursor()
-    cursor.execute(found[0].read_text(encoding="utf-8"))
+    return found[0].read_text(encoding="utf-8")
+
+
+def without_transaction(sql: str) -> str:
+    """Le SQL sans ses lignes `BEGIN;` et `COMMIT;` ; inchangé s'il n'en a pas."""
+    return "\n".join(line for line in sql.splitlines() if line.strip() not in ("BEGIN;", "COMMIT;"))
+
+
+def test_seed_is_one_transaction() -> None:
+    # La grille du sujet : des scripts SQL « transactionnels ». Les trois
+    # insertions passent ensemble, ou aucune.
+    lines = [line.strip() for line in _seed_text().splitlines()]
+    assert lines.count("BEGIN;") == 1 and lines.count("COMMIT;") == 1
+    assert lines.index("BEGIN;") < lines.index("COMMIT;")
 
 
 def count(db_session: Session, table: str) -> int:
