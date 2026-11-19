@@ -6,8 +6,8 @@ Le plan de tests du sujet veut des tests « unitaires + fonctionnels »
 enchaîne les user stories 01 et 02 dans l'ordre où un particulier les vit :
 
 1. il dépose sa demande sur le site, sans compte (01, @formulaire) ;
-2. sa demande est confiée à un manager, qui lui affecte un chasseur ; le
-   chasseur l'accepte (01, @affectation ; 04, @acceptation) ;
+2. un manager prend la demande, « à prendre », et lui affecte un chasseur ;
+   le chasseur l'accepte (01, @affectation ; 04, @acceptation) ;
 3. le manager obtient son code d'activation, le particulier choisit son mot
    de passe et se connecte avec un VRAI jeton (01, @creation-compte) ;
 4. le chasseur signe le mandat, garde un bien et le lui propose (01,
@@ -75,19 +75,15 @@ def test_particulier_from_form_to_interest(db_client: TestClient, db_session: Se
     request = db_session.exec(select(SearchRequest).where(SearchRequest.id_client == client.id)).one()
     assert user.is_activated is False and request.status == "confirmed"
 
-    # 2. La demande est confiée au manager, qui affecte un chasseur ; le
-    #    chasseur l'accepte.
-    #    ⚠️ TROU trouvé par ce test (2026-11-19) : aucune route ne confie une
-    #    demande neuve à un manager (l'Admin lit seulement, le Manager ne change
-    #    que id_hunter, et ne voit pas une demande sans équipe). Ce seul pas
-    #    passe donc par la base, en attendant le choix du groupe.
+    # 2. Un manager prend la demande, « à prendre » (choix B, 2026-11-19), et
+    #    lui affecte un de ses chasseurs ; le chasseur l'accepte.
     manager = db_session.exec(select(RealEstateManager).where(RealEstateManager.id_user == SEED_MANAGER)).one()
-    request.id_realestatemanager = manager.id
-    db_session.add(request)
-    db_session.commit()
     body = db_client.get(f"/search-requests/{request.id}").json()
     with acting_as(MANAGER, SEED_MANAGER):
-        assigned = db_client.put(f"/search-requests/{request.id}", json={**body, "id_hunter": hunter_profile(SEED_HUNTER)})
+        assigned = db_client.put(
+            f"/search-requests/{request.id}",
+            json={**body, "id_realestatemanager": manager.id, "id_hunter": hunter_profile(SEED_HUNTER)},
+        )
     assert assigned.status_code == 200, assigned.text
     with acting_as(HUNTER, SEED_HUNTER):
         accepted = db_client.put(f"/search-requests/{request.id}", json={**assigned.json(), "status": "accepted"})
