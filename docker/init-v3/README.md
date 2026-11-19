@@ -196,6 +196,14 @@ Vote M4 du 2026-11-03 et ajouts de Gabriel (§ 8.1 de `md/journal/2026-11-02-sug
 - ⚠️ `'rejected'` ne dit donc plus que « le vendeur refuse l'offre » ; un client qui retire son offre repasse d'abord par `'proposed'` (limite connue).
 - Une base migrée passe ses offres d'avant à `'interested'`, datées de leur `created_at`.
 
+### Index des filtres par chasseur et par demande — `52_index-chasseur-et-demande.sql`
+
+Choix A de Seb le 2026-11-19, après la note d'indexation (`livrables/2-modelisation/note-indexation.md`, dépôt Fil-Rouge).
+
+- PostgreSQL n'indexe pas une clé étrangère tout seul. Trois index : **`idx_estate_searchrequest_request`** (`id_search_request`), **`idx_estate_searchrequest_hunter`** (`id_hunter`), **`idx_search_request_hunter_created`** (`id_hunter, created_at DESC`).
+- Mesuré à ~500 000 sélections : × 35, × 15 et × 100. Au volume de démo, le gain est nul : ils préparent la croissance.
+- Aucune donnée ne change ; `IF NOT EXISTS` : la migration se rejoue sans effet.
+
 ---
 
 ## 1. Pourquoi les euros, et pas les K€

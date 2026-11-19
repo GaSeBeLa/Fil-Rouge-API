@@ -1313,6 +1313,20 @@ CREATE UNIQUE INDEX uq_perf_one_initial
 CREATE INDEX idx_perf_hunter_scored_at
     ON hunter_performance (id_hunter, scored_at DESC);
 
+-- Filtres par chasseur et par demande : PostgreSQL n'indexe pas une clé
+-- étrangère tout seul. Mesuré le 2026-11-19 à ~500 000 sélections (note
+-- d'indexation, dépôt Fil-Rouge) : × 35, × 15 et × 100. L'index unique
+-- uq_estate_search commence par id_estate : il ne sert pas par demande.
+CREATE INDEX idx_estate_searchrequest_request
+    ON estate_searchrequest (id_search_request);
+
+CREATE INDEX idx_estate_searchrequest_hunter
+    ON estate_searchrequest (id_hunter);
+
+-- Déjà trié : « les 20 dernières demandes d'un chasseur » s'arrête à 20.
+CREATE INDEX idx_search_request_hunter_created
+    ON search_request (id_hunter, created_at DESC);
+
 
 -- ============================================================================
 -- MÉTADONNÉES — lisibles par les clients SQL et les ORM
