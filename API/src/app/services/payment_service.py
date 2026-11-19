@@ -14,6 +14,10 @@ la ligne à autre chose qu'elle-même :
   versement). Le PUT est comparé au statut EN BASE : un retour en arrière,
   un saut ou un paiement payé modifié -> 409. Un POST ne crée qu'un
   paiement 'announced' ou 'refused' : les étapes suivantes passent par PUT.
+- 10_…feature:277 — le montant figé. Le montant annoncé au chasseur est
+  celui qui sera payé : un PUT qui change `amount` -> 409. Seule exception,
+  le refus (droit fermé, ADR-024) : chk_refused y exige un montant de 0
+  (relevé par test_scenarios_restants.py, 2026-11-19).
 - P33 — le taux final. Il est recalculé depuis les taux stockés (base,
   ancienneté, performance) et les bornes de la version des réglages citée
   (`taux_final` de remuneration.py) ; s'il diffère -> 409. Complète
@@ -101,13 +105,22 @@ class PaymentService(BaseService[Payment]):
         return super().create(session, item, actor)
 
     def replace(self, session: Session, item_id: int, data: Payment) -> Payment:
-        """Fait avancer un paiement d'un pas ; au passage à 'paid', prépare la note du journal."""
+        """
+        Fait avancer un paiement d'un pas, sans toucher à son montant ; au
+        passage à 'paid', prépare la note du journal. Rend le paiement modifié.
+        Un saut de statut, ou un montant changé, lève ConflictError (409).
+        """
         existing = self.get_by_id(session, item_id)
         if data.status not in NEXT_STATUSES.get(existing.status, frozenset()):
             raise ConflictError(
                 f"Statut '{existing.status}' -> '{data.status}' refusé : un paiement va pas à pas de "
                 "'announced' à 'scheduled' puis 'paid', ou de 'announced' à 'refused' ; "
                 "payé, il ne se modifie plus (ADR-038)."
+            )
+        if data.status != REFUSED and data.amount != existing.amount:
+            raise ConflictError(
+                f"Le montant annoncé ({existing.amount} €) ne change plus : c'est celui qui sera payé "
+                "(10_calcul_remuneration_chasseur.feature, montant figé)."
             )
         self._check_final_rate(session, data)
         if data.status == PAID and existing.status != PAID:

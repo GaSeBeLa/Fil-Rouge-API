@@ -25,9 +25,10 @@ tout autre champ changé lève ForbiddenError (403) — le statut, le montant et
 le commentaire du chasseur restent au chasseur.
 
 L'offre du client (fiche SUG6) passe par sa propre route, `make_offer` :
-sur un bien encore `'proposed'` (sinon ConflictError, 409), elle écrit en
-une fois le montant, `'offer_pending'` et sa décision `'interested'`, datée
-de maintenant. Le montant ne passe pas par le PUT du client (SUG1).
+sur un bien encore `'proposed'`, ou dont l'offre a été refusée par le vendeur
+(`'rejected'`, 06_…feature:37, 2026-11-19), elle écrit en une fois le
+montant, `'offer_pending'` et sa décision `'interested'`, datée de
+maintenant. Sur un autre statut : ConflictError (409). Le montant ne passe pas par le PUT du client (SUG1).
 
 Le Hunter (fiche DRO6) voit ses propositions, et n'en écrit qu'à son nom
 (H5, H9) ; la clé (id_mandate, id_hunter) garde le mandat au même chasseur.
@@ -50,6 +51,9 @@ from .client_rows import mandates_of, owns_mandate
 
 ACTIVE = "active"
 PROPOSED = "proposed"
+REJECTED = "rejected"
+# Les statuts sur lesquels le client peut (re)faire une offre.
+OPEN_TO_OFFER = (PROPOSED, REJECTED)
 OFFER_PENDING = "offer_pending"
 INTERESTED = "interested"
 # Fiche SUG4 : le seul état de la sélection qu'on propose au client (P19).
@@ -127,13 +131,15 @@ class EstateProposedService(BaseService[EstateProposed]):
         """
         L'offre du client sur un bien proposé (fiche SUG6) : la proposition
         mise à jour. Celle d'un autre lève NotFoundError (404, « le sien ») ;
-        une proposition qui n'est plus `'proposed'`, ConflictError (409) —
-        une offre ne se refait pas, la ligne reste telle quelle.
+        une proposition ni `'proposed'` ni `'rejected'`, ConflictError (409) :
+        une offre en cours ou acceptée ne se refait pas, la ligne reste telle
+        quelle. Après un refus du vendeur, une nouvelle offre est permise.
         """
         existing = self.get_by_id(session, item_id, viewer)
-        if existing.proposition_status != PROPOSED:
+        if existing.proposition_status not in OPEN_TO_OFFER:
             raise ConflictError(
-                f"Une offre se fait sur un bien encore 'proposed', pas '{existing.proposition_status}'."
+                "Une offre se fait sur un bien 'proposed', ou dont l'offre a été refusée ('rejected'), "
+                f"pas '{existing.proposition_status}'."
             )
         offer = EstateProposed.model_validate(existing.model_dump())
         offer.amount_proposition = amount
