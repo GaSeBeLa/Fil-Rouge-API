@@ -1,13 +1,15 @@
 from fastapi import Depends, HTTPException
-from sqlmodel import Session
+from sqlmodel import Session, SQLModel
 
 from ..conf.database import get_session
 from ..models import UserCreate, UserPublic, UserUpdate
 from ..repositories.user_repository import UserRepository
+from ..services.activation_service import ActivationService
 from ..services.anonymization_service import AnonymizationReport, AnonymizationService
 from ..services.user_service import UserService
 from ..utils.exceptions import ConflictError, NotFoundError
-from ..utils.roles import ADMIN, ALL_ROLES, CLIENT, HUNTER, MANAGER, require_roles
+from ..utils.roles import ADMIN, ALL_ROLES, CLIENT, HUNTER, MANAGER, Principal, require_roles
+from ..utils.security import ACTIVATION_TOKEN_TTL
 from .crud_router import build_crud_router
 
 router = build_crud_router(
@@ -76,3 +78,50 @@ def anonymize_user(item_id: int, session: Session = Depends(get_session)) -> Ano
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+_activations = ActivationService()
+
+
+class ActivationCode(SQLModel):
+    code: str
+    expires_in: int  # secondes
+
+
+# User story 01 (@creation-compte) : le particulier finalise lui-même son
+# compte, avec ce code et POST /auth/activate. Le code ne s'obtient que pour
+# un compte créé par le formulaire et jamais activé ; un Manager, seulement
+# pour un client dont il gère une demande. Ajouté le 2026-11-19 (trou trouvé
+# par Gabriel : seul un Admin pouvait activer).
+@router.post(
+    "/{item_id}/activation-code",
+    response_model=ActivationCode,
+    summary="Obtenir le code d'activation d'un compte créé par le formulaire",
+)
+def activation_code(
+    item_id: int,
+    principal: Principal = Depends(require_roles(ADMIN, MANAGER)),
+    session: Session = Depends(get_session),
+) -> ActivationCode:
+    """Rend le **code d'activation** d'un compte créé par le formulaire du site, valable 7 jours.
+
+    Le particulier l'envoie à `POST /auth/activate` avec le mot de passe qu'il
+    choisit : son compte s'active, sans Admin. Nous n'avons pas de serveur
+    d'email : l'API rend le code à l'appelant, qui le transmet (dans la vraie
+    vie, c'est le lien du mail de notification).
+
+    **Qui peut** : `Admin`, ou le `Manager` d'une demande de ce client.
+
+    Réponses :
+
+    - `200` : le code (`code`) et sa durée en secondes (`expires_in`) ;
+    - `401` : clé d'API ou jeton absent ;
+    - `403` : vous n'êtes ni `Admin` ni `Manager` ;
+    - `404` : aucun compte en attente d'activation n'a cet `id`, ou vous ne
+      gérez aucune demande de ce client (la réponse ne dit pas lequel).
+    """
+    try:
+        code = _activations.issue_code(session, principal, item_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return ActivationCode(code=code, expires_in=int(ACTIVATION_TOKEN_TTL.total_seconds()))

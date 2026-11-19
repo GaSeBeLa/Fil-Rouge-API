@@ -161,6 +161,8 @@ SPECIAL_ROUTES: dict[tuple[str, str], str] = {
     ("POST", "/estate-proposed/{item_id}/offer"): "test_propositions_visites.test_hunter_cannot_make_an_offer",
     ("GET", "/estates/search"): "test_droits_par_role.test_estate_search_reads_like_estates",
     ("POST", "/search-requests/{item_id}/suggestions"): "test_suggestions.test_client_cannot_ask_for_suggestions",
+    ("POST", "/users/{item_id}/activation-code"): "test_activation.test_client_and_hunter_cannot_get_a_code",
+    ("POST", "/auth/activate"): "test_activation.test_activation_needs_no_token",
 }
 
 # Les quatre routes que build_crud_router pose par table (pas de DELETE, ADR-049).

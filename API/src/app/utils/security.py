@@ -20,6 +20,11 @@ Le jeton de connexion (ADR-052) : un JWT signé HS256 par `pyjwt`, valable
 de l'utilisateur (`sub`) : le rôle et l'activation se relisent en base à
 chaque appel (utils/current_user.py, get_current_user).
 
+Le code d'activation (user story 01, @creation-compte) : un JWT signé du
+même secret, valable 7 jours, mais marqué `aud = "activate"`. pyjwt refuse
+un `aud` inattendu : le code n'est donc jamais un jeton de connexion, et un
+jeton de connexion (sans `aud`) n'est jamais un code.
+
 Le secret de signature se lit dans la variable JWT_SECRET. Absente ou trop
 courte, l'import de ce module échoue : l'API refuse de démarrer, plutôt que
 de signer des jetons avec une clé vide.
@@ -47,8 +52,8 @@ _dummy: Optional[tuple[PasswordHasher, str]] = None
 # P5 : mot de passe d'un compte créé par le formulaire de demande, avant que
 # son titulaire n'en choisisse un. Ce n'est pas une empreinte argon2 :
 # verify_password le refuse (InvalidHashError), comme le placeholder des
-# comptes repris. L'activation (PUT /users/{id}) le remplace par une vraie
-# empreinte.
+# comptes repris. L'activation (POST /auth/activate, ou PUT /users/{id} par
+# l'Admin) le remplace par une vraie empreinte.
 PENDING_SIGNUP_PASSWORD = "!PENDING_SIGNUP_MUST_SET_PASSWORD"
 
 
@@ -111,6 +116,8 @@ def needs_rehash(stored: str) -> bool:
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_TTL = timedelta(minutes=60)  # ADR-052, décision 2
 
+ACTIVATION_TOKEN_TTL = timedelta(days=7)
+_ACTIVATION_AUDIENCE = "activate"
 # RFC 7518 §3.2 : une clé HS256 doit faire au moins 256 bits (32 octets).
 _JWT_SECRET_MIN_LENGTH = 32
 
@@ -156,6 +163,31 @@ def decode_access_token(token: str) -> int:
             _JWT_SECRET,
             algorithms=[JWT_ALGORITHM],
             options={"require": ["exp", "sub"]},
+        )
+        return int(payload["sub"])
+    except (jwt.InvalidTokenError, ValueError) as exc:
+        raise InvalidTokenError(str(exc)) from exc
+
+
+def create_activation_token(user_id: int, expires_delta: timedelta = ACTIVATION_TOKEN_TTL) -> str:
+    """Signe un code d'activation du compte `user_id`, valable `expires_delta`."""
+    now = datetime.now(timezone.utc)
+    payload = {"sub": str(user_id), "aud": _ACTIVATION_AUDIENCE, "iat": now, "exp": now + expires_delta}
+    return jwt.encode(payload, _JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def decode_activation_token(token: str) -> int:
+    """
+    Rend l'identifiant du compte qu'un code d'activation désigne. Code faux,
+    expiré, ou jeton de connexion à la place : InvalidTokenError.
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            _JWT_SECRET,
+            algorithms=[JWT_ALGORITHM],
+            audience=_ACTIVATION_AUDIENCE,
+            options={"require": ["exp", "sub", "aud"]},
         )
         return int(payload["sub"])
     except (jwt.InvalidTokenError, ValueError) as exc:

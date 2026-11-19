@@ -40,8 +40,9 @@ email neuf ; sinon le chemin connu continue, sans rien réécrire. Les CHECK
 ne sont pas recopiés en Python : la base reste seul juge. La sonde avance
 les compteurs d'id (une séquence ne recule pas) ; rien d'autre n'en reste.
 
-L'activation passe par PUT /users/{id} (mot de passe et is_activated) :
-aucun envoi d'email ici.
+L'activation : le particulier lui-même, avec un code d'activation
+(activation_service.py, POST /auth/activate), ou l'Admin par PUT /users/{id}.
+Aucun envoi d'email ici.
 ============================================================================
 """
 

@@ -15,15 +15,19 @@ COMMENT LIRE CE FICHIER
 - Toutes ces routes exigent aussi la clé d'API du programme appelant
   (`X-API-Key`, ADR-028 points 4 à 6, utils/api_keys.py), login compris.
 - GET /auth/me : le compte du jeton présenté.
+- POST /auth/activate : code d'activation + mot de passe choisi -> compte
+  activé et jeton (user story 01 ; le code vient de
+  POST /users/{id}/activation-code).
 ============================================================================
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlmodel import Session, SQLModel
+from sqlmodel import Field, Session, SQLModel
 
 from ..conf.database import get_session
 from ..models import User, UserPublic
 from ..repositories.user_repository import UserRepository
+from ..services.activation_service import ActivationError, ActivationService
 from ..services.user_service import UserService
 from ..utils.api_keys import require_api_key
 from ..utils import login_throttle
@@ -33,6 +37,7 @@ from ..utils.security import ACCESS_TOKEN_TTL, create_access_token
 router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(require_api_key)])
 
 _service = UserService(UserRepository())
+_activations = ActivationService()
 
 _BAD_CREDENTIALS = "Email ou mot de passe incorrect, ou compte non activé."
 _TOO_MANY_FAILURES = "Trop d'essais de connexion ratés. Réessayez plus tard."
@@ -50,6 +55,14 @@ def _too_many(seconds: int) -> HTTPException:
 class LoginRequest(SQLModel):
     email: str
     password: str
+
+
+class ActivateRequest(SQLModel):
+    code: str
+    password: str = Field(min_length=12)  # même règle que UserCreate
+
+
+_BAD_ACTIVATION = "Code d'activation invalide, expiré ou déjà utilisé."
 
 
 class TokenResponse(SQLModel):
@@ -119,3 +132,38 @@ def me(user: User = Depends(get_current_user)) -> User:
     - `401` : clé d'API ou jeton absent, inconnu ou expiré.
     """
     return user
+
+
+# Sans jeton, par nature : le compte n'a pas encore de mot de passe. Le code
+# ne vaut que pour un compte en attente (activation_service.py) ; tout échec
+# rend le même 400. Le frein par IP de /auth/login compte aussi ces échecs.
+@router.post("/activate", response_model=TokenResponse, summary="Finaliser son compte avec son code d'activation")
+def activate(body: ActivateRequest, request: Request, session: Session = Depends(get_session)) -> TokenResponse:
+    """Active un compte créé par le formulaire du site, avec son **code d'activation** et le mot de passe choisi.
+
+    Le code vient de `POST /users/{id}/activation-code` (valable 7 jours, une
+    seule fois). Le mot de passe fait **12 caractères au moins**.
+
+    Réponses :
+
+    - `200` : le compte est activé ; la réponse est déjà un jeton de connexion,
+      comme `POST /auth/login` ;
+    - `400` : code faux, expiré ou déjà utilisé (le message ne dit pas lequel) ;
+    - `401` : clé d'API absente ;
+    - `422` : mot de passe trop court ;
+    - `429` : trop d'essais ratés depuis cette adresse IP, voir `Retry-After`.
+    """
+    ip_key = request.client.host if request.client else "inconnue"
+    wait = login_throttle.by_ip.retry_after(ip_key)
+    if wait is not None:
+        raise _too_many(wait)
+    try:
+        user = _activations.activate(session, body.code, body.password)
+    except ActivationError:
+        login_throttle.by_ip.record_failure(ip_key)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_BAD_ACTIVATION)
+    assert user.id is not None  # relu après commit
+    return TokenResponse(
+        access_token=create_access_token(user.id),
+        expires_in=int(ACCESS_TOKEN_TTL.total_seconds()),
+    )
