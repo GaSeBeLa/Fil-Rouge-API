@@ -65,6 +65,10 @@ services:
   db:
     image: postgres:16
     container_name: fil_rouge_immobilier_db
+    # PCA (dépôt Fil-Rouge, livrables/6-pilotage/pca-pra-plan-de-migration.md,
+    # 2026-11-19, oui de Seb) : un plantage
+    # redémarre seul ; un `docker compose stop` reste respecté.
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -91,6 +95,8 @@ services:
   api:
     build: ../API
     container_name: fil_rouge_immobilier_api
+    # PCA, comme db : redémarre seul après un plantage.
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
