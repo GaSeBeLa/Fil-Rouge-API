@@ -18,10 +18,11 @@ Deux gestes :
 2. activate : le code et le mot de passe choisi -> le mot de passe est haché,
    le compte activé.
 
-Garde-fou commun : seul un compte « en attente » (inactif ET au mot de passe
-PENDING_SIGNUP_PASSWORD) s'active ainsi. Un compte déjà activé refuse le code
-(il ne sert donc qu'une fois) ; un compte effacé (ADR-049, mot de passe
-ANONYMIZED_PASSWORD) ne se réveille pas ; un compte repris du seed non plus.
+Garde-fou commun : seul un compte « en attente » s'active ainsi : inactif ET
+au mot de passe PENDING_SIGNUP_PASSWORD (le formulaire) ou MIGRATED_PASSWORD
+(les 25 comptes repris de l'ancienne base, ajoutés le 2026-11-19). Un compte
+déjà activé refuse le code (il ne sert donc qu'une fois) ; un compte effacé
+(ADR-049, mot de passe ANONYMIZED_PASSWORD) ne se réveille pas.
 Toute anomalie de activate rend la même ActivationError : l'appelant ne sait
 pas si le code était faux, expiré ou déjà servi.
 ============================================================================
@@ -35,6 +36,7 @@ from ..models import Client, SearchRequest, User
 from ..utils.exceptions import NotFoundError
 from ..utils.roles import ADMIN, Principal
 from ..utils.security import (
+    MIGRATED_PASSWORD,
     PENDING_SIGNUP_PASSWORD,
     InvalidTokenError,
     create_activation_token,
@@ -43,13 +45,17 @@ from ..utils.security import (
 )
 
 
+# Les mots de passe factices qu'un code d'activation peut remplacer.
+_PENDING_PASSWORDS = (PENDING_SIGNUP_PASSWORD, MIGRATED_PASSWORD)
+
+
 class ActivationError(Exception):
     """Code d'activation refusé : faux, expiré, ou compte plus en attente."""
 
 
 def _is_pending(user: Optional[User]) -> bool:
-    """Vrai pour un compte créé par le formulaire et jamais activé."""
-    return user is not None and not user.is_activated and user.password == PENDING_SIGNUP_PASSWORD
+    """Vrai pour un compte inactif au mot de passe factice : formulaire ou reprise."""
+    return user is not None and not user.is_activated and user.password in _PENDING_PASSWORDS
 
 
 def _manages_a_request_of(session: Session, manager_profile_id: Optional[int], user_id: int) -> bool:

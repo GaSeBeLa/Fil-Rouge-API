@@ -38,7 +38,7 @@ FORM: dict[str, Any] = {
 }
 NEW_PASSWORD = "mon-nouveau-mot-de-passe"
 SEED_MANAGER_USER = 25  # manager du seed 02
-SEED_CLIENT_EMAIL = "alice.martin@mail.fr"  # user 7, compte repris
+SEED_CLIENT_EMAIL = "alice.martin@mail.fr"  # user 7, compte repris, inactif
 
 
 def _pending_user(db_client: TestClient, db_session: Session) -> User:
@@ -98,10 +98,22 @@ def test_short_password_refused(db_client: TestClient, db_session: Session) -> N
     assert _activate(db_client, code, "court").status_code == 422
 
 
-def test_no_code_for_an_account_not_from_the_form(db_client: TestClient, db_session: Session) -> None:
+def test_migrated_account_sets_its_own_password(db_client: TestClient, db_session: Session) -> None:
+    # Les 25 comptes repris (02_migration.sql) : inactifs, mot de passe
+    # MIGRATED_PLACEHOLDER. Choix de Sébastien du 2026-11-19 (« tout ») :
+    # ils passent par le même code que les comptes du formulaire.
     seeded = db_session.exec(select(User).where(User.email == SEED_CLIENT_EMAIL)).one()
+    seeded.is_activated = False  # db_client active le seed ; son vrai état est inactif
+    db_session.add(seeded)
+    db_session.commit()
+    login = {"email": SEED_CLIENT_EMAIL, "password": NEW_PASSWORD}
+    assert db_client.post("/auth/login", json=login).status_code == 401
 
-    assert _code(db_client, seeded.id).status_code == 404
+    issued = _code(db_client, seeded.id)
+    assert issued.status_code == 200, issued.text
+    assert _activate(db_client, issued.json()["code"]).status_code == 200
+
+    assert db_client.post("/auth/login", json=login).status_code == 200
 
 
 def test_erased_account_cannot_be_woken_up(db_client: TestClient, db_session: Session) -> None:

@@ -56,6 +56,11 @@ _dummy: Optional[tuple[PasswordHasher, str]] = None
 # l'Admin) le remplace par une vraie empreinte.
 PENDING_SIGNUP_PASSWORD = "!PENDING_SIGNUP_MUST_SET_PASSWORD"
 
+# Mot de passe factice des 25 comptes repris de l'ancienne base
+# (docker/init-v3/02_migration.sql) : pas une empreinte argon2 non plus. Le
+# code d'activation le remplace, comme PENDING_SIGNUP_PASSWORD (2026-11-19).
+MIGRATED_PASSWORD = "$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET"
+
 
 def hash_password(plain: str) -> str:
     """Renvoie l'empreinte PHC d'un mot de passe en clair."""

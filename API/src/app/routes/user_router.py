@@ -90,20 +90,24 @@ class ActivationCode(SQLModel):
 
 # User story 01 (@creation-compte) : le particulier finalise lui-même son
 # compte, avec ce code et POST /auth/activate. Le code ne s'obtient que pour
-# un compte créé par le formulaire et jamais activé ; un Manager, seulement
-# pour un client dont il gère une demande. Ajouté le 2026-11-19 (trou trouvé
-# par Gabriel : seul un Admin pouvait activer).
+# un compte en attente : créé par le formulaire, ou repris de l'ancienne base,
+# et jamais activé ; un Manager, seulement pour un client dont il gère une
+# demande. Ajouté le 2026-11-19 (trou trouvé par Gabriel : seul un Admin
+# pouvait activer).
 @router.post(
     "/{item_id}/activation-code",
     response_model=ActivationCode,
-    summary="Obtenir le code d'activation d'un compte créé par le formulaire",
+    summary="Obtenir le code d'activation d'un compte en attente",
 )
 def activation_code(
     item_id: int,
     principal: Principal = Depends(require_roles(ADMIN, MANAGER)),
     session: Session = Depends(get_session),
 ) -> ActivationCode:
-    """Rend le **code d'activation** d'un compte créé par le formulaire du site, valable 7 jours.
+    """Rend le **code d'activation** d'un compte en attente, valable 7 jours.
+
+    Un compte en attente est inactif, et n'a pas encore de vrai mot de passe :
+    créé par le formulaire du site, ou repris de l'ancienne base (25 comptes).
 
     Le particulier l'envoie à `POST /auth/activate` avec le mot de passe qu'il
     choisit : son compte s'active, sans Admin. Nous n'avons pas de serveur
