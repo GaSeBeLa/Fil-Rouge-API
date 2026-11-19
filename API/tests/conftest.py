@@ -50,7 +50,7 @@ from sqlmodel import Session
 from src.app.conf.database import get_session
 from src.app.main import app
 from src.app.models import User
-from src.app.utils import api_keys, security
+from src.app.utils import api_keys, login_throttle, security
 from src.app.utils.roles import ADMIN, Principal, get_principal, profile_id_of
 
 
@@ -68,6 +68,16 @@ def api_test_key(monkeypatch: pytest.MonkeyPatch) -> str:
     """Une seule clé connue pendant le test : celle-ci (programme TEST)."""
     monkeypatch.setattr(api_keys, "_API_KEYS", {"TEST": TEST_API_KEY})
     return TEST_API_KEY
+
+
+@pytest.fixture(autouse=True)
+def fresh_login_throttle() -> Iterator[None]:
+    """Compteurs du frein de connexion vides avant et après chaque test."""
+    login_throttle.by_email.clear()
+    login_throttle.by_ip.clear()
+    yield
+    login_throttle.by_email.clear()
+    login_throttle.by_ip.clear()
 
 
 def test_user(role: str, user_id: int) -> User:
