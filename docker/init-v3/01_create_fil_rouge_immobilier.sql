@@ -800,7 +800,11 @@ CREATE TABLE picture (
     id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     url        TEXT NOT NULL,
-    id_estate  INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT
+    id_estate  INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT,
+    -- Ce que montre la photo, lu par un lecteur d'écran (WCAG 2.2, 1.1.1 ;
+    -- note d'accessibilité PSH, 2026-11-19). Facultatif : les photos
+    -- importées n'en ont pas.
+    alt_text   TEXT CHECK (char_length(alt_text) <= 300)
 );
 
 -- Contact du vendeur d'un bien : 0 ou 1 par bien (ADR-054, décision du

@@ -204,6 +204,13 @@ Choix A de Seb le 2026-11-19, après la note d'indexation (`livrables/2-modelisa
 - Mesuré à ~500 000 sélections : × 35, × 15 et × 100. Au volume de démo, le gain est nul : ils préparent la croissance.
 - Aucune donnée ne change ; `IF NOT EXISTS` : la migration se rejoue sans effet.
 
+### Texte qui décrit une photo — `53_photo-texte-alternatif.sql`
+
+Choix A de Seb le 2026-11-19, après la note d'accessibilité PSH (`livrables/5-transverse/note-accessibilite-psh.md`, dépôt Fil-Rouge).
+
+- **`picture.alt_text`** : ce que montre la photo, lu par un lecteur d'écran (WCAG 2.2, critère 1.1.1). `TEXT`, facultatif, `CHECK` à 300 caractères au plus.
+- Les photos déjà là, importées des annonces, restent sans texte.
+
 ---
 
 ## 1. Pourquoi les euros, et pas les K€
