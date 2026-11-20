@@ -1,0 +1,119 @@
+# Intégration continue : à chaque push et à chaque pull request vers main,
+# GitHub relance toute la suite de tests sur une base PostgreSQL neuve, mesure
+# la couverture, et cherche les failles connues dans les dépendances.
+# Aucun secret : les mots de passe ci-dessous ne servent qu'à la base jetable
+# du job, détruite à la fin.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  tests:
+    name: Tests (unitaires, intégration, Airflow)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    services:
+      db:
+        # Même image que docker/docker-compose.yml (épinglée, ADR-014).
+        image: postgres:16.15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres-ci
+          POSTGRES_DB: fil_rouge_immobilier
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres-ci
+      POSTGRES_DB: fil_rouge_immobilier
+      POSTGRES_READER_PASSWORD: reader-ci
+      TEST_POSTGRES_DB: fil_rouge_test
+      # 32 caractères au moins (utils/security.py) ; valeur publique, propre à la CI.
+      JWT_SECRET: ci-only-not-a-secret-0123456789abcdef0123456789abcdef
+      # Clés d'API (ADR-028), 32 caractères au moins : valeurs publiques, propres à la CI.
+      API_KEY_INTERNAL: ci-only-internal-key-0123456789abcdef0123
+      API_KEY_APP_BACKEND: ci-only-backend-key-0123456789abcdef01234
+      DEMO_PASSWORD: ci-only-demo-password-2026
+      # psql (banc v2/v3 et création de la base de test)
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres-ci
+      # Le banc v2/v3 lit les vrais fichiers SQL du dépôt.
+      BANC_V2_DIR: ${{ github.workspace }}/docker/init-v2
+      BANC_V3_DIR: ${{ github.workspace }}/docker/init-v3
+      BANC_MIG_DIR: ${{ github.workspace }}/docker/migrations/v2-vers-v3
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: API/requirements.txt
+
+      - name: Installer psql (client PostgreSQL)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Installer les dépendances
+        run: pip install -r API/requirements.txt
+
+      - name: Remplir la base de développement (comme l'entrypoint de docker-compose)
+        # Quelques tests unitaires (journal d'accès) passent par la vraie session : ils
+        # lisent la base de développement, qui doit donc avoir son schéma.
+        run: |
+          psql -q -v ON_ERROR_STOP=1 -d "$POSTGRES_DB" \n            -f docker/init-v3/01_create_fil_rouge_immobilier.sql \n            -f docker/init-v3/02_migration.sql \n            -f docker/init-v3/04_role-lecture-seule.sql
+
+      - name: Créer la base de test (comme docker/create_test_db.sh)
+        run: |
+          createdb "$TEST_POSTGRES_DB"
+          psql -q -v ON_ERROR_STOP=1 -d "$TEST_POSTGRES_DB" \
+            -f docker/init-v3/01_create_fil_rouge_immobilier.sql \
+            -c 'ALTER TABLE client ALTER COLUMN id RESTART WITH 1001' \
+            -c 'ALTER TABLE hunter ALTER COLUMN id RESTART WITH 1001' \
+            -c 'ALTER TABLE real_estate_manager ALTER COLUMN id RESTART WITH 1001' \
+            -f docker/init-v3/02_migration.sql \
+            -f docker/init-v3/04_role-lecture-seule.sql
+          psql -tA -d "$TEST_POSTGRES_DB" -c "SELECT 'tables : ' || count(*) FROM information_schema.tables WHERE table_schema = 'public'"
+
+      - name: Tests de l'API, avec la couverture
+        working-directory: API
+        run: python -m pytest -q --cov=src --cov-branch --cov-report=term:skip-covered --cov-report=xml
+
+      - name: Tests d'Airflow
+        run: python -m pytest -q airflow/tests
+
+      - name: Garder le rapport de couverture
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: couverture
+          path: API/coverage.xml
+          if-no-files-found: ignore
+
+  audit:
+    name: Failles connues des dépendances (pip-audit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Installer pip-audit
+        run: pip install pip-audit==2.9.0
+      - name: Analyser API/requirements.txt
+        run: pip-audit -r API/requirements.txt
