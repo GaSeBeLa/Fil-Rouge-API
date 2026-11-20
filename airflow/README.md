@@ -30,6 +30,15 @@ les valeurs de `docker/.env`. Rien à saisir dans l'interface.
 Buckets de MinIO, créés par `minio-setup` : `bronze`, `silver`, `gold`,
 `quarantine`.
 
+## La sauvegarde de la base
+
+`db_backup` (choix ENV-B, 2026-11-20), chaque nuit à 1 h : `pg_dump` de la base
+et les rôles **sans mot de passe** dans le bucket `backup` (créé au premier
+passage), sous `AAAA-MM-JJ/`, avec un `report.json` (tailles, sha256). Les jours
+de plus de 7 jours sont effacés. Règle testée : `tests/test_backup_policy.py` ;
+restauration : l'en-tête de `dags/db_backup_dag.py`. ⚠️ MinIO est sur la même
+machine : c'est une copie datée, pas une copie hors site.
+
 ## Lancer les tests
 
 Depuis la racine du dépôt, avec `pytest` installé sur le poste :
