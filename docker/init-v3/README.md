@@ -499,7 +499,7 @@ l'init (`pg_isready -h 127.0.0.1`, mesuré le 2026-10-07). Puis
 ### Tester sans rien toucher
 
 ```bash
-docker run --rm -d --name pg_essai -e POSTGRES_PASSWORD=test -e POSTGRES_DB=fr postgres:16
+docker run --rm -d --name pg_essai -e POSTGRES_PASSWORD=test -e POSTGRES_DB=fr postgres:16.15
 ```
 
 puis passer les quatre scripts (`01` à `04`) dans l'ordre avec `psql`, et
