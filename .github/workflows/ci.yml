@@ -75,7 +75,10 @@ jobs:
         # Quelques tests unitaires (journal d'accès) passent par la vraie session : ils
         # lisent la base de développement, qui doit donc avoir son schéma.
         run: |
-          psql -q -v ON_ERROR_STOP=1 -d "$POSTGRES_DB" \n            -f docker/init-v3/01_create_fil_rouge_immobilier.sql \n            -f docker/init-v3/02_migration.sql \n            -f docker/init-v3/04_role-lecture-seule.sql
+          psql -q -v ON_ERROR_STOP=1 -d "$POSTGRES_DB" \
+            -f docker/init-v3/01_create_fil_rouge_immobilier.sql \
+            -f docker/init-v3/02_migration.sql \
+            -f docker/init-v3/04_role-lecture-seule.sql
 
       - name: Créer la base de test (comme docker/create_test_db.sh)
         run: |
