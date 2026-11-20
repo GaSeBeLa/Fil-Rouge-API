@@ -60,6 +60,19 @@ def test_client_signs_his_mandate(db_client: TestClient, pending: dict[str, Any]
     assert response.json()["signature_date"] == "2030-01-01"
 
 
+def test_client_cannot_move_the_signature_of_an_active_mandate(db_client: TestClient, pending: dict[str, Any]):
+    # Signé, le mandat est clos pour lui : déplacer la date prolongerait sa
+    # validité (droit à rémunération, délai mandat → acte).
+    with acting_as(CLIENT, CLIENT_ID):
+        signed = db_client.put(f"/mandates/{pending['id']}", json={**pending, **SIGNATURE})
+        assert signed.status_code == 200, signed.text
+        moved = {**signed.json(), "signature_date": "2030-03-01", "ends_at": "2030-09-01"}
+        response = db_client.put(f"/mandates/{pending['id']}", json=moved)
+
+    assert response.status_code == 403, response.text
+    assert db_client.get(f"/mandates/{pending['id']}").json()["signature_date"] == "2030-01-01"
+
+
 def test_hunter_still_changes_exclusivity(db_client: TestClient, pending: dict[str, Any]):
     with acting_as(HUNTER, HUNTER_ID):
         response = db_client.put(f"/mandates/{pending['id']}", json={**pending, "is_exclusive": True})

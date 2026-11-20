@@ -95,16 +95,19 @@ class MandateService(BaseService[Mandate]):
         """
         Le PUT : le mandat d'un autre lève NotFoundError (404), un mandat qui
         cesserait d'être à lui ConflictError (409, « le sien », vu d'abord) ;
-        puis le Client ne fait que signer (ADR-027, annexe, P3) : il ne change
-        que `CLIENT_FIELDS`, et le statut seulement de 'pending_signature' à
-        'active' ; sinon ForbiddenError (403), la ligne intacte. Les autres
-        rôles gardent la règle commune.
+        puis le Client ne fait que signer (ADR-027, annexe, P3) : sur un mandat
+        'pending_signature' seulement, il change `CLIENT_FIELDS` et passe le
+        statut à 'active' ; un mandat déjà signé ne bouge plus pour lui (sa
+        date prolongerait la validité). Sinon ForbiddenError (403), la ligne
+        intacte. Les autres rôles gardent la règle commune.
         """
         existing = self.get_by_id(session, item_id, viewer)
         if viewer.role == CLIENT:
             self._check_owner(session, data, viewer)
-            changed = fields_changed_outside(existing, data, CLIENT_FIELDS + ("status",))
-            signs = existing.status == PENDING_SIGNATURE and data.status == ACTIVE
+            pending = existing.status == PENDING_SIGNATURE
+            allowed = CLIENT_FIELDS if pending else ()
+            changed = fields_changed_outside(existing, data, allowed + ("status",))
+            signs = pending and data.status == ACTIVE
             if data.status != existing.status and not signs:
                 changed.append("status")
             if changed:
