@@ -5,7 +5,8 @@ Avant le 2026-11-20, `mandate_service.py` ne filtrait aucun champ : un client
 pouvait changer l'exclusivité, les dates ou le statut de son propre mandat.
 Il ne change plus que la signature : `signature_date`, `signature_type`,
 `ends_at`, et le statut seulement de 'pending_signature' à 'active'. Tout
-autre changement lève 403, la ligne intacte. Le chasseur garde ses droits.
+autre changement lève 403, la ligne intacte. Une date de signature future
+lève 409 : elle prolongerait le mandat. Le chasseur garde ses droits.
 """
 
 from typing import Any
@@ -19,7 +20,8 @@ from ..conftest import acting_as
 from .test_constraints_db import MANDATE, post_as_hunter
 from .test_le_sien import CLIENT_ID, HUNTER_ID
 
-SIGNATURE = {"status": "active", "signature_date": "2030-01-01", "signature_type": "paper", "ends_at": "2030-07-01"}
+# Une date passée : un mandat papier peut avoir été signé avant sa saisie.
+SIGNATURE = {"status": "active", "signature_date": "2026-11-01", "signature_type": "paper", "ends_at": "2027-05-01"}
 
 
 @pytest.fixture
@@ -57,7 +59,7 @@ def test_client_signs_his_mandate(db_client: TestClient, pending: dict[str, Any]
 
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "active"
-    assert response.json()["signature_date"] == "2030-01-01"
+    assert response.json()["signature_date"] == "2026-11-01"
 
 
 def test_client_cannot_move_the_signature_of_an_active_mandate(db_client: TestClient, pending: dict[str, Any]):
@@ -66,11 +68,20 @@ def test_client_cannot_move_the_signature_of_an_active_mandate(db_client: TestCl
     with acting_as(CLIENT, CLIENT_ID):
         signed = db_client.put(f"/mandates/{pending['id']}", json={**pending, **SIGNATURE})
         assert signed.status_code == 200, signed.text
-        moved = {**signed.json(), "signature_date": "2030-03-01", "ends_at": "2030-09-01"}
+        moved = {**signed.json(), "signature_date": "2026-10-01", "ends_at": "2027-04-01"}
         response = db_client.put(f"/mandates/{pending['id']}", json=moved)
 
     assert response.status_code == 403, response.text
-    assert db_client.get(f"/mandates/{pending['id']}").json()["signature_date"] == "2030-01-01"
+    assert db_client.get(f"/mandates/{pending['id']}").json()["signature_date"] == "2026-11-01"
+
+
+def test_client_cannot_sign_in_the_future(db_client: TestClient, pending: dict[str, Any]):
+    future = {**SIGNATURE, "signature_date": "2099-01-01", "ends_at": "2099-07-01"}
+    with acting_as(CLIENT, CLIENT_ID):
+        response = db_client.put(f"/mandates/{pending['id']}", json={**pending, **future})
+
+    assert response.status_code == 409, response.text
+    assert db_client.get(f"/mandates/{pending['id']}").json() == pending
 
 
 def test_hunter_still_changes_exclusivity(db_client: TestClient, pending: dict[str, Any]):

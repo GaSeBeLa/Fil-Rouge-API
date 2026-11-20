@@ -27,6 +27,7 @@ réaffectation d'un mandat (Q-JEF-30).
 Le Manager (fiche DRO7) voit les mandats de son équipe (manager_rows.py).
 """
 
+from datetime import date
 from typing import Optional
 
 from sqlalchemy import ColumnElement
@@ -99,7 +100,8 @@ class MandateService(BaseService[Mandate]):
         'pending_signature' seulement, il change `CLIENT_FIELDS` et passe le
         statut à 'active' ; un mandat déjà signé ne bouge plus pour lui (sa
         date prolongerait la validité). Sinon ForbiddenError (403), la ligne
-        intacte. Les autres rôles gardent la règle commune.
+        intacte. Une date de signature future lève ConflictError (409) :
+        elle prolongerait le mandat ; une date passée reste permise (papier). Les autres rôles gardent la règle commune.
         """
         existing = self.get_by_id(session, item_id, viewer)
         if viewer.role == CLIENT:
@@ -114,6 +116,8 @@ class MandateService(BaseService[Mandate]):
                 raise ForbiddenError(
                     f"Le client ne fait que signer son mandat, pas changer {', '.join(changed)} (ADR-027, P3)."
                 )
+            if signs and data.signature_date is not None and data.signature_date > date.today():
+                raise ConflictError("Une signature ne se date pas dans le futur : elle prolongerait le mandat.")
         return super().replace_visible(session, item_id, data, viewer)
 
     def replace(self, session: Session, item_id: int, data: Mandate) -> Mandate:
