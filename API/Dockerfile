@@ -20,4 +20,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8000
 
-CMD ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# --no-server-header : ne pas dire quel serveur tourne (choix SEC-HEAD, 2026-11-20).
+CMD ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--no-server-header"]

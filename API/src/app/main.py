@@ -146,6 +146,31 @@ app = FastAPI(
 # FLX10 : une ligne JSON par requête (conf/logging.py), sans secret ni e-mail.
 app.middleware("http")(access_log_middleware)
 
+# Choix SEC-HEAD (Gabriel, 2026-11-20) : des consignes au navigateur sur chaque
+# réponse. Pas de Content-Security-Policy : le Swagger (/docs) charge ses
+# scripts depuis un CDN, une politique stricte le casserait. Le `server:
+# uvicorn` se retire au lancement (`--no-server-header`, Dockerfile).
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",  # ne pas deviner le type : JSON reste JSON
+    "X-Frame-Options": "DENY",  # jamais affichée dans le cadre d'un autre site
+    "Cache-Control": "no-store",  # aucune donnée personnelle gardée en cache
+    "Referrer-Policy": "no-referrer",  # l'adresse appelée ne fuit pas vers un lien suivi
+}
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Rend la réponse de la route, avec les en-têtes de SECURITY_HEADERS ajoutés.
+
+    Vaut pour toutes les réponses qui traversent les middlewares (200, 401,
+    404, 422…). Un 500 sorti du gestionnaire d'exceptions passe par le
+    ServerErrorMiddleware de Starlette, extérieur : il n'est pas couvert.
+    """
+    response = await call_next(request)
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    return response
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_without_input(request: Request, exc: RequestValidationError) -> JSONResponse:
