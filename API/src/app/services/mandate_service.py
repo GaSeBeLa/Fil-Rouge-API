@@ -15,7 +15,8 @@ ConflictError (409) et la demande n'est pas lancée. Un mandat non signé
 
 « Le sien » (ADR-027, annexe § 2 ; fiche DRO5) : un Client voit ses
 mandats, et ne modifie (signer, P3) que les siens : `id_client` reste son
-compte. La clé (id_search_request, id_client) garde la demande au même client.
+compte. Il ne fait que signer : `CLIENT_FIELDS`, et le statut seulement de
+'pending_signature' à 'active' ; tout autre champ lève 403 (2026-11-20). La clé (id_search_request, id_client) garde la demande au même client.
 
 Le Hunter (fiche DRO6) voit ses mandats ; il n'en crée (H4) et n'en
 modifie qu'à son nom, sur une de ses demandes : sinon un mandat sur la
@@ -35,13 +36,18 @@ from ..models import Mandate, User
 from ..repositories.criteria_repository import CriteriaRepository
 from ..repositories.mandate_repository import MandateRepository
 from ..repositories.search_request_repository import SearchRequestRepository
-from ..utils.exceptions import ConflictError
+from ..utils.exceptions import ConflictError, ForbiddenError
 from ..utils.roles import CLIENT, HUNTER, MANAGER, Principal
-from .base_service import BaseService
+from .base_service import BaseService, fields_changed_outside
 from .hunter_rows import handles_request
 from .manager_rows import in_team, team_mandates
 
 LAUNCHED = "launched"
+PENDING_SIGNATURE = "pending_signature"
+ACTIVE = "active"
+# Les champs que le Client change en signant (ADR-027, annexe, P3) ; le
+# statut se garde à part : seulement de 'pending_signature' à 'active'.
+CLIENT_FIELDS = ("signature_date", "signature_type", "ends_at")
 
 
 class MandateService(BaseService[Mandate]):
@@ -84,6 +90,28 @@ class MandateService(BaseService[Mandate]):
         if item.signature_date is not None:
             self._launch_request(session, item)
         return super().create(session, item, actor)
+
+    def replace_visible(self, session: Session, item_id: int, data: Mandate, viewer: Principal) -> Mandate:
+        """
+        Le PUT : le mandat d'un autre lève NotFoundError (404), un mandat qui
+        cesserait d'être à lui ConflictError (409, « le sien », vu d'abord) ;
+        puis le Client ne fait que signer (ADR-027, annexe, P3) : il ne change
+        que `CLIENT_FIELDS`, et le statut seulement de 'pending_signature' à
+        'active' ; sinon ForbiddenError (403), la ligne intacte. Les autres
+        rôles gardent la règle commune.
+        """
+        existing = self.get_by_id(session, item_id, viewer)
+        if viewer.role == CLIENT:
+            self._check_owner(session, data, viewer)
+            changed = fields_changed_outside(existing, data, CLIENT_FIELDS + ("status",))
+            signs = existing.status == PENDING_SIGNATURE and data.status == ACTIVE
+            if data.status != existing.status and not signs:
+                changed.append("status")
+            if changed:
+                raise ForbiddenError(
+                    f"Le client ne fait que signer son mandat, pas changer {', '.join(changed)} (ADR-027, P3)."
+                )
+        return super().replace_visible(session, item_id, data, viewer)
 
     def replace(self, session: Session, item_id: int, data: Mandate) -> Mandate:
         existing = self.get_by_id(session, item_id)

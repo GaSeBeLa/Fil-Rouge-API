@@ -47,7 +47,8 @@ le Client, le Hunter ou le Manager écrit le surchargent : client,
 search_request, criteria, mandate, estate_proposed, estate_searchrequest,
 visit, sale. Se gardent à part, par des champs permis (403) : le compte
 (user_service.py), les fiches du chasseur et du manager (hunter_service.py,
-real_estate_manager_service.py ; fields_changed_outside ci-dessous),
+real_estate_manager_service.py ; fields_changed_outside ci-dessous), la
+signature du mandat par le client (mandate_service.py),
 l'affectation d'une demande (search_request_service.py) ; et les médias
 d'avis (review_media_service.py, ADR-051, 403).
 ============================================================================

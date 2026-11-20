@@ -362,7 +362,7 @@ Puis **961 passed, 0 skipped, 7 xfailed** (2026-10-14) : 2 tests du Swagger des 
 de profil, 7 de `create_admin.py`, 4 des refus du paiement (`test_calcul_paiement.py`).
 Puis **975 passed, 0 skipped, 7 xfailed** (chantier PRF, 2026-10-15) : les FK visent la
 fiche, le rôle vit sur la fiche ou sur `system_role`, une fiche au plus par compte (ADR-057).
-**Au 2026-11-20 : 1 120 passed, 7 xfailed, 0 échec**, en local et dans la CI GitHub Actions
+**Au 2026-11-20 : 1 124 passed, 7 xfailed, 0 échec**, en local et dans la CI GitHub Actions
 (`.github/workflows/ci.yml`, base neuve à chaque push).
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
@@ -909,9 +909,6 @@ encore référencé échoue toujours, même en SQL direct (l'API, elle, ne suppr
   DRO6) et le Manager (fiche DRO7) ; les comptes désactivés sont réservés à l'Admin
   (fiche DRO8). « Désactivé » ne distingue pas un compte effacé (ADR-049) d'un compte
   jamais activé, comme ceux du seed : les deux sont cachés.
-* Le Client modifie son mandat **champ par champ sans limite** (exclusivité, dates, statut) :
-  l'annexe ne lui donne que signer (P3). Seule l'appartenance est gardée (fiche DRO5).
-  Ses biens proposés, eux, sont limités à `CLIENT_FIELDS` depuis SUG1.
 * Un Hunter ne renouvelle pas le mandat d'un autre chasseur par l'API : il ne signe que
   sur ses demandes (fiche DRO6). La base l'accepte ; la réaffectation attend Jeff (Q-JEF-30).
 * Le `PUT` recopie `created_at` du corps reçu, sur toute table (`BaseRepository.replace`) ;
