@@ -288,7 +288,8 @@ seconde copie le rapport web hors du conteneur : ouvrir `API/htmlcov/index.html`
 **Au 2026-10-14** : d'abord **96 %** des lignes (2 848, dont 110 jamais exécutées),
 **95 %** avec les branches ; `scripts/create_admin.py` était à 0 %. Après les tests
 de `create_admin.py` et des refus du paiement : **98 %** des lignes (64 jamais
-exécutées), **97 %** avec les branches. Ce qui reste est surtout des gardes que les
+exécutées), **97 %** avec les branches. **Au 2026-11-20** (CI) : **93 %**, lignes et branches
+(3 553 instructions dont 194 jamais exécutées, 566 branches). Ce qui reste est surtout des gardes que les
 contraintes de la base rendent inatteignables (mandat sans date de fin, chasseur
 introuvable) et `PaymentService.delete`, que plus aucune route n'appelle (`DELETE`
 rend `405` depuis API10).
@@ -361,6 +362,8 @@ Puis **961 passed, 0 skipped, 7 xfailed** (2026-10-14) : 2 tests du Swagger des 
 de profil, 7 de `create_admin.py`, 4 des refus du paiement (`test_calcul_paiement.py`).
 Puis **975 passed, 0 skipped, 7 xfailed** (chantier PRF, 2026-10-15) : les FK visent la
 fiche, le rôle vit sur la fiche ou sur `system_role`, une fiche au plus par compte (ADR-057).
+**Au 2026-11-20 : 1 120 passed, 7 xfailed, 0 échec**, en local et dans la CI GitHub Actions
+(`.github/workflows/ci.yml`, base neuve à chaque push).
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
@@ -906,9 +909,9 @@ encore référencé échoue toujours, même en SQL direct (l'API, elle, ne suppr
   DRO6) et le Manager (fiche DRO7) ; les comptes désactivés sont réservés à l'Admin
   (fiche DRO8). « Désactivé » ne distingue pas un compte effacé (ADR-049) d'un compte
   jamais activé, comme ceux du seed : les deux sont cachés.
-* Le Client modifie son mandat et ses biens proposés **champ par champ sans limite** :
-  l'annexe ne lui donne que signer (P3), commenter, prioriser, faire une offre (H6, H8).
-  Seule l'appartenance est gardée (fiche DRO5).
+* Le Client modifie son mandat **champ par champ sans limite** (exclusivité, dates, statut) :
+  l'annexe ne lui donne que signer (P3). Seule l'appartenance est gardée (fiche DRO5).
+  Ses biens proposés, eux, sont limités à `CLIENT_FIELDS` depuis SUG1.
 * Un Hunter ne renouvelle pas le mandat d'un autre chasseur par l'API : il ne signe que
   sur ses demandes (fiche DRO6). La base l'accepte ; la réaffectation attend Jeff (Q-JEF-30).
 * Le `PUT` recopie `created_at` du corps reçu, sur toute table (`BaseRepository.replace`) ;
@@ -920,5 +923,5 @@ encore référencé échoue toujours, même en SQL direct (l'API, elle, ne suppr
 * Les contraintes `CHECK` du schéma SQL (ex. `typology`, `estate_type`, `floor`, `gender`,
   `country_iso`) ne sont pas répliquées côté Pydantic : une valeur hors liste est acceptée
   par FastAPI puis rejetée par PostgreSQL avec une erreur `409` peu explicite.
-* Pas de pagination sur les routes de liste (`GET /estates` renvoie **2 556** lignes
-  d'un coup avec le jeu de données actuel).
+* Pas de pagination sur les routes de liste (`GET /estates` renvoie **3 219** lignes
+  d'un coup avec le seed de démo, en 1,25 s de médiane, mesuré le 2026-11-20).
