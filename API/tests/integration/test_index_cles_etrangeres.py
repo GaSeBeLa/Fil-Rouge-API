@@ -2,7 +2,7 @@
 test_index_cles_etrangeres.py — Les index des filtres par chasseur et par demande.
 
 PostgreSQL n'indexe pas une clé étrangère tout seul. La note d'indexation
-(Fil-Rouge, livrables/2-modelisation/note-indexation.md, mesurée le
+(Fil-Rouge, livrables/2-modelisation/2.8-note-indexation.md, mesurée le
 2026-11-19) montre trois filtres qui lisent toute la table sans index :
 × 35, × 15 et × 100 avec. Choix A de Sébastien (2026-11-19) : les poser.
 """

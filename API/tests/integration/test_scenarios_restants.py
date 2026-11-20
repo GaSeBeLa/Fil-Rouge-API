@@ -2,7 +2,7 @@
 test_scenarios_restants.py — Les scénarios des user stories qui n'avaient pas leur test.
 
 Relevé par la matrice des tests fonctionnels (Fil-Rouge,
-livrables/4-application/tests-fonctionnels.md, 2026-11-19) ; « go tout » de
+livrables/4-application/4.3-tests-fonctionnels.md, 2026-11-19) ; « go tout » de
 Sébastien le même jour. Un test par scénario, nommé d'après lui :
 
 - 00:30 : en non exclusif, un autre chasseur peut agir pour le même client ;

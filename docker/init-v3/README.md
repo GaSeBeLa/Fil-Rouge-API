@@ -198,7 +198,7 @@ Vote M4 du 2026-11-03 et ajouts de Gabriel (§ 8.1 de `md/journal/2026-11-02-sug
 
 ### Index des filtres par chasseur et par demande — `52_index-chasseur-et-demande.sql`
 
-Choix A de Seb le 2026-11-19, après la note d'indexation (`livrables/2-modelisation/note-indexation.md`, dépôt Fil-Rouge).
+Choix A de Seb le 2026-11-19, après la note d'indexation (`livrables/2-modelisation/2.8-note-indexation.md`, dépôt Fil-Rouge).
 
 - PostgreSQL n'indexe pas une clé étrangère tout seul. Trois index : **`idx_estate_searchrequest_request`** (`id_search_request`), **`idx_estate_searchrequest_hunter`** (`id_hunter`), **`idx_search_request_hunter_created`** (`id_hunter, created_at DESC`).
 - Mesuré à ~500 000 sélections : × 35, × 15 et × 100. Au volume de démo, le gain est nul : ils préparent la croissance.
@@ -206,7 +206,7 @@ Choix A de Seb le 2026-11-19, après la note d'indexation (`livrables/2-modelisa
 
 ### Texte qui décrit une photo — `53_photo-texte-alternatif.sql`
 
-Choix A de Seb le 2026-11-19, après la note d'accessibilité PSH (`livrables/5-transverse/note-accessibilite-psh.md`, dépôt Fil-Rouge).
+Choix A de Seb le 2026-11-19, après la note d'accessibilité PSH (`livrables/5-transverse/5.3-note-accessibilite-psh.md`, dépôt Fil-Rouge).
 
 - **`picture.alt_text`** : ce que montre la photo, lu par un lecteur d'écran (WCAG 2.2, critère 1.1.1). `TEXT`, facultatif, `CHECK` à 300 caractères au plus.
 - Les photos déjà là, importées des annonces, restent sans texte.
