@@ -41,6 +41,13 @@ de plus de 7 jours sont effacés. Règle testée : `tests/test_backup_policy.py`
 restauration : l'en-tête de `dags/db_backup_dag.py`. ⚠️ MinIO est sur la même
 machine : c'est une copie datée, pas une copie hors site.
 
+## L'expiration des mandats
+
+`mandate_expiry` (choix MAND-EXP, 2026-11-23), chaque nuit à 2 h 30 : un mandat
+`'active'` dont la date de fin est atteinte passe en `'expired'`. Règle et
+limites : `src/mandates/expiry.py` ; tests : `tests/test_mandates_expiry.py`.
+⚠️ La note de performance `'mandate_expired'` n'est pas encore écrite.
+
 ## Lancer les tests
 
 Depuis la racine du dépôt, avec `pytest` installé sur le poste :
