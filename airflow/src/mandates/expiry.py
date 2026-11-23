@@ -16,7 +16,8 @@ le trigger d'exclusivité, où un nouveau mandat peut commencer le jour où
 l'ancien finit.
 
 Pas encore fait : la note de performance 'mandate_expired' que l'expiration
-devrait écrire (ADR-046, ADR-048) ; son calcul reste à trancher.
+doit écrire. Sa règle est tranchée (ADR-048, point 8) ; elle demande le code
+du calcul, qui vit dans l'API (choix PERF-EXP).
 
 Testé sans Airflow, sur SQLite (tests/test_mandates_expiry.py).
 """
