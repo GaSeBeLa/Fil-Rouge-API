@@ -35,7 +35,7 @@ from .hunter_rows import handles_request
 
 class EstateSearchRequestService(BaseService[EstateSearchRequest]):
     def __init__(self, repository: EstateSearchRequestRepository):
-        super().__init__(repository, not_found_detail="Média introuvable")
+        super().__init__(repository, not_found_detail="Sélection de bien introuvable")
 
     def visible_rows(self, viewer: Principal) -> Optional[ColumnElement[bool]]:
         if viewer.role == CLIENT:
