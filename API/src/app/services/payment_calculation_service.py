@@ -35,6 +35,12 @@ transaction. Les trois notes de la vente
 critères d'activité (ventes, taux) sont recomptés à la date du paiement,
 sans rien exclure : la vente payée compte désormais (ADR-035).
 
+La note d'un mandat expiré (ADR-048, point 8 ; choix PERF-EXP) :
+`expiry_note` la prépare. Les trois notes de vente sont reprises du dernier
+paiement payé du chasseur à la fin du mandat, ou valent 50 (le pivot) s'il
+n'y en a pas ; les deux critères d'activité sont recomptés au jour de la
+fin. `HunterPerformanceService.score_expired_mandates` l'écrit.
+
 Les lectures passent par `list_all` / `list_where` puis un filtre Python :
 les volumes du projet sont petits, et chaque règle se lit en clair.
 ============================================================================
@@ -43,13 +49,13 @@ les volumes du projet sont petits, et chaque règle se lit en clair.
 from calendar import monthrange
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import Optional
 
 from sqlmodel import Session
 
-from ..models import CommissionScale, HunterPerformance, Mandate, Payment, Sale, Visit
+from ..models import CommissionScale, HunterPerformance, HunterRateParameters, Mandate, Payment, Sale, Visit
 from ..models.payment_model import CalculationDetails, CalculationNotes
 from ..repositories.commission_scale_repository import CommissionScaleRepository
 from ..repositories.hunter_rate_parameters_repository import HunterRateParametersRepository
@@ -73,6 +79,10 @@ from .remuneration import (
 
 REFUSED = "refused"
 ANNOUNCED = "announced"
+PAID = "paid"
+# ADR-048, point 8 : sans vente payée, une note de vente vaut le pivot (RCR:213).
+PIVOT_NOTE = Decimal(50)
+SALE_NOTE_KEYS = (("delai", "delay"), ("exclusivite", "exclusivity"), ("visites", "visits"))
 # ADR-048, point 7 : une clôture après signature est une première issue.
 CLOSED_STATUSES = frozenset({"lost", "canceled"})
 # ADR-024 : le motif du calcul -> la valeur de payment.refusal_reason.
@@ -221,7 +231,9 @@ class PaymentCalculationService:
     - `build_payment` : appelé par `POST /sales/{id}/payment`, il rend le
       paiement calculé d'une vente, pas encore enregistré ;
     - `journal_note` : appelé par `PaymentService` quand un paiement passe à
-      'paid', il rend la note 'payment' du journal du chasseur (ADR-035).
+      'paid', il rend la note 'payment' du journal du chasseur (ADR-035) ;
+    - `expiry_note` : la note 'mandate_expired' d'un mandat expiré (ADR-048,
+      point 8), appelée par `HunterPerformanceService`.
 
     Il lit la base, mais n'y écrit jamais : l'écriture reste à `PaymentService`.
     """
@@ -368,17 +380,77 @@ class PaymentCalculationService:
         if paid_at.tzinfo is None:
             # La base garde ses TIMESTAMP en UTC (chk_paid_not_in_future).
             paid_at = paid_at.replace(tzinfo=timezone.utc)
-        weights = performance(settings)
         kept = payment.calculation_details["notes"]
-        on = paid_at.date()
-        mandates, sales, refused = self._hunter_context(session, payment.id_hunter)
+        sale_notes = {ours: Decimal(str(kept[theirs])) for ours, theirs in SALE_NOTE_KEYS}
+        score = self._score(session, payment.id_hunter, paid_at.date(), settings, sale_notes)
+        return HunterPerformance(
+            score=score,
+            scored_at=paid_at,
+            trigger_type="payment",
+            id_hunter=payment.id_hunter,
+            id_payment=payment.id,
+        )
+
+    def expiry_note(self, session: Session, mandate: Mandate) -> HunterPerformance:
+        """
+        La note 'mandate_expired' d'un mandat expiré (ADR-048, point 8),
+        datée de la fin du mandat, à minuit UTC.
+
+        Les trois notes de vente : celles du dernier paiement payé du
+        chasseur à cette date, ou 50 (le pivot) s'il n'y en a pas. Les deux
+        critères d'activité sont recomptés au jour de la fin : le mandat
+        expiré y compte comme une chaîne arrivée à son issue sans vente.
+        Pesée par la version des réglages en vigueur ce jour-là.
+
+        ConflictError (409) : un mandat sans date de fin, ou aucune version
+        des réglages à cette date (paramétrage incomplet).
+        """
+        if mandate.ends_at is None:
+            raise ConflictError(f"Le mandat {mandate.id} n'a pas de date de fin : pas de note d'échéance.")
+        on = mandate.ends_at
+        try:
+            settings = self.parametrage.reglages_applicables(session, on)
+        except BaremeIntrouvable as exc:
+            raise ConflictError(f"Paramétrage incomplet : {exc}.") from exc
+        last = self._last_paid_payment(session, mandate.id_hunter, on)
+        if last is None or last.calculation_details is None:
+            sale_notes = {ours: PIVOT_NOTE for ours, _ in SALE_NOTE_KEYS}
+        else:
+            kept = last.calculation_details["notes"]
+            sale_notes = {ours: Decimal(str(kept[theirs])) for ours, theirs in SALE_NOTE_KEYS}
+        return HunterPerformance(
+            score=self._score(session, mandate.id_hunter, on, settings, sale_notes),
+            scored_at=datetime.combine(on, time(), tzinfo=timezone.utc),
+            trigger_type="mandate_expired",
+            id_hunter=mandate.id_hunter,
+            id_mandate=mandate.id,
+        )
+
+    def _last_paid_payment(self, session: Session, hunter_id: int, on: date) -> Optional[Payment]:
+        """Le dernier paiement 'paid' du chasseur payé au plus tard le jour `on` ; None s'il n'y en a pas."""
+        paid = [
+            p for p in self.payments.list_where(session, id_hunter=hunter_id, status=PAID)
+            if p.paid_at is not None and p.paid_at.date() <= on
+        ]
+        return max(paid, key=lambda p: p.paid_at or datetime.min, default=None)
+
+    def _score(
+        self, session: Session, hunter_id: int, on: date, settings: HunterRateParameters, sale_notes: dict[str, Decimal]
+    ) -> Decimal:
+        """
+        Le score du journal au jour `on` : les trois notes de vente données,
+        et les deux critères d'activité (ventes, taux) recomptés ce jour-là,
+        sans rien exclure, le tout pesé par `settings`.
+        """
+        weights = performance(settings)
+        mandates, sales, refused = self._hunter_context(session, hunter_id)
         activity = count_activity(mandates, sales, refused, on, settings.window_months)
 
         # Une Vente fictive sert à noter les deux critères d'activité avec
         # les règles mêmes du calcul (noter_criteres) ; seuls ses comptes servent.
         notes = noter_criteres(
             Vente(
-                chasseur_id=payment.id_hunter,
+                chasseur_id=hunter_id,
                 prix_acte=Decimal(0),
                 date_acte=on,
                 date_signature_mandat=on,
@@ -393,13 +465,5 @@ class PaymentCalculationService:
             ),
             weights,
         )
-        for ours, theirs in (("delai", "delay"), ("exclusivite", "exclusivity"), ("visites", "visits")):
-            notes[ours] = Decimal(str(kept[theirs]))
-        return HunterPerformance(
-            score=calculer_score(notes, weights),
-            scored_at=paid_at,
-            trigger_type="payment",
-            id_hunter=payment.id_hunter,
-            id_payment=payment.id,
-        )
-
+        notes.update(sale_notes)
+        return calculer_score(notes, weights)

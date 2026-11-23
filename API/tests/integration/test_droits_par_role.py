@@ -157,6 +157,7 @@ SPECIAL_ROUTES: dict[tuple[str, str], str] = {
     ("POST", "/search-requests/submit"): "test_demande_avant_compte.test_same_answer_whoever_the_email",
     ("POST", "/users/{item_id}/anonymize"): "test_anonymisation.test_only_admin_anonymizes",
     ("POST", "/estate-contacts/anonymize-expired"): "test_contact_vendeur.test_only_admin_runs_the_anonymization",
+    ("POST", "/hunter-performances/expired-mandates"): "test_note_mandat_expire.test_only_admin_scores_the_expired_mandates",
     ("POST", "/sales/{item_id}/payment"): "test_droits_par_role.test_payment_calculation_is_admin_only",
     ("POST", "/estate-proposed/{item_id}/offer"): "test_propositions_visites.test_hunter_cannot_make_an_offer",
     ("GET", "/estates/search"): "test_droits_par_role.test_estate_search_reads_like_estates",

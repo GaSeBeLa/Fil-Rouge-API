@@ -46,7 +46,8 @@ machine : c'est une copie datée, pas une copie hors site.
 `mandate_expiry` (choix MAND-EXP, 2026-11-23), chaque nuit à 2 h 30 : un mandat
 `'active'` dont la date de fin est atteinte passe en `'expired'`. Règle et
 limites : `src/mandates/expiry.py` ; tests : `tests/test_mandates_expiry.py`.
-⚠️ La note de performance `'mandate_expired'` n'est pas encore écrite.
+La note de performance `'mandate_expired'` s'écrit côté API, à la main :
+`POST /hunter-performances/expired-mandates` (Admin).
 
 ## Lancer les tests
 

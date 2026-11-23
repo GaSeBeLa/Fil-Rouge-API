@@ -497,9 +497,9 @@ Les 21 tables qui ont un routeur CRUD ont les **mêmes 4 routes**, construites p
 `GET /{id}`, `POST`, `PUT /{id}`. **Plus de `DELETE`** (ADR-049, fiche API10) : un
 `DELETE` rend `405`. Plus `GET /` (health-check), `/auth`, la demande avant le compte
 et l'anonymisation (d'un compte, des contacts de vendeur), le calcul du paiement
-d'une vente, la recherche de biens (`GET /estates/search`), l'offre du client, les
+d'une vente, la note des mandats expirés (`POST /hunter-performances/expired-mandates`), la recherche de biens (`GET /estates/search`), l'offre du client, les
 suggestions de biens et l'activation du compte (le code, puis `POST /auth/activate`).
-Soit **96 opérations** (compté dans `/openapi.json` le 2026-11-19).
+Soit **97 opérations** (compté dans `/openapi.json` le 2026-11-23).
 
 Dans le Swagger, **chaque opération a un titre et une description** : ce qu'elle fait,
 qui peut l'appeler, et ce que veut dire chaque code de réponse. Chaque section (table)
@@ -715,7 +715,7 @@ depuis `docker/` : `docker compose --profile "*" up -d --build`.
   | `/estate-search-requests`, `/review-media` | Admin, Client, Hunter, Reader | Hunter | Hunter |
   | `/estate-proposed` | Admin, Client, Hunter, Reader | Hunter | Client, Hunter |
   | `/visits` | tous | Hunter | Admin |
-  | `/hunter-performances` | Admin, Hunter, Manager, Reader | personne (ADR-035) | personne |
+  | `/hunter-performances` | Admin, Hunter, Manager, Reader | personne (ADR-035) ² | personne |
   | `/estate-contacts` | Admin, Hunter, Manager | Admin, Hunter, Manager | Admin, Hunter, Manager |
   | `/parameters-fees`, `/commission-scales`, `/hunter-rate-parameters` | Admin, Hunter, Manager, Reader | Admin | Admin |
   | `/payments` | Admin, Hunter, Manager | personne ¹ | Admin |
@@ -842,6 +842,13 @@ POST /sales/{id}/payment  ──►  announced  ──►  scheduled  ──► 
 5. `PUT /payments/{id}` encore : `status` à `paid` et la date du jour dans `paid_at`.
    À ce moment, l'API écrit aussi la **note du chasseur** dans son journal
    (`hunter_performance`, ADR-035).
+
+² La note d'un **mandat expiré** (ADR-048, point 8 ; choix PERF-EXP) :
+`POST /hunter-performances/expired-mandates` (**Admin**, à la main) écrit la note
+`mandate_expired` de chaque mandat `expired` qui n'en a pas encore. Elle est datée
+de la fin du mandat : les trois notes de vente viennent du dernier paiement payé
+(ou valent 50), les deux critères d'activité sont recomptés ce jour-là. Les mandats
+passent en `expired` chaque nuit (DAG Airflow `mandate_expiry`).
 
 **Les erreurs les plus fréquentes** :
 
