@@ -15,8 +15,11 @@ RUN apt-get update \
 
 # Les dependances sont installees a part du code : tant que requirements.txt
 # ne change pas, Docker reutilise cette couche et le rebuild est instantane.
+# pip de l'image de base (25.0.1) : 6 failles connues (pip-audit, 2026-11-23).
+# Version epinglee (ADR-014), sans faille connue au 2026-11-23.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir pip==26.3 \
+    && pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8000
 
