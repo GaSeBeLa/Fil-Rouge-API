@@ -1,7 +1,7 @@
 
 # API — Fil Rouge Immobilier
 
-API REST (FastAPI + SQLModel) exposant les 21 tables du schéma PostgreSQL
+API REST (FastAPI + SQLModel) exposant 21 des 22 tables du schéma PostgreSQL
 `fil_rouge_immobilier` (voir [`../docker/init-v3/01_create_fil_rouge_immobilier.sql`](../docker/init-v3/01_create_fil_rouge_immobilier.sql)).
 
 ## Stack
@@ -463,7 +463,7 @@ Chaque table suit une architecture en 3 couches (Router → Service → Reposito
 
 Ces trois couches héritent chacune d'une classe générique (`routes/crud_router.py`,
 `services/base_service.py`, `repositories/base_repository.py`) qui porte le
-comportement CRUD commun aux 21 tables.
+comportement CRUD commun aux 21 tables qui ont un routeur CRUD.
 
 ## Arborescence
 
@@ -492,7 +492,7 @@ API/
 
 ## Endpoints
 
-Les 21 tables ont les **mêmes 4 routes**, construites par
+Les 21 tables qui ont un routeur CRUD ont les **mêmes 4 routes**, construites par
 [`routes/crud_router.py`](src/app/routes/crud_router.py) : `GET` (liste),
 `GET /{id}`, `POST`, `PUT /{id}`. **Plus de `DELETE`** (ADR-049, fiche API10) : un
 `DELETE` rend `405`. Plus `GET /` (health-check), `/auth`, la demande avant le compte
@@ -662,7 +662,7 @@ depuis `docker/` : `docker compose --profile "*" up -d --build`.
 * 🚪 **Fermé par défaut** (fiche DRO1) : une table ne s'ouvre qu'aux rôles qu'elle
   déclare (`read_roles`, `write_roles`, `create_roles` de `build_crud_router`) ; les
   autres → `403`. Les rôles viennent de l'annexe d'ADR-027
-  (`md/adr/adr-027-annexe-matrice-detaillee.md`, dépôt Fil-Rouge), **au niveau du
+  (`decisions/adr-027-annexe-matrice-detaillee.md`, dépôt Fil-Rouge), **au niveau du
   rôle**. « Le sien » (ADR-027, point 2 ; fiche DRO4) : les deux `GET` et le `PUT`
   passent le compte au service, dont le crochet `visible_rows` filtre les lignes **dans
   la requête SQL** ; la ligne d'un autre rend `404`, comme une ligne absente. L'Admin

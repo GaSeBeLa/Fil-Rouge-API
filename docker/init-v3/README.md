@@ -55,7 +55,7 @@ deux chemins mènent au même schéma. Décisions : registre
 
 ### Paramètres de rémunération et journal des notes — LOT6, `06_parametres.sql`
 
-- **`remuneration_parameters`** (renommée `hunter_rate_parameters` le 2026-10-08, voir plus bas), 19e table : les réglages du calcul (poids, paliers en `JSONB`, notes, points, ancienneté, modulation, bornes) en table versionnée, sans `CHECK` sur les valeurs (Q-REM-05). Une version vaut jusqu'à la suivante, `UNIQUE (effective_from)` — choisi le 2026-10-07 à la place de `valid_from` / `valid_until`. Exposée en CRUD (`/remuneration-parameters`). La grille de notes de Q-JEF-05 n'y est pas : chantier API.
+- **`remuneration_parameters`** (renommée `hunter_rate_parameters` le 2026-10-08, voir plus bas), ajoutée au LOT6 : les réglages du calcul (poids, paliers en `JSONB`, notes, points, ancienneté, modulation, bornes) en table versionnée, sans `CHECK` sur les valeurs (Q-REM-05). Une version vaut jusqu'à la suivante, `UNIQUE (effective_from)` — choisi le 2026-10-07 à la place de `valid_from` / `valid_until`. Exposée en CRUD (`/hunter-rate-parameters`). La grille de notes de Q-JEF-05 n'y est pas : chantier API.
 - `payment.seniority_rate` et `performance_rate` **relâchés** au domaine d'un taux : de **0 à 1** et de **−1 à 1** (v2 : 0 à 0,10 et −0,20 à 0,20). Bornes choisies le 2026-10-07, justifiées par `REGLES-CALCUL-REMUNERATION.md` l. 59, 199 et 203 (Q-REM-05).
 - `parameters_fees` : **`effective_from`** remplace `valid_from` ; `valid_until` et l'`EXCLUDE` sortent ; **`UNIQUE (effective_from)`** — une grille vaut jusqu'à la suivante (Q-SCH-17).
 - `commission_scale.rate` **`> 0`** : une tranche à 0 % est refusée (Q-SCH-15).
@@ -78,9 +78,9 @@ deux chemins mènent au même schéma. Décisions : registre
 
 - **`estate.country_iso = 'FR'`** sur les 2 556 biens (dans `03`), **puis** `chk_estate_postal_code_format` : le même contrôle par pays que `client` et `criteria`. Un code postal sans pays est refusé (Q-SCH-11).
 - **Eircode sans espace** (`D02X285`) sur `client`, `criteria` et `estate` ; GB et NL gardent leur espace (Q-SCH-12, confirmé par le groupe le 2026-10-07). La migration retire l'espace d'un Eircode existant.
-- Les **10 secteurs** d'origine ne sont plus ignorés : chacun des **17 critères** repris reçoit la ville, le code postal et le pays `'FR'` du secteur de son mandat (Q-MIG-08). N2 est fermée : la localisation reste sur `criteria` (Q-SCH-02).
+- Les **10 secteurs** d'origine ne sont plus ignorés : chacun des **18 critères** repris reçoit la ville, le code postal et le pays `'FR'` du secteur de son mandat (Q-MIG-08). N2 est fermée : la localisation reste sur `criteria` (Q-SCH-02).
 - **`district`** (quartier), `VARCHAR(100)` facultatif, sur `criteria` et `estate` : vide pour 3 critères (Castelnau-le-Lez, Lattes, sans quartier à la source) et pour les 2 556 biens, le CSV n'en ayant pas (Q-MIG-08).
-- **`criteria.budget_min` à NULL**, « inconnu », sur les 17 critères : la source n'avait qu'un budget, recopié dans le minimum (Q-MIG-09).
+- **`criteria.budget_min` à NULL**, « inconnu », sur les 18 critères : la source n'avait qu'un budget, recopié dans le minimum (Q-MIG-09).
 - Compté avant d'activer : **2 556** codes postaux de biens sur 2 556 à 5 chiffres, **0** pays renseigné, **0** client ni critère en Irlande. La migration s'arrête si un bien non repris du CSV a un code postal sans pays.
 
 ### Biens — LOT9, `09_biens.sql`
