@@ -139,9 +139,10 @@
 --
 --   Autrement dit : un schéma seul ne protège PAS la plupart des règles
 --   métier. Elles croisent plusieurs tables et demandent des triggers ou
---   l'API. Les TODO ci-dessous portent le SQL prêt à activer.
+--   l'API. Les TODO qui restent ci-dessous relèvent de l'API, sans trigger.
 --
---   Décisions encore ouvertes : D2 (ancienneté). N2 (localisation) est
+--   Décisions encore ouvertes : aucune côté schéma. L'ancienneté est
+--   tranchée par ADR-037. N2 (localisation) est
 --   fermée le 2026-10-05 : elle reste sur criteria, ADR-031 remplace
 --   ADR-009 (Q-SCH-02) ; les secteurs d'origine y arrivent, avec un
 --   quartier facultatif (LOT8, Q-MIG-08). R21 (bornage du taux final 20-60 %)
@@ -1258,15 +1259,13 @@ CREATE TABLE payment (
     -- donne la note du paiement à son chasseur.
     CONSTRAINT uq_payment_id_hunter UNIQUE (id, id_hunter)
 
-    -- TODO (U01/U04, R01-R04, T17) — le droit à être payé n'est pas vérifié :
-    --   testé, on peut aujourd'hui payer un chasseur qui n'est PAS celui du
-    --   mandat de la vente, et rattacher le paiement à un barème qui n'était
-    --   pas en vigueur à la date de l'acte. Croise payment, sale, mandate et
-    --   commission_scale.
-    --   ➡️ Contrôlé par l'API (Q-MAN-06, tranché le 2026-10-05), avec un test
-    --   d'intégration ; pas de trigger. Règle et test restent à écrire.
-    --   ADR-024 ne ferme PAS ce TODO : il enregistre le refus, il ne le
-    --   calcule pas. Le calcul du droit reste à faire.
+    -- TODO (U01/U04, R01-R04, T17) — le droit à être payé :
+    --   ✅ Fait côté API (fiche API12) : POST /sales/{id}/payment juge le
+    --   droit (remuneration.py, droit_a_remuneration), prend le chasseur du
+    --   mandat et la ligne de barème en vigueur à la date de l'acte ;
+    --   POST /payments est fermé à tous (payment_router.py).
+    --   Reste : aucun contrôle en base (pas de trigger, Q-MAN-06). Un PUT de
+    --   l'Admin, ou un paiement écrit en SQL, n'est pas revérifié.
 );
 
 -- Score de performance du chasseur : un journal des notes (Q-SCH-06,
