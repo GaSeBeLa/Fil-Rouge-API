@@ -198,8 +198,11 @@ def clean_contact(row: Mapping[str, object]) -> tuple[dict[str, object] | None, 
     champs vidés parce que la table les refuserait.
 
     Champ vide ou blanc -> None ; aucun contact (None) si les quatre champs
-    sont vides à la source. Un champ sale est vidé seul : le bien et le reste
-    du contact sont gardés. is_private vaut la case particulier, jamais vide.
+    sont vides à la source, ou s'ils le deviennent une fois les champs sales
+    vidés : ck_estate_contact_not_empty refuserait la fiche, et toute la
+    transaction de l'import avec elle. Un champ sale est vidé seul : le bien
+    et le reste du contact sont gardés, et le champ vidé est compté.
+    is_private vaut la case particulier, jamais vide.
     """
     raw = {
         "agency_name": clean_str(row.get("contact.agence")),
@@ -219,6 +222,8 @@ def clean_contact(row: Mapping[str, object]) -> tuple[dict[str, object] | None, 
         cleaned[key] = text if text is None or len(text) <= MAX_TEXT else None
 
     dropped = sum(1 for k in raw if raw[k] is not None and cleaned[k] is None)
+    if all(v is None for v in cleaned.values()):
+        return None, dropped
     return {"is_private": parse_bool_presence(row.get("particulier")), **cleaned}, dropped
 
 

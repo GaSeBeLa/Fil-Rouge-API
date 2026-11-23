@@ -121,6 +121,14 @@ def test_no_contact_when_the_four_fields_are_empty():
     assert row["_contact_fields_dropped"] == 0
 
 
+def test_no_contact_when_every_given_field_is_dirty():
+    # Un seul email, mal formé : vidé, il ne reste rien. Une fiche aux quatre
+    # champs vides serait refusée par ck_estate_contact_not_empty (init-v3/01).
+    row = _contact(**{"contact.email": "pas-un-mail", "particulier": "True"})
+    assert row["contact"] is None
+    assert row["_contact_fields_dropped"] == 1
+
+
 def test_blank_field_becomes_none():
     contact = _contact_of(_contact(**{"contact.nom": "  ", "contact.agence": "Nid Doré"}))
     assert (contact["contact_name"], contact["agency_name"]) == (None, "Nid Doré")

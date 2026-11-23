@@ -27,7 +27,9 @@ def conn():
                        "price INTEGER NOT NULL, seen_at DATE NOT NULL, UNIQUE (id_estate, seen_at))"))
         c.execute(text("CREATE TABLE estate_contact (id INTEGER PRIMARY KEY, is_private BOOLEAN NOT NULL, "
                        "agency_name TEXT, contact_name TEXT, phone_number TEXT, email TEXT, "
-                       "id_estate INTEGER NOT NULL UNIQUE, id_author INTEGER)"))
+                       "id_estate INTEGER NOT NULL UNIQUE, id_author INTEGER, "
+                       "CONSTRAINT ck_estate_contact_not_empty CHECK (agency_name IS NOT NULL "
+                       "OR contact_name IS NOT NULL OR phone_number IS NOT NULL OR email IS NOT NULL))"))
         yield c
 
 
@@ -148,6 +150,18 @@ def test_manual_estate_gets_no_imported_contact(conn):
 
     assert (report.skipped_manual, report.contacts_added) == (1, 0)
     assert _count(conn, "estate_contact") == 0
+
+
+def test_dirty_only_contact_keeps_the_import_going(conn):
+    # Le seul champ donné est sale : le bien entre sans contact, et l'annonce
+    # suivante est importée quand même (la transaction ne tombe pas).
+    rows = [_row("AN-1", **{"contact.email": "pas-un-mail"}), _row("AN-2", **CONTACT)]
+
+    report = load_estates(conn, rows, DAY1)
+
+    assert (report.contacts_added, report.contact_fields_dropped) == (1, 1)
+    assert _count(conn, "estate") == 2
+    assert _contacts(conn) == [("Claire Martin", "+33453775236", 1, None)]
 
 
 def test_dropped_contact_fields_are_counted(conn):
