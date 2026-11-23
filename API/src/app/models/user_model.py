@@ -69,8 +69,8 @@ class UserCreate(SQLModel):
     """
 
     email: EmailStr = Field(max_length=150)
-    # min_length=12 : proposition du tuto, pas une décision actée par le
-    # groupe (contrairement à ADR-016 lui-même). À confirmer en réunion.
+    # min_length=12, sans règle de composition : ADR-026 (remis en vigueur
+    # le 08/10/2026), repris par ADR-028.
     password: str = Field(min_length=12)
     # Omis : le compte n'est pas activé (même défaut que la base).
     is_activated: bool = False

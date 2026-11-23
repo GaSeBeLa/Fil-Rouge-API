@@ -4,11 +4,11 @@ estate_model.py — Les biens immobiliers (annonces) proposés aux clients.
 Deux choses à savoir avant d'écrire du code sur cette table :
 
 - **`price` est en euros entiers**, `INTEGER`, donc `int` ici (Q-REM-01,
-  2026-10-05) : un prix n'a pas de centimes. ⚠️ Un prix à virgule n'est
-  **pas encore refusé** : le modèle de table ne valide pas l'entrée, et
-  PostgreSQL arrondit en silence (199 999.5 → 200 000, mesuré), ce qui
-  change la tranche du barème. Voir Q-INF-06 et le test xfail
-  `test_estate_price_with_cents_is_refused`.
+  2026-10-05) : un prix n'a pas de centimes. Un prix à virgule est refusé
+  en 422 par `_validated` (routes/crud_router.py) ; sans elle, PostgreSQL
+  arrondirait en silence (199 999.5 → 200 000, mesuré), ce qui change la
+  tranche du barème. Voir Q-INF-06 et le test
+  `test_estate_price_with_cents_returns_422`.
 - **L'énergie est décrite en cinq colonnes** (`energy_class`,
   `energy_class_scheme`, `energy_class_date`, `energy_kwh_m2`,
   `energy_co2_m2`) ; l'ancien score unique est retiré (Q-MIG-05). Les

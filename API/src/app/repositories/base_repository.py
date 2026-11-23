@@ -8,7 +8,7 @@ C'est l'équivalent, en classe réutilisable, des fonctions list_all/
 get_one_or_404/create_one/replace_one/delete_one qui vivaient avant dans
 main.py. Elles ne connaissent que SQLModel/SQLAlchemy — jamais FastAPI, ni
 HTTPException : en cas de problème, elles lèvent NotFoundError ou
-ConflictError (voir exceptions.py), à charge pour la couche routers/ de les
+ConflictError (voir exceptions.py), à charge pour la couche routes/ de les
 traduire en codes HTTP.
 
 Chaque repository de table hérite de BaseRepository[SonModèle] et n'a rien

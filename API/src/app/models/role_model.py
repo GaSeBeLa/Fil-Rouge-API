@@ -17,7 +17,7 @@ class Role(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))  # Q-SCH-09
-    # wording : CHECK cote base — 'Admin', 'Client', 'Hunter', 'Manager',
-    # 'Reader' (lecture seule, Q14, LOT12).
+    # wording : CHECK cote base — 'Client', 'Hunter', 'Manager' (PRF8) ;
+    # 'Admin' et 'Reader' sont dans User.system_role.
     # La colonne s'appelait "libelle" dans l'ancien schema (12 tables).
     wording: str = Field(max_length=20, unique=True)

@@ -33,8 +33,8 @@ pour qu'une comparaison avec elle reste immédiate.
 
 Ce qu'il faut savoir avant de s'en servir :
 - fonction PURE : ne lit ni n'écrit en base. Le branchement sur
-  commission_scale / parameters_fees / payment est une couche au-dessus,
-  pas encore écrite (§14.6).
+  commission_scale / parameters_fees / payment est une couche au-dessus
+  (§14.6) : parametrage_service.py et payment_calculation_service.py.
 - les CHIFFRES de `parametrage_par_defaut` (fixe 3 000 €, 2,5 %, tranches,
   poids, bornes) sont des PROPOSITIONS du sujet, pas des règles métier
   (§2, §13) : le groupe peut les changer sans toucher au calcul.

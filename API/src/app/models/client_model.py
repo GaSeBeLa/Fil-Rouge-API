@@ -32,7 +32,7 @@ class Client(AbstractPerson, table=True):
     # une autre valeur rend 409.
     role_wording: str = Field(default="Client", max_length=20, foreign_key="role.wording")
     # Adresse, code postal, ville et pays : obligatoires (ADR-053, P3). Les
-    # clients repris ont 'non renseigne' et '00000' (Q-SCH-18) ; un client
+    # clients repris ont 'non renseigné' et '00000' (Q-SCH-18) ; un client
     # rendu anonyme, 'anonyme', '00000', 'anonyme', 'FR' (ADR-049).
     country_iso: str = Field(max_length=2)  # pyright: ignore[reportIncompatibleVariableOverride] -- voulu : obligatoire pour le client (ADR-053), facultatif dans AbstractPerson
     address: str = Field(max_length=150)

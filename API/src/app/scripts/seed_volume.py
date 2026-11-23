@@ -9,13 +9,14 @@ Le faker de volume (chantier FLX, fiche FLX13 ; décision de Seb, Discord,
 500 ventes). Avec une seule vente en base, l'OLAP (fait_ventes) et Kibana
 restent vides : ce script fabrique de quoi les remplir.
 
-Même règles que seed_demo.py (ADR-055, ADR-046) :
+Même règles que seed_demo.py (ADR-055) :
   - il passe par les SERVICES de l'API : chaque règle métier s'applique ;
   - Faker fr_FR à graine fixe : mêmes données à chaque base neuve ;
   - e-mails en example.com (RFC 2606), aucune personne réelle ;
   - aucun montant tiré au hasard : le prix est celui du bien, les honoraires
     sortent de calculer_honoraires, le paiement de build_payment ;
-  - il refuse d'écrire dans fil_rouge_test, et aucun test ne l'appelle.
+  - il refuse d'écrire dans fil_rouge_test, et aucun test ne dépend de ses
+    données (test_seed_volume.py n'en teste que les fonctions pures).
 
 Une vente fabriquée = un client neuf, sa demande et ses critères, la
 sélection de 1 à 3 biens, un mandat signé de 6 mois, les offres, 1 à 5

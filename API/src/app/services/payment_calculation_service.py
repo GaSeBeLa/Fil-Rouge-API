@@ -32,7 +32,7 @@ La note du journal (ADR-035) : `journal_note` l'écrit quand le paiement
 passe à 'paid' — `PaymentService` l'appelle. Les trois notes de la vente
 (délai, exclusivité, visites) viennent du détail du paiement ; les deux
 critères d'activité (ventes, taux) sont recomptés à la date du paiement,
-sans rien exclure : la vente payée compte désormais (ADR-048, point 8).
+sans rien exclure : la vente payée compte désormais (ADR-035).
 
 Les lectures passent par `list_all` / `list_where` puis un filtre Python :
 les volumes du projet sont petits, et chaque règle se lit en clair.
@@ -354,7 +354,8 @@ class PaymentCalculationService:
         La note 'payment' du journal, quand le paiement passe à 'paid'
         (ADR-035) : les trois notes de la vente reprises du détail, les deux
         critères d'activité recomptés à la date du paiement, rien d'exclu
-        (ADR-048, point 8), pesés par la version des réglages du paiement.
+        (ADR-035 : la vente payée y entre), pesés par la version des
+        réglages du paiement.
         """
         if payment.calculation_details is None or payment.id_hunter_rate_parameters is None:
             raise ConflictError(f"Le paiement {payment.id} n'a pas de détail de calcul : pas de note (ADR-035).")

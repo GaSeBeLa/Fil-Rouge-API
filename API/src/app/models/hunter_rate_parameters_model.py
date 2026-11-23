@@ -10,7 +10,7 @@ que le nom se confondait avec `parameters_fees`, les honoraires de l'agence.
 Le sujet veut ces valeurs « dans une table de paramètres, jamais en dur »
 (REGLES-CALCUL-REMUNERATION.md l. 47 ; Q-REM-05). Une ligne = un jeu
 complet : les champs de `ParametresPerformance` et `ParametresModulation`
-(services/remuneration.py, l. 92-116), noms traduits en anglais. Les
+(services/remuneration.py), noms traduits en anglais. Les
 honoraires et le barème ont leurs propres tables (`parameters_fees`,
 `commission_scale`).
 

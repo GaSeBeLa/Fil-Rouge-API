@@ -16,8 +16,8 @@ class Mandate(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     reference: str = Field(max_length=20, unique=True)
-    # status : NOT NULL + CHECK côté base (voir remarque sur typology
-    # dans criteria_model.py, même logique). 'lost' = vente perdue, personne
+    # status : NOT NULL + CHECK côté base (voir l'en-tête de
+    # models/__init__.py). 'lost' = vente perdue, personne
     # n'est payé sur ce mandat (Q-REM-02, Q-REM-14).
     status: str = Field(max_length=20)
     # Seule trace de la signature du client : is_client_signed est retiré

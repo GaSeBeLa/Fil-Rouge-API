@@ -74,7 +74,7 @@ def verify_password(stored: str, plain: str) -> bool:
     Utilise la vérification à temps constant d'argon2-cffi : jamais un `==`,
     dont la durée dépend du nombre de caractères corrects (timing attack).
 
-    InvalidHashError couvre les 24 comptes migrés, dont le placeholder n'est
+    InvalidHashError couvre les comptes migrés, dont le placeholder n'est
     pas une empreinte valide : ils ne peuvent tout simplement pas se
     connecter, ce qui est le comportement voulu. Ils paient quand même le
     coût d'une vérification (spend_password_check), sinon leur réponse

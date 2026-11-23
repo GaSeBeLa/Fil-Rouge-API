@@ -14,8 +14,8 @@ ConflictError (409) et la demande n'est pas lancée. Un mandat non signé
 (`pending_signature`) reste possible sans critères.
 
 « Le sien » (ADR-027, annexe § 2 ; fiche DRO5) : un Client voit ses
-mandats, et ne modifie (signer, P3) que les siens : `id_client` reste son
-compte. Il ne fait que signer : `CLIENT_FIELDS`, et le statut seulement de
+mandats, et ne modifie (signer, P3) que les siens : `id_client` est sa
+fiche client (`client.id`, comparé à `viewer.profile_id`). Il ne fait que signer : `CLIENT_FIELDS`, et le statut seulement de
 'pending_signature' à 'active' ; tout autre champ lève 403 (2026-11-20). La clé (id_search_request, id_client) garde la demande au même client.
 
 Le Hunter (fiche DRO6) voit ses mandats ; il n'en crée (H4) et n'en

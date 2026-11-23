@@ -4,7 +4,7 @@ payment_service.py — Les règles d'écriture d'un paiement.
 ============================================================================
 COMMENT LIRE CE FICHIER
 ============================================================================
-Deux contrôles qu'aucun CHECK de la base ne peut tenir, car ils comparent
+Les contrôles qu'aucun CHECK de la base ne peut tenir, car ils comparent
 la ligne à autre chose qu'elle-même :
 
 - ADR-038 — l'ordre du statut. Un paiement avance pas à pas, sans saut :

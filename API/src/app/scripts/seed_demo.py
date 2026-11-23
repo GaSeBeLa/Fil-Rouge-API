@@ -5,7 +5,8 @@ seed_demo.py — Remplit la base de développement avec un parcours de démo.
 COMMENT LIRE CE FICHIER
 ============================================================================
 Le seed est le décor, les tests sont la preuve : aucun test ne dépend de
-ce script, et il n'écrit jamais dans la base de test `fil_rouge_test`.
+ses données (test_seed_demo.py rejoue ses étapes dans une transaction
+annulée), et il n'écrit jamais dans la base de test `fil_rouge_test`.
 Décisions du chantier DEM (Discord, 2026-10-14 ; Fil-Rouge,
 `context AI/15-seed-demo.md`) : un script qui appelle les services (Q2),
 Faker `fr_FR` à graine fixe (Q3), un compte neuf par rôle sauf Admin (Q4).
@@ -23,7 +24,7 @@ ne sème qu'une fois par base. Pour resemer : `docker compose down -v`, puis
 `up -d` (efface la base de dev locale).
 
 Une étape = une fonction `seed_<étape>(session, ...)` ; `seed()` les
-enchaîne. Les fiches DEM2 et DEM3 y ajoutent les leurs. Un refus de la base
+enchaîne. Les fiches DEM2 et DEM3 y ont ajouté les leurs. Un refus de la base
 ou d'une règle (ConflictError) arrête le script avec son message : on
 corrige les données du seed, jamais la règle.
 

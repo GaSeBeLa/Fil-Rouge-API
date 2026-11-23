@@ -8,7 +8,7 @@ COMMENT LIRE CE FICHIER
 Les 4 routes (GET liste, GET/{id}, POST, PUT/{id}) sont
 strictement identiques d'une table à l'autre — seuls le service appelé, le
 préfixe d'URL, le tag Swagger et le modèle de réponse changent. Plutôt que
-de dupliquer ces 4 fonctions dans les 21 fichiers routers/<table>_router.py
+de dupliquer ces 4 fonctions dans les 21 fichiers routes/<table>_router.py
 (comme c'était le cas dans l'ancien main.py), on les construit une fois ici
 et chaque fichier de router se contente d'appeler build_crud_router avec
 son propre service.
@@ -35,7 +35,7 @@ Droits (ADR-028, fiche API2 ; moindre privilège, fiche DRO1) : toutes les
 routes exigent un jeton (401 sans). Fermé par défaut : sans `read_roles`
 ni `write_roles`, personne ne lit ni n'écrit (403). Chaque routeur déclare
 donc ses rôles, lus dans l'annexe d'ADR-027
-(`md/adr/adr-027-annexe-matrice-detaillee.md`) au niveau du rôle.
+(`decisions/adr-027-annexe-matrice-detaillee.md`, dépôt Fil-Rouge) au niveau du rôle.
 `read_roles` ouvre les deux GET ; `write_roles` ouvre le PUT, et le POST
 quand `create_roles` est absent ; `create_roles` ouvre le seul POST. `()`
 ferme le geste à tous.

@@ -6,7 +6,7 @@ demandes (F01:29) et n'en crée que pour lui (P1).
 
 Le Hunter (fiche DRO6) voit les demandes qu'il suit (H1, H2) ; il n'en
 crée (Q-ACC-15) et n'en modifie (accepter, refuser) qu'à son nom :
-`id_hunter` reste son compte.
+`id_hunter` est sa fiche chasseur (`hunter.id`).
 
 Le Manager (fiche DRO7) voit les demandes de son équipe (manager_rows.py),
 et aussi les demandes « à prendre » : statut 'confirmed', sans chasseur ni

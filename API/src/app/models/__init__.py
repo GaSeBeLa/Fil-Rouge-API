@@ -1,6 +1,7 @@
 """
-models — Définitions SQLModel des 21 tables du projet, une classe par
-fichier dans ce dossier (`hunter_rate_parameters` depuis LOT6, Q-REM-05 ;
+models — Définitions SQLModel des 22 tables du projet, une classe par
+fichier dans ce dossier, sauf `EstatePriceHistory`, rangée avec `Estate`
+dans estate_model.py (`hunter_rate_parameters` depuis LOT6, Q-REM-05 ;
 nommée `remuneration_parameters` jusqu'au 2026-10-08, G2).
 
 ============================================================================
@@ -17,10 +18,10 @@ SQLModel sert ici uniquement à LIRE et ÉCRIRE des lignes de façon
 type-safe depuis Python, pas à définir le schéma.
 
 Point important : les contraintes CHECK (ex: typology IN (...)) sont
-appliquées par PostgreSQL lui-même à l'insertion, pas par SQLModel. Si tu
-veux une validation côté Python AVANT d'atteindre la base (plus rapide à
-l'utilisateur, message d'erreur plus clair), il faudra l'ajouter séparément
-avec un validator Pydantic — pas fait ici pour rester simple au démarrage.
+appliquées par PostgreSQL lui-même à l'insertion, pas par SQLModel. La
+validation côté Python AVANT la base (422, message plus clair) passe par
+des validateurs Pydantic posés sur certains modèles, relancés par
+`_validated` (routes/crud_router.py) : voir input_check.py.
 
 Montants en euros, jamais en `float` (Q-REM-01, 2026-10-05) :
 - prix, budgets, bornes du barème, part fixe : `INTEGER` → `int` ;

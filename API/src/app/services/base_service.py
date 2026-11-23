@@ -10,7 +10,7 @@ SQLModel, jamais à FastAPI). Pour l'instant, sans règle métier
 supplémentaire, il se contente de déléguer — mais c'est le point d'entrée
 naturel pour en ajouter : une sous-classe comme UserService peut surcharger
 create() pour hasher le mot de passe avant d'appeler super().create(), sans
-que les routers ni les repositories n'aient à changer.
+que routes/ ni les repositories n'aient à changer.
 
 get_by_id lève NotFoundError si la ligne n'existe pas (au lieu de renvoyer
 None) : ça évite à chaque appelant de revérifier, et centralise le message

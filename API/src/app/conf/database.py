@@ -12,7 +12,7 @@ JAMAIS à la base à chaque requête HTTP — ce serait beaucoup trop lent.
 connexion empruntée au pool, utilisée le temps de traiter la requête, puis
 rendue automatiquement au pool). FastAPI appelle cette fonction pour nous
 via son système d'"injection de dépendances" (le `Depends(get_session)`
-qu'on verra dans main.py).
+des routeurs de routes/, et de utils/current_user.py).
 ============================================================================
 """
 
@@ -32,8 +32,9 @@ load_dotenv()
 #
 # Format : postgresql+psycopg2://<user>:<password>@<host>:<port>/<database>
 #
-# Valeur par défaut ci-dessous = celle de docker-compose.yml, pour que ça
-# marche "out of the box" une fois le conteneur lancé.
+# Valeurs par défaut ci-dessous = la base du conteneur `db` vue depuis la
+# machine (port 5432 publié par docker-compose.yml, qui lit docker/.env) ;
+# le mot de passe, lui, est à donner par POSTGRES_PASSWORD.
 def _build_url() -> str:
     """
     Construit l'URL de connexion.
