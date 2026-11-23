@@ -928,5 +928,8 @@ encore référencé échoue toujours, même en SQL direct (l'API, elle, ne suppr
 * Les contraintes `CHECK` du schéma SQL (ex. `typology`, `estate_type`, `floor`, `gender`,
   `country_iso`) ne sont pas répliquées côté Pydantic : une valeur hors liste est acceptée
   par FastAPI puis rejetée par PostgreSQL avec une erreur `409` peu explicite.
-* Pas de pagination sur les routes de liste (`GET /estates` renvoie **3 219** lignes
-  d'un coup avec le seed de démo, en 1,25 s de médiane, mesuré le 2026-11-20).
+* ✅ Les routes de liste sont **paginées** depuis le 2026-11-23 (choix PAGIN) :
+  `?limit=` (100 par défaut, 1 000 au plus), `?offset=`, dans l'ordre des `id`, et
+  l'en-tête `X-Total-Count` donne le total. Avant, `GET /estates` renvoyait **3 219**
+  lignes d'un coup avec le seed de démo, en 1,25 s de médiane (mesuré le 2026-11-20) ;
+  pas remesuré depuis.

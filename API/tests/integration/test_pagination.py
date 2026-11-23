@@ -5,7 +5,7 @@ test_pagination.py — Les listes de l'API se lisent par pages (choix PAGIN, 202
 COMMENT LIRE CE FICHIER
 ============================================================================
 Avant : `GET /estates` rendait toute la table d'un coup (1,25 s pour
-2 707 biens, contre 70 ms pour un seul ; mesure du 2026-11-20). OWASP API
+3 219 biens, contre 70 ms pour un seul ; mesure du 2026-11-20). OWASP API
 n° 4 : une liste doit avoir une taille bornée.
 
 Toutes les listes du routeur commun (`crud_router.py`) prennent
