@@ -13,6 +13,7 @@ Règle du cours : **le DAG orchestre, `src/` transforme**.
 | `dags/` | les DAG : `with DAG(...)` + `PythonOperator` | `/opt/airflow/dags` (lecture seule) |
 | `src/` | le code métier, en Python pur | `/opt/airflow/src` (lecture seule) |
 | `src/config.py` | réglages lus dans l'environnement, sans secret par défaut | |
+| `tools/` | le générateur d'annonces du sujet, copié à l'identique | `/opt/airflow/tools` (lecture seule) |
 | `tests/` | tests de `src/`, sans Airflow ni Docker | — |
 
 Un DAG importe le métier par `from src.config import ...`.
@@ -26,6 +27,7 @@ les valeurs de `docker/.env`. Rien à saisir dans l'interface.
 |---|---|---|
 | `minio_default` | MinIO, `http://minio:9000` | `S3Hook` |
 | `fil_rouge_db` | base `fil_rouge_immobilier` du service `db` | `PostgresHook` |
+| `elasticsearch_default` | Elasticsearch, `http://elasticsearch:9200`, compte `airflow_indexer` | `BaseHook`, DAG `estates_index` |
 
 Buckets de MinIO, créés par `minio-setup` : `bronze`, `silver`, `gold`,
 `quarantine`.

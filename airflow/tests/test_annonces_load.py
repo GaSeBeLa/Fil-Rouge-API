@@ -1,7 +1,7 @@
 """Tests de airflow/src/annonces/load.py, sur une base SQLite en mémoire.
 
 SQLite comprend le même INSERT ... ON CONFLICT ... DO UPDATE que PostgreSQL :
-pas besoin de Docker. Les deux tables ne gardent que ce que load.py touche.
+pas besoin de Docker. Les trois tables ne gardent que ce que load.py touche.
 """
 from __future__ import annotations
 

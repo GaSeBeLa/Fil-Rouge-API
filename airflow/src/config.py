@@ -11,7 +11,8 @@ services Airflow, depuis `docker/.env` (chantier FLX, fiche FLX2).
 Deux façons d'atteindre MinIO et la base coexistent, comme dans le lab :
   - ce module, pour le code de `src/` (Python pur, testable sans Airflow) ;
   - les connexions Airflow `minio_default` et `fil_rouge_db` (variables
-    `AIRFLOW_CONN_*`), pour les hooks des DAG. Leurs noms sont ici.
+    `AIRFLOW_CONN_*`), pour les hooks des DAG. Leurs noms sont ici ;
+    celui de `elasticsearch_default` est dans `dags/estates_index_dag.py`.
 """
 from __future__ import annotations
 

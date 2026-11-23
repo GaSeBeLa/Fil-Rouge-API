@@ -85,7 +85,8 @@ def parse_int(v: object) -> int | None:
 
 
 def parse_price_eur(v: object) -> int | None:
-    """'406042 €' ou '406042' -> 406042, en euros entiers (CLAUDE.md, règle 4)."""
+    """'406042 €' ou '406042' -> 406042, en euros entiers (règle « Tout montant est en euros »,
+    CLAUDE.md du dépôt Fil-Rouge)."""
     s = clean_str(v)
     if s is None:
         return None
