@@ -7,7 +7,7 @@ sans erreur et que la route de health-check répond. Les routes qui
 interrogent réellement la base (ex: /users) doivent être testées à part,
 avec une vraie base de test — pas ici.
 
-Lancer (depuis le dossier API2/) :
+Lancer (depuis le dossier API/) :
     pytest
 """
 

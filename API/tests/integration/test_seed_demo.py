@@ -1,5 +1,5 @@
 """
-test_seed_demo.py — Le script de démo (chantier DEM, fiches DEM1 et DEM2).
+test_seed_demo.py — Le script de démo (chantier DEM, fiches DEM1 à DEM3).
 
 Les étapes du script tournent sur `db_session` (transaction annulée) :
 rien n'est écrit pour de vrai. `main()` n'est appelé que pour ses refus,

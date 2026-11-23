@@ -1071,7 +1071,7 @@ HUNTER_RATE_PARAMETERS: dict[str, Any] = {
 
 
 def test_hunter_rate_parameters_keep_their_tiers(db_client: TestClient):
-    # Q-REM-05 : la table est exposée comme les 18 autres ; les paliers se
+    # Q-REM-05 : la table est exposée comme les autres ; les paliers se
     # relisent tels qu'écrits.
     created = db_client.post("/hunter-rate-parameters", json=HUNTER_RATE_PARAMETERS)
     assert created.status_code == 201, created.text

@@ -24,7 +24,8 @@ from src.app.utils.security import hash_password, needs_rehash, verify_password
 
 PLAIN = "un-mot-de-passe-assez-long"
 
-# Ce que contient la colonne password des comptes migrés : pas une empreinte.
+# Une valeur qui n'est pas une empreinte, comme celle des comptes migrés
+# (`$2b$12$MIGRATED_PLACEHOLDER_MUST_RESET`, init-v3/02).
 MIGRATED_PLACEHOLDER = "a-redefinir"
 
 

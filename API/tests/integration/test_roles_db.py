@@ -2,7 +2,8 @@
 test_roles_db.py — Le rôle relu en base, de bout en bout (ADR-028, fiche API2).
 
 db_client se présente en Admin ; ici on retire ce remplacement pour passer
-par la vraie chaîne : jeton -> compte -> rôle lu dans la table role.
+par la vraie chaîne : jeton -> compte -> rôle (system_role, ou celui
+de sa fiche ; chantier PRF).
 """
 
 from fastapi.testclient import TestClient

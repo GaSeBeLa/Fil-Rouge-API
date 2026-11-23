@@ -2,8 +2,10 @@
 test_api_keys.py — La clé d'API par programme (ADR-028, points 4 à 6, fiche API3).
 
 Sans base : la vraie app, avec une session factice qui rend un compte
-activé et son rôle. Le jeton, lui, est un vrai jeton signé : la chaîne
-clé -> jeton -> compte -> rôle est celle de la production.
+activé. Le jeton, lui, est un vrai jeton signé : la chaîne
+clé -> jeton -> compte est celle de la production. Le rôle ne se lit plus
+dans `role` (chantier PRF : system_role ou la fiche) ; aucun test ici ne
+va jusqu'au rôle (`/auth/me` ne demande que le compte).
 """
 
 from collections.abc import Iterator

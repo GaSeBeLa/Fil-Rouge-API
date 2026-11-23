@@ -4,10 +4,10 @@ test_isolation.py — Preuve que la base de test est bien isolée.
 ============================================================================
 COMMENT LIRE CE FICHIER
 ============================================================================
-Avant de croire les autres tests d'intégration, on prouve ici trois choses :
+Avant de croire les autres tests d'intégration, on prouve ici :
 
 - ils visent la base de test, pas la base de développement ;
-- celle-ci contient bien les données de référence de 02 (4 rôles) ;
+- celle-ci contient bien les données de référence de 02 (3 rôles à fiche) ;
 - une écriture faite par l'API pendant un test est INVISIBLE depuis une
   autre connexion : rien ne sort de la transaction annulée à la fin ;
 - une erreur 409 n'empêche pas la suite du test (le SAVEPOINT est annulé,

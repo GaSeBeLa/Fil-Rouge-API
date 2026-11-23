@@ -19,7 +19,7 @@ from .conftest import USER_PASSWORD
 
 @pytest.fixture
 def make_user(db_client: TestClient) -> Callable[..., int]:
-    """Crée un compte (rôle 1 = Client) et renvoie son id."""
+    """Crée un compte (sans fiche ni rôle, chantier PRF) et renvoie son id."""
 
     def _make(email: str, is_activated: bool = True) -> int:
         response = db_client.post(

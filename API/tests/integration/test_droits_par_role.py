@@ -4,7 +4,7 @@ test_droits_par_role.py — Fermé par défaut, ouvert table par table (fiche DR
 ============================================================================
 COMMENT LIRE CE FICHIER
 ============================================================================
-MATRIX recopie l'annexe d'ADR-027 (`md/adr/adr-027-annexe-matrice-detaillee.md`,
+MATRIX recopie l'annexe d'ADR-027 (`decisions/adr-027-annexe-matrice-detaillee.md`,
 dépôt Fil-Rouge) au niveau du rôle : un rôle a un geste s'il l'a sur au moins
 une ligne (« le sien » se juge à part : test_le_sien.py). Elle est écrite ici à
 la main, pas importée des routeurs : le test juge le code, il ne le relit pas.
@@ -194,7 +194,7 @@ FIRST_EMAIL, SECOND_EMAIL = "dro3-premier@example.com", "dro3-second@example.com
 
 @pytest.fixture
 def two_accounts(db_client: TestClient) -> tuple[int, int]:
-    """Deux comptes Client actifs (rôle 1), créés en Admin ; leurs ids."""
+    """Deux comptes actifs sans fiche ni rôle (chantier PRF), créés en Admin ; leurs ids."""
     ids = []
     for email in (FIRST_EMAIL, SECOND_EMAIL):
         account = {"email": email, "password": USER_PASSWORD, "is_activated": True}

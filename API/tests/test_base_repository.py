@@ -5,8 +5,8 @@ test_base_repository.py — Tests unitaires de BaseRepository, sans base.
 COMMENT LIRE CE FICHIER
 ============================================================================
 La Session SQLModel est remplacée par un MagicMock. On ne teste donc PAS
-SQL ni PostgreSQL (ce sera le rôle des tests d'intégration, avec une base
-de test isolée) : on teste la logique propre au repository.
+SQL ni PostgreSQL (c'est le rôle des tests d'intégration, tests/integration/,
+sur une base de test isolée) : on teste la logique propre au repository.
 
 - `create` ignore l'id fourni (PostgreSQL le génère : GENERATED ALWAYS).
 - `replace` recopie les champs mais jamais l'id.

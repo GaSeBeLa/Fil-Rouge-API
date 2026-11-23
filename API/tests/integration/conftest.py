@@ -13,7 +13,7 @@ Deux protections, l'une sur l'autre :
 1. UNE AUTRE BASE. Les tests visent `fil_rouge_test`, jamais la base de
    développement `fil_rouge_immobilier`. Même serveur, même utilisateur :
    seul le nom de la base change. Elle se crée avec
-   `bash docker/create_test_db.sh` (scripts 01 + 02 de init-v3).
+   `bash docker/create_test_db.sh` (scripts 01, 02 et 04 de init-v3).
 
 2. TOUT EST ANNULÉ. Chaque test s'exécute dans une transaction ouverte ici
    et annulée (rollback) à la fin, quoi qu'il arrive. Les `commit()` du code
@@ -119,7 +119,7 @@ def db_client(db_session: Session, fast_hasher: PasswordHasher) -> Iterator[Test
 
 @pytest.fixture
 def create_user(db_client: TestClient) -> Callable[[str], int]:
-    """Crée un compte via l'API (rôle 1 = Client, posé par 02) et renvoie son id."""
+    """Crée un compte via l'API (sans fiche ni rôle, chantier PRF) et renvoie son id."""
 
     def _create(email: str) -> int:
         response = db_client.post("/users", json={"email": email, "password": USER_PASSWORD})

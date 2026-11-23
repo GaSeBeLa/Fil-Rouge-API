@@ -130,7 +130,7 @@ def test_authenticate_unknown_email_pays_one_verification(
 def test_authenticate_invalid_hash_pays_one_verification(
     service: UserService, repository: MagicMock, existing_user: User, verify_spy: MagicMock
 ):
-    # Les 24 comptes migrés : leur placeholder n'est pas une empreinte.
+    # Les comptes migrés : leur placeholder n'est pas une empreinte.
     repository.get_by_email.return_value = existing_user
 
     assert service.authenticate(MagicMock(), existing_user.email, PLAIN) is None

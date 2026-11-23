@@ -7,9 +7,8 @@ COMMENT LIRE CE FICHIER
 UserCreate, UserUpdate et UserPublic ne sont pas des tables : Pydantic les
 valide à la construction. On vérifie trois promesses de user_model.py :
 
-- un mot de passe de moins de 12 caractères est refusé (min_length=12 :
-  proposition du tuto, pas encore actée par le groupe — si la valeur change,
-  seul ce test change) ;
+- un mot de passe de moins de 12 caractères est refusé (min_length=12,
+  acté par ADR-026 — si la valeur change, seul ce test change) ;
 - une mise à jour peut ne rien fournir ;
 - un mot de passe, même haché, ne sort jamais de l'API.
 

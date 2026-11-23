@@ -8,8 +8,9 @@ Ce que les tests unitaires ne pouvaient pas prouver :
 
 - le mot de passe est STOCKÉ haché dans PostgreSQL (lu en base, pas dans
   la réponse) ;
-- UNIQUE(email), le CHECK de system_role et ON DELETE RESTRICT donnent
-  bien 409, avec le message qui nomme la contrainte (fiche FIN1) ;
+- UNIQUE(email) et le CHECK de system_role donnent bien 409, avec le
+  message qui nomme la contrainte (fiche FIN1) ;
+- DELETE rend 405 : un compte ne se supprime pas (ADR-049) ;
 - le PUT partiel ne touche pas les champs omis, une fois écrit en base.
 ============================================================================
 """
