@@ -65,7 +65,7 @@ services:
   db:
     image: postgres:16.15   # épinglé (ADR-014) ; 16.15 tournait déjà le 2026-11-19
     container_name: fil_rouge_immobilier_db
-    # PCA (dépôt Fil-Rouge, livrables/6-pilotage/pca-pra-plan-de-migration.md,
+    # PCA (dépôt Fil-Rouge, livrables/3-architecture/3.5-pca-pra-plan-de-migration.md,
     # 2026-11-19, oui de Seb) : un plantage
     # redémarre seul ; un `docker compose stop` reste respecté.
     restart: unless-stopped
