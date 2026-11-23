@@ -1034,10 +1034,10 @@ CREATE TABLE sale (
     --   TODO — la vente doit tomber DANS la validité du mandat. Testé : une
     --   vente datée 2025 sur un mandat signé en 2026, ou en 2030 sur un mandat
     --   clos en 2026, est acceptée. Règle et test restent à écrire.
-    -- TODO (D3) — cas déjà tranché par les sources officielles : un acte signé
-    --   APRÈS la fin du mandat peut ouvrir droit à rémunération sous condition
-    --   (REGLES-CALCUL-REMUNERATION.md:98). La règle ci-dessus doit donc tenir
-    --   compte de ce délai, et non refuser sèchement.
+    -- D3 — tranché par ADR-050 (point 8) : un acte signé APRÈS la fin du
+    --   mandat n'ouvre pas droit à rémunération (10_calcul_remuneration_chasseur
+    --   .feature:45-50) ; le paiement est refusé, motif 'mandate_expired'
+    --   (ADR-024).
 );
 
 -- Barème de commission : tranches de prix -> taux de base.

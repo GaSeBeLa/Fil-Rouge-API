@@ -519,7 +519,7 @@ supprimer le conteneur avec `docker rm -f pg_essai`.
 
 | # | Sujet | Où |
 |---|---|---|
-| 1 | ✅ Fermé (LOT7) : tout-ou-rien gardé, valeurs factices pour les 18 clients | §0, §4 |
+| 1 | ✅ Fermé (LOT7) : tout-ou-rien gardé, valeurs factices pour les 18 clients ; depuis le 2026-10-12, NOT NULL à la place (ADR-053, P3) | §0, §4 |
 | 2 | Trancher le sens de `commission_rate` (honoraires ou commission ?) | §3.3 |
 | 3 | Confirmer `hire_date` = date de création du compte | §3.4 |
 | 4 | ✅ Fermé (LOT10) : demandes sous mandat en `'launched'` | §0, §3.5 |

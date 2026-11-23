@@ -1030,7 +1030,7 @@ def test_hunter_performance_two_scores_same_day_are_accepted(db_session: SQLMode
 
 # --- hunter_rate_parameters -------------------------------------------------
 
-# Les valeurs par défaut du sujet (rem.py:310-337), en exemple.
+# Les valeurs par défaut du sujet (`parametrage_par_defaut`, services/remuneration.py), en exemple.
 HUNTER_RATE_PARAMETERS: dict[str, Any] = {
     "effective_from": "2025-01-01",
     "weight_delay": "0.25",
