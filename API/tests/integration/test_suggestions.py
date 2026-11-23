@@ -172,6 +172,16 @@ def test_client_cannot_ask_for_suggestions(db_client: TestClient, fake_es: FakeE
     assert response.status_code == 403, response.text
 
 
+def test_the_role_is_checked_before_elasticsearch(db_client: TestClient):
+    # Audit OWASP ZAP du 23/11 : sans Elasticsearch, un appelant sans droit
+    # recevait 503 (« Elasticsearch ne répond pas ») au lieu de 403. Un
+    # inconnu n'apprend rien de l'état du serveur : le rôle passe d'abord.
+    request_id = new_request(db_client)
+    with acting_as(CLIENT, 7):
+        response = db_client.post(f"/search-requests/{request_id}/suggestions")
+    assert response.status_code == 403, response.text
+
+
 def test_request_without_criteria_returns_409(db_client: TestClient, fake_es: FakeES):
     request_id = new_request(db_client, with_criteria=False)
 

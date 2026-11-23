@@ -40,9 +40,12 @@ _service = SuggestionService(CriteriaRepository(), EstateSearchRequestRepository
 def suggest_estates(
     item_id: int,
     session: Session = Depends(get_session),
-    es: Any = Depends(_es),
-    # Le chasseur cherche les biens de ses demandes (H3).
+    # Le chasseur cherche les biens de ses demandes (H3). Le rôle passe
+    # AVANT Elasticsearch (audit OWASP ZAP, 2026-11-23) : FastAPI résout
+    # les dépendances dans l'ordre, et un appelant sans droit ne doit pas
+    # apprendre qu'Elasticsearch est en panne (503 au lieu de 401 ou 403).
     principal: Principal = Depends(require_roles(HUNTER)),
+    es: Any = Depends(_es),
 ) -> list[EstateSearchRequest]:
     """Cherche dans l'index des biens ceux qui collent aux derniers critères de la demande.
 
