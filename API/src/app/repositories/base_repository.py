@@ -32,7 +32,7 @@ utils/constraint_messages.py).
 from contextlib import contextmanager
 from typing import Generator, Generic, List, Optional, Sequence, Type, TypeVar
 
-from sqlalchemy import ColumnElement
+from sqlalchemy import ColumnElement, func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, select
 
@@ -67,6 +67,23 @@ class BaseRepository(Generic[ModelType]):
         if where is not None:
             statement = statement.where(where)
         return list(session.exec(statement).all())
+
+    def list_page(
+        self, session: Session, limit: int, offset: int, where: Optional[ColumnElement[bool]] = None
+    ) -> tuple[List[ModelType], int]:
+        """
+        Une page de lignes, dans l'ordre des `id`, et le total de la liste
+        entière (choix PAGIN, 2026-11-23). `where` filtre les deux : le
+        total ne compte que les lignes visibles. Une page au-delà de la fin
+        est vide, son total reste juste.
+        """
+        statement = select(self.model)
+        counting = select(func.count()).select_from(self.model)
+        if where is not None:
+            statement = statement.where(where)
+            counting = counting.where(where)
+        statement = statement.order_by(getattr(self.model, "id")).offset(offset).limit(limit)
+        return list(session.exec(statement).all()), session.exec(counting).one()
 
     def get_by_id(
         self, session: Session, item_id: int, where: Optional[ColumnElement[bool]] = None

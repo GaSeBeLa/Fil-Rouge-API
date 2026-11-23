@@ -40,7 +40,7 @@ SCORE = {"score": "62.5", "scored_at": "2026-03-02T10:00:00Z", "trigger_type": "
 @pytest.fixture
 def service() -> MagicMock:
     mock = MagicMock(spec=BaseService)
-    mock.list_all.return_value = [Thing(id=1, name="a")]
+    mock.list_page.return_value = ([Thing(id=1, name="a")], 1)
     mock.create_as.return_value = Thing(id=2, name="b")
     return mock
 
@@ -77,7 +77,7 @@ def test_no_token_returns_401(test_app: FastAPI, service: MagicMock):
 
     assert client.get("/things").status_code == 401
     assert client.post("/things", json={"name": "b"}).status_code == 401
-    service.list_all.assert_not_called()
+    service.list_page.assert_not_called()
 
 
 def test_reader_can_read(test_app: FastAPI):
@@ -113,7 +113,7 @@ def test_router_without_roles_is_closed_to_all(test_app: FastAPI, service: Magic
     assert client.get("/closed/1").status_code == 403
     assert client.post("/closed", json={"name": "b"}).status_code == 403
     assert client.put("/closed/1", json={"name": "b"}).status_code == 403
-    service.list_all.assert_not_called()
+    service.list_page.assert_not_called()
     service.create_as.assert_not_called()
 
 

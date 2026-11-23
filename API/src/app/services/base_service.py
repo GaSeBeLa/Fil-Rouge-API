@@ -106,6 +106,12 @@ class BaseService(Generic[ModelType]):
     def list_all(self, session: Session, viewer: Optional["Principal"] = None) -> List[ModelType]:
         return self.repository.list_all(session, self._where(viewer))
 
+    def list_page(
+        self, session: Session, limit: int, offset: int, viewer: Optional["Principal"] = None
+    ) -> tuple[List[ModelType], int]:
+        """La page de `GET /<table>` et le total des lignes que `viewer` voit (« le sien » d'abord)."""
+        return self.repository.list_page(session, limit, offset, self._where(viewer))
+
     def get_by_id(self, session: Session, item_id: int, viewer: Optional["Principal"] = None) -> ModelType:
         item = self.repository.get_by_id(session, item_id, self._where(viewer))
         if item is None:

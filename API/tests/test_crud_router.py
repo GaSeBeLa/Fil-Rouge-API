@@ -71,7 +71,7 @@ def api(service: MagicMock) -> TestClient:
 
 
 def test_list_returns_200(api: TestClient, service: MagicMock):
-    service.list_all.return_value = [Thing(id=1, name="a")]
+    service.list_page.return_value = ([Thing(id=1, name="a")], 1)
     response = api.get("/things")
     assert response.status_code == 200
     assert response.json() == [{"id": 1, "name": "a"}]
@@ -125,7 +125,7 @@ def test_delete_route_is_gone(api: TestClient, service: MagicMock):
 def test_routes_pass_the_account_to_the_service(api: TestClient, service: MagicMock):
     # « Le sien » (DRO4, DRO5) : les deux GET, le POST et le PUT donnent le
     # compte connecté au service.
-    service.list_all.return_value = []
+    service.list_page.return_value = ([], 0)
     service.get_by_id.return_value = Thing(id=1, name="a")
     service.create_as.return_value = Thing(id=2, name="b")
     service.replace_visible.return_value = Thing(id=1, name="b")
@@ -136,7 +136,7 @@ def test_routes_pass_the_account_to_the_service(api: TestClient, service: MagicM
 
     assert statuses == [200, 200, 201, 200]
     viewers = [
-        service.list_all.call_args.args[1],
+        service.list_page.call_args.args[3],
         service.get_by_id.call_args.args[2],
         service.create_as.call_args.args[2],
         service.replace_visible.call_args.args[3],

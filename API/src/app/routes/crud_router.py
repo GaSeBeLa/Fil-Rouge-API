@@ -73,7 +73,7 @@ Doc Swagger : chaque route reçoit un `summary` (son titre dans /docs) et une
 from collections.abc import Sequence
 from typing import Annotated, List, Optional, Type
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlmodel import Session, SQLModel
@@ -84,6 +84,12 @@ from ..utils.api_keys import require_api_key
 from ..utils.exceptions import ConflictError, ForbiddenError, NotFoundError
 from ..utils.roles import ALL_ROLES, Principal, require_roles
 from ..services.base_service import BaseService
+
+# Choix PAGIN (2026-11-23) : une liste a une taille bornée (OWASP API n° 4).
+# Mesuré le 2026-11-20 : toute la table des biens, 1,25 s ; un bien, 70 ms.
+PAGE_DEFAULT = 100
+PAGE_MAX = 1000
+TOTAL_HEADER = "X-Total-Count"
 
 
 def _validated(model: Type[SQLModel], item: SQLModel) -> SQLModel:
@@ -157,16 +163,29 @@ def build_crud_router(
     @router.get(
         "",
         response_model=List[out_model],
-        summary="Lister toutes les lignes",
+        summary="Lister les lignes, par pages",
         description=_describe(
-            "Rend les lignes de la table, en une fois (pas de pagination). Sur une table qui "
-            "réserve chaque ligne à son titulaire (« le sien »), seulement les vôtres.",
+            f"Rend une page de lignes, dans l'ordre des `id` : `limit` lignes ({PAGE_DEFAULT} par "
+            f"défaut, {PAGE_MAX} au plus), après les `offset` premières (0 par défaut). L'en-tête "
+            "`X-Total-Count` donne le nombre de lignes de la liste entière : il reste une page "
+            "tant que `offset + limit` est plus petit. Sur une table qui réserve chaque ligne à "
+            "son titulaire (le sien), seulement les vôtres, et le total ne compte qu'elles.",
             read_roles,
-            "- `200` : la liste, vide s'il n'y a rien ;\n- `403` : votre rôle ne peut pas lire cette table.",
+            "- `200` : la page, vide s'il n'y a rien ou si `offset` dépasse la fin ;\n"
+            "- `403` : votre rôle ne peut pas lire cette table ;\n"
+            f"- `422` : `limit` hors de 1 à {PAGE_MAX}, ou `offset` négatif.",
         ),
     )
-    def list_items(session: Session = Depends(get_session), viewer: Principal = Depends(can_read)):
-        return service.list_all(session, viewer)
+    def list_items(
+        response: Response,
+        session: Session = Depends(get_session),
+        viewer: Principal = Depends(can_read),
+        limit: int = Query(PAGE_DEFAULT, ge=1, le=PAGE_MAX, description="Lignes par page."),
+        offset: int = Query(0, ge=0, description="Lignes à sauter avant la page."),
+    ):
+        rows, total = service.list_page(session, limit, offset, viewer)
+        response.headers[TOTAL_HEADER] = str(total)
+        return rows
 
     @router.get(
         "/{item_id}",
