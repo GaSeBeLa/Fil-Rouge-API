@@ -5,7 +5,7 @@
 -- POURQUOI ? Un lecteur d'écran lit le texte d'une image : sans lui, une
 --   personne aveugle ne sait pas ce que montre la photo d'un bien (WCAG 2.2,
 --   critère 1.1.1). Trou repéré par la note d'accessibilité PSH (dépôt
---   Fil-Rouge, livrables/5-transverse/note-accessibilite-psh.md,
+--   Fil-Rouge, livrables/5-transverse/5.3-note-accessibilite-psh.md,
 --   2026-11-19). Choix A de Sébastien.
 --
 -- POUR QUI ? Toute base v2 migrée, et toute base v3 créée avant le

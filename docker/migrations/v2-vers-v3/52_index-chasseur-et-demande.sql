@@ -7,7 +7,7 @@
 --   pour une demande (suggestions), les sélections d'un chasseur, les
 --   dernières demandes d'un chasseur. Mesuré le 2026-11-19 à ~500 000
 --   sélections : × 35, × 15 et × 100 (note d'indexation, dépôt Fil-Rouge,
---   livrables/2-modelisation/note-indexation.md). Choix A de Sébastien.
+--   livrables/2-modelisation/2.8-note-indexation.md). Choix A de Sébastien.
 --
 -- POUR QUI ? Toute base v2 migrée, et toute base v3 créée avant le
 --   2026-11-19. Une base créée par init-v3 après a déjà les index
