@@ -248,9 +248,11 @@ services:
       timeout: 10s
       retries: 60
   # Une fois : fixe le mot de passe de l'utilisateur interne kibana_system
-  # (le « setup » du kit), puis crée le compte airflow_indexer du DAG
-  # estates_index (FLX8), limité à l'index estates par le rôle
-  # estates_writer ; enfin s'arrête. Rejouable : PUT remplace.
+  # (le « setup » du kit), puis crée trois comptes, chacun limité par son
+  # rôle : airflow_indexer (estates_writer, DAG estates_index, FLX8),
+  # api_search (estates_reader, lecture seule, FLX9) et logstash_internal
+  # (logstash_writer, logs-api-*, FLX10 ; sauté si son mot de passe est
+  # vide) ; enfin s'arrête. Rejouable : PUT remplace.
   es-setup:
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION:-9.5.4}
     container_name: fil_rouge_immobilier_es_setup
