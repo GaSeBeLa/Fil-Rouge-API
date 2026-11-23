@@ -19,9 +19,10 @@ ADMIN_ONLY_FIELDS = ("system_role", "is_activated")  # chantier PRF : le rôle e
 
 class UserService(BaseService[User]):
     """
-    Seul endroit du projet qui transforme un mot de passe en clair en
-    empreinte. Si un mot de passe en clair atteint la base, c'est qu'un
-    chemin d'écriture contourne cette classe.
+    Avec `ActivationService.activate` (le code d'activation), le seul
+    endroit qui transforme un mot de passe en clair en empreinte, toujours
+    par `security.hash_password`. Un mot de passe en clair en base veut dire
+    qu'un chemin d'écriture contourne ces deux-là.
 
     « Le sien » (ADR-027, annexe § 1 ; fiches DRO5, DRO6, DRO7) : un Client,
     un Hunter ou un Manager voit son compte et le modifie, sauf

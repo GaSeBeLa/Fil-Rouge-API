@@ -13,9 +13,11 @@ de dupliquer ces 4 fonctions dans les 21 fichiers routes/<table>_router.py
 et chaque fichier de router se contente d'appeler build_crud_router avec
 son propre service.
 
-C'est aussi le seul endroit qui traduit les exceptions "métier"
-(NotFoundError, ConflictError, ForbiddenError — voir exceptions.py) en
-codes HTTP : les services et repositories, eux, ne connaissent pas FastAPI.
+Il traduit les exceptions "métier" (NotFoundError, ConflictError,
+ForbiddenError — voir exceptions.py) en codes HTTP pour toutes les routes
+CRUD ; les routes à part (auth, signup, suggestions, offre, paiement d'une
+vente…) le font dans leur propre routeur. Les services et repositories,
+eux, ne connaissent pas FastAPI.
 
 `update_model` (optionnel) : modèle d'entrée du PUT, distinct de celui du
 POST (`response_model`). Par défaut, si non fourni, le PUT utilise

@@ -5,7 +5,7 @@ login_throttle.py — Frein aux mots de passe essayés en série (POST /auth/log
 COMMENT LIRE CE FICHIER
 ============================================================================
 Trouvé par Gabriel le 2026-11-09 : 15 mauvais mots de passe d'affilée
-passaient tous ; seul argon2 (~430 ms par essai) ralentissait.
+passaient tous ; seul argon2 (~430 ms par essai ce jour-là) ralentissait.
 
 Règle : trop d'échecs pour une même clé dans la fenêtre -> la clé est
 bloquée un temps, même avec le bon mot de passe ; la route rend alors 429

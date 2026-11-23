@@ -5,12 +5,12 @@ de table.
 ============================================================================
 COMMENT LIRE CE FICHIER
 ============================================================================
-Un service ne parle qu'à SON repository (jamais directement à la Session
-SQLModel, jamais à FastAPI). Pour l'instant, sans règle métier
-supplémentaire, il se contente de déléguer — mais c'est le point d'entrée
-naturel pour en ajouter : une sous-classe comme UserService peut surcharger
-create() pour hasher le mot de passe avant d'appeler super().create(), sans
-que routes/ ni les repositories n'aient à changer.
+Un service ne parle pas à FastAPI. Il passe d'abord par des repositories ;
+quelques-uns lisent la Session directement pour une requête de jointure (les
+*_rows.py, activation, suggestion). BaseService lui-même ne fait que
+déléguer : c'est le point d'entrée des règles métier, que les sous-classes
+ajoutent (UserService hache le mot de passe dans create(), PaymentService,
+MandateService…), sans que routes/ ni les repositories n'aient à changer.
 
 get_by_id lève NotFoundError si la ligne n'existe pas (au lieu de renvoyer
 None) : ça évite à chaque appelant de revérifier, et centralise le message

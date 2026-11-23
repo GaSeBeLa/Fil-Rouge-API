@@ -18,9 +18,10 @@ Au POST seulement, P28 (ADR-053) : la vente passe le mandat à
 puis écrit par le commit de la vente ; si la base refuse la vente, le
 mandat reste tel quel.
 
-Non codé ici : une vente datée hors de la validité du mandat (même TODO,
-avec la réserve D3 : un acte après la fin peut ouvrir droit à
-rémunération).
+Non codé ici : une vente datée hors de la validité du mandat (même TODO).
+Un acte après la fin du mandat reste enregistrable, mais n'ouvre pas droit
+à rémunération (D3, ADR-050 point 8) : le paiement est refusé, motif
+'mandate_expired' (ADR-024).
 
 « Le sien » (ADR-027, annexe § 4 ; fiche DRO5) : un Client voit la vente
 de son mandat (P8, P9) ; le Hunter (fiche DRO6), les ventes de ses mandats.

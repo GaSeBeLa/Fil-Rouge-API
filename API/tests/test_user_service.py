@@ -4,8 +4,8 @@ test_user_service.py — Tests unitaires de UserService (ADR-016).
 ============================================================================
 COMMENT LIRE CE FICHIER
 ============================================================================
-UserService est le seul endroit qui transforme un mot de passe en clair en
-empreinte. On vérifie donc ce qui ATTEINT le repository (factice) :
+UserService hache tout mot de passe qu'il écrit (l'autre endroit qui hache
+est ActivationService.activate). On vérifie donc ce qui ATTEINT le repository (factice) :
 jamais le mot de passe en clair.
 
 On vérifie aussi la mise à jour PARTIELLE : seuls les champs fournis

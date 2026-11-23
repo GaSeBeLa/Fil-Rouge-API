@@ -91,7 +91,7 @@ def test_updating_a_proposal_in_place_is_accepted(db_client: TestClient):
     assert response.status_code == 200, response.text
 
 
-# --- Le client ne change que sa note et son commentaire (fiche SUG1) --------------
+# --- Le client ne change que sa note, son commentaire et sa décision (SUG1, SUG5) --
 
 
 def test_client_cannot_accept_a_proposal_himself(db_client: TestClient):

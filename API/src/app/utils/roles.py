@@ -38,7 +38,8 @@ from ..conf.database import get_session
 from ..models import Client, Hunter, RealEstateManager, User
 from .current_user import get_current_user
 
-# Les 5 libellés de la table role (CHECK en base, ADR-028 point 7).
+# Les 5 rôles : Client, Hunter, Manager (table role, rôles à fiche) ; Admin,
+# Reader (user.system_role, comptes sans fiche ; chantier PRF).
 ADMIN = "Admin"
 CLIENT = "Client"
 HUNTER = "Hunter"

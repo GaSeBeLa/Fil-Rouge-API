@@ -28,8 +28,9 @@ ADR-050) ; elle compte une fois (Q-REM-09), datée par la signature de sa
 racine. Les comptages sont des fonctions pures sur des listes, pour se
 tester sans base.
 
-La note du journal (ADR-035) : `journal_note` l'écrit quand le paiement
-passe à 'paid' — `PaymentService` l'appelle. Les trois notes de la vente
+La note du journal (ADR-035) : `journal_note` la prépare quand le paiement
+passe à 'paid' ; `PaymentService` l'écrit avec le paiement, dans la même
+transaction. Les trois notes de la vente
 (délai, exclusivité, visites) viennent du détail du paiement ; les deux
 critères d'activité (ventes, taux) sont recomptés à la date du paiement,
 sans rien exclure : la vente payée compte désormais (ADR-035).
@@ -295,8 +296,10 @@ class PaymentCalculationService:
     def build_payment(self, session: Session, sale_id: int) -> Payment:
         """
         Le paiement d'une vente, prêt à créer : 'announced' avec ses taux et
-        son détail, ou 'refused' avec son motif (ADR-024). 404 vente
-        inconnue ; 409 vente déjà payée, ou paramétrage manquant.
+        son détail, ou 'refused' avec son motif (ADR-024). 404 : vente,
+        mandat ou chasseur introuvable ; 409 : la vente a déjà un paiement,
+        le mandat n'a pas de date de fin ou n'est pas signé, ou un
+        paramètre manque.
         """
         sale = self.sales.get_by_id(session, sale_id)
         if sale is None:

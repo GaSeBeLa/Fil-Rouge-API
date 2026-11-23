@@ -14,8 +14,8 @@ et le calcul « isolé du paramétrage » (§14.3). Ce service est le pont : il 
     commission_scale        -> Parametrage.bareme
     hunter_rate_parameters  -> Parametrage.performance et .modulation
 
-Il ne calcule rien et n'écrit rien. Comme les autres services, il ne parle
-qu'à des repositories, jamais à la Session directement.
+Il ne calcule rien et n'écrit rien. Il ne parle qu'à des repositories,
+jamais à la Session directement.
 
 Versions (Q-SCH-17, Q-REM-05) : une version vaut jusqu'à la suivante, sans
 date de fin en base. Le calcul, lui, lit une date de fin : le service la
@@ -98,7 +98,8 @@ def performance(r: HunterRateParameters) -> ParametresPerformance:
     """Une ligne de `hunter_rate_parameters` -> les réglages du score de performance.
 
     Publique : `PaymentCalculationService.journal_note` s'en sert aussi, pour
-    noter le chasseur avec les réglages en vigueur au jour du paiement.
+    noter le chasseur avec la version des réglages que le paiement cite
+    (`payment.id_hunter_rate_parameters`, celle de la date de l'acte).
     """
     return ParametresPerformance(
         poids_delai=r.weight_delay,

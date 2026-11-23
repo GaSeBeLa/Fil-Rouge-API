@@ -2,10 +2,14 @@
 sale_model.py — La vente effectivement signée chez le notaire, au bout
 d'un mandat.
 
-C'est la ligne qui déclenche toute la rémunération : `fees_amount` (les
-honoraires collectés par le notaire) sert de base au calcul, et
-`sale_origin` dit si le chasseur y a droit — une vente `client_alone` est
-une vente que le client a conclue seul, hors mandat.
+C'est la ligne qui déclenche toute la rémunération :
+- `fees_amount` : les honoraires de l'acte. Le calcul de rémunération ne le
+  lit pas : il recalcule les honoraires depuis la grille
+  `id_parameters_fees` et `purchase_amount` (remuneration.py,
+  calculer_honoraires) ;
+- `sale_origin` : 'hunter', ou 'client_alone' (le client a trouvé seul,
+  hors dispositif, mais sur son mandat). Avec l'exclusivité du mandat, il
+  décide du droit à rémunération (remuneration.py, droit_a_remuneration).
 
 Montants en euros (Q-REM-01, 2026-10-05) : `purchase_amount` en euros
 entiers (`INTEGER`, donc `int`) ; `fees_amount` au centime (`NUMERIC(12,2)`,

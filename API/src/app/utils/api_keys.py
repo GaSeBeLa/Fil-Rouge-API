@@ -14,7 +14,8 @@ commencent par `API_KEY_` ; sans aucune clé utilisable, l'import échoue et
 l'API refuse de démarrer, plutôt que de refuser tous les appels sans dire
 pourquoi.
 
-require_api_key, posé sur les routeurs (auth_router, build_crud_router) :
+require_api_key, posé sur chaque routeur de l'API (build_crud_router et les
+routes à part : auth, signup, suggestion, estate_search) :
 clé absente ou inconnue -> 401. Le nom du programme reconnu est rangé dans
 `request.state.api_client`, pour les logs. `GET /` reste ouvert.
 ============================================================================
