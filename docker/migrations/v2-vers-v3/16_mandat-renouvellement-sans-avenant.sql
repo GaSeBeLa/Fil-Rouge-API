@@ -6,8 +6,8 @@
 --   dans docker/init-v3/01_create_fil_rouge_immobilier.sql, commit 6be4e56 :
 --
 --   - le statut 'renewed' est celui de l'ANCIEN mandat ; le nouveau pointe
---     vers le précédent par id_mandate_parent (cela remplace D8, ADR-010 et
---     ADR-013 : ADR à écrire) ;
+--     vers le précédent par id_mandate_parent (ADR-050 remplace D8, amende
+--     ADR-013 et reprend ADR-010) ;
 --   - pas d'avenant : un mandat a au plus un successeur, d'où un UNIQUE sur
 --     id_mandate_parent ;
 --   - chk_renewed (« renewed ⇒ a un parent ») n'a plus de sens : il sort.

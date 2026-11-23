@@ -10,15 +10,17 @@
 --   Le rôle était donc déclaré, jamais créé. Impossible d'attribuer des
 --   droits d'administration à qui que ce soit.
 --
--- POUR QUI ? Seulement pour une base **déjà créée**. Si tu peux repartir
+-- POUR QUI ? Seulement pour une base **v2 déjà créée**. Sur une base v3,
+--   l'INSERT est refusé : le CHECK de role n'accepte plus 'Admin', qui vit
+--   dans "user".system_role (chantier PRF, PRF8). Si tu peux repartir
 --   de zéro, ne lance pas ce script : fais plutôt, depuis docker/ :
 --
 --       docker compose down -v
 --       docker compose up -d
 --
---   02_migration.sql contient déjà la ligne.
+--   init-v2/02_migration.sql contient déjà la ligne.
 --
--- CE DOSSIER N'EST PAS MONTÉ par docker compose (seul init-v2/ l'est) :
+-- CE DOSSIER N'EST PAS MONTÉ par docker compose (seul init-v3/ l'est) :
 --   ce fichier ne part jamais tout seul, il se lance à la main.
 --
 -- COMMENT ? Depuis docker/ :

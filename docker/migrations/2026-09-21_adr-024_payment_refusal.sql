@@ -9,12 +9,12 @@
 --       docker compose down -v
 --       docker compose up -d
 --
---   Les scripts de init-v2/ ne s'exécutent qu'à la création du volume.
+--   Les scripts de init-v3/ ne s'exécutent qu'à la création du volume.
 --   01_create_fil_rouge_immobilier.sql contient déjà tout ce qui suit.
 --   Le « -v » efface les données : sans conséquence tant que tout vient
 --   des scripts, ce qui ne sera plus vrai une fois le seed écrit.
 --
--- CE DOSSIER N'EST PAS MONTÉ par docker compose (seul init-v2/ l'est) :
+-- CE DOSSIER N'EST PAS MONTÉ par docker compose (seul init-v3/ l'est) :
 --   ce fichier ne part donc jamais tout seul. Il se lance à la main.
 --
 -- COMMENT ? Depuis docker/ :
@@ -26,7 +26,8 @@
 -- SÛRETÉ : tout est dans une transaction. En cas d'erreur, rien n'est
 --   appliqué. Le script est rejouable : le relancer ne casse rien.
 --
--- Détail et justification : md/adr/adr-024-motif-refus-remuneration.md
+-- Détail et justification (dépôt Fil-Rouge) :
+--   decisions/adr-024-refus-remuneration-motif-trace.md
 -- =====================================================================
 
 BEGIN;

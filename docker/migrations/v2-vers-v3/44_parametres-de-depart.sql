@@ -3,8 +3,8 @@
 -- rémunération
 -- =====================================================================
 --
--- POURQUOI ? 06_parametres.sql crée les trois tables de paramètres sans
---   aucune ligne : une base migrée n'a ni honoraires, ni barème, ni
+-- POURQUOI ? 06_parametres.sql crée la table des réglages du taux et
+--   modifie les deux autres tables de paramètres, sans y mettre de ligne : une base migrée n'a ni honoraires, ni barème, ni
 --   réglages du taux du chasseur, donc ne sait pas calculer une
 --   rémunération. Une base neuve les reçoit de init-v3/05_parametres.sql
 --   depuis le 2026-10-08 (e825253), sans migration jumelle jusqu'ici.

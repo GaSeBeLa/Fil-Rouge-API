@@ -6,7 +6,8 @@
 --   RealEstateManager (0,n) : un chasseur a toujours un manager. La
 --   colonne n'existait pas. Choix du groupe, appuyé sur l'exemple ENF-03
 --   du sujet (« le chasseur concerné et son manager ») — un exemple de
---   rédaction, pas une exigence du client. À acter en ADR.
+--   rédaction, pas une exigence du client. Acté par ADR-029, qui remplace
+--   ADR-025 (decisions/ du dépôt Fil-Rouge).
 --
 -- POUR QUI ? Seulement pour une base **déjà créée**. Si tu peux repartir
 --   de zéro, ne lance pas ce script : fais plutôt, depuis docker/ :
@@ -17,7 +18,7 @@
 --   01_create_fil_rouge_immobilier.sql et 02_migration.sql contiennent
 --   déjà tout ce qui suit.
 --
--- CE DOSSIER N'EST PAS MONTÉ par docker compose (seul init-v2/ l'est) :
+-- CE DOSSIER N'EST PAS MONTÉ par docker compose (seul init-v3/ l'est) :
 --   ce fichier ne part jamais tout seul, il se lance à la main.
 --
 -- COMMENT ? Depuis docker/ :

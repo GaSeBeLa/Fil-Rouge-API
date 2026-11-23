@@ -25,7 +25,9 @@
 --
 -- SÛRETÉ : une transaction, rejouable. Un client sans adresse fait échouer
 --   le SET NOT NULL, et rien n'est écrit. Retour en arrière : DROP NOT NULL
---   sur les quatre colonnes, puis recréer les deux contraintes (07).
+--   sur les quatre colonnes, puis recréer les deux contraintes :
+--   ck_client_address_all_or_nothing (07), ck_client_postal_code_needs_country
+--   (init-v2/01).
 -- =====================================================================
 
 BEGIN;

@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 02_migration.sql — Migration Fil_Rouge_Depart -> Fil_Rouge_Immobilier
 -- ADAPTÉ au schéma v3 (MPD 03, plus hunter_rate_parameters depuis LOT6,
--- ex-remuneration_parameters ; 21 tables au 2026-10-13) et à la convention EUROS.
+-- ex-remuneration_parameters ; 22 tables depuis le 2026-10-15) et à la convention EUROS.
 -- Testé : s'exécute sans erreur à la suite de 01_create_fil_rouge_immobilier.sql.
 -- ============================================================================
 --
@@ -12,7 +12,7 @@
 --      ('client' -> 'Client'…) car le CHECK du schéma cible n'accepte que
 --      'Client', 'Hunter', 'Manager' (chantier PRF, PRF8). 3 lignes.
 --   2. criteria : budget_min et budget_max convertis de K€ en EUROS (x 1000).
---      320.0 devient 320000.00. 17 lignes. budget_min est NULL depuis
+--      320.0 devient 320000.00. 18 lignes. budget_min est NULL depuis
 --      LOT8 (point 9).
 --   3. hunter : la colonne "commission_rate" n'existe plus dans le MPD 03
 --      (la tarification vit désormais dans commission_scale et
@@ -49,7 +49,7 @@
 --        '+33000000000', au format d'ADR-007 (Q-PRO-08, Q-MIG-07).
 --      - la colonne de la carte T s'écrit is_carte_t (Q-SCH-10).
 --   9. LOT8 (2026-10-07) — criteria :
---      - les 17 critères reçoivent le secteur de leur mandat : pays 'FR',
+--      - les 18 critères reçoivent le secteur de leur mandat : pays 'FR',
 --        ville, code postal, quartier (district, NULL pour 2 secteurs)
 --        (Q-MIG-08) ;
 --      - budget_min à NULL, « inconnu » : il recopiait budget_max (Q-MIG-09).
@@ -85,7 +85,7 @@ INSERT INTO role (id, wording) OVERRIDING SYSTEM VALUE VALUES (3, 'Manager') ON 
 
 -- 1. USERS
 -- "user" est désormais minimaliste (choix du groupe, 2026-09) : id, email,
--- password, created_at. first_name/last_name/phone_number/gender/
+-- password, created_at, is_activated, system_role. first_name/last_name/phone_number/gender/
 -- country_iso sont migrés directement dans hunter/client ci-dessous.
 -- password  : NOT NULL côté cible, absent côté source -> placeholder explicite qui
 --             empêche toute connexion tant que le mot de passe n'a pas été réinitialisé
@@ -145,8 +145,8 @@ INSERT INTO hunter (id_user, first_name, last_name, phone_number, gender, countr
 --                -> placeholder '+33000000000', au format d'ADR-007 (Q-MIG-07),
 --                   à corriger manuellement si besoin
 -- address = 'non renseigné', postal_code = '00000' : la source n'a ni adresse ni
---                  code postal ; le tout-ou-rien les exige avec la ville (Q-SCH-01,
---                  Q-SCH-18). Mettre la ville dans l'adresse serait trompeur (ça
+--                  code postal ; les NOT NULL d'ADR-053 (P3), qui remplacent le
+--                  tout-ou-rien (Q-SCH-01, Q-SCH-18), les exigent avec la ville. Mettre la ville dans l'adresse serait trompeur (ça
 --                  ressemblerait à une donnée réelle qui ne l'est pas).
 INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (7, 'Alice', 'Martin', '+33701020304', NULL, 'FR', 'Montpellier', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
 INSERT INTO client (id_user, first_name, last_name, phone_number, gender, country_iso, town, address, postal_code) VALUES (8, 'Karim', 'Benali', '+33702030405', NULL, 'FR', 'Lyon', 'non renseigné', '00000') ON CONFLICT (id_user) DO NOTHING;
@@ -199,8 +199,8 @@ INSERT INTO search_request (id, created_at, id_author, id_client, id_hunter, sta
 --   (secteurs PgSQL.sql:41-51, mandats :135-159), pays 'FR' (Q-MIG-08, LOT8).
 --   district vaut NULL pour Castelnau-le-Lez et Lattes, sans quartier à la source.
 -- needs_renovation : absent de l'INSERT, donc FALSE par défaut (ADR-032, S7).
--- typology : facultative en v3 (vide permis), liste fermée -> déduite via
---   parse_typology() ci-dessus ; remplie pour les 18 critères
+-- typology : facultative en v3 (vide permis), liste fermée -> écrite en dur
+--   dans chaque INSERT ci-dessous ; remplie pour les 18 critères
 INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, surface_min, estate_type, typology, change_reason) VALUES (1, 1, 'FR', 'Montpellier', '34000', 'Écusson', NULL, 320000.00, 65, 'Appartement', 'T3 / F3', 'T3 Ecusson, budget 320000, 65m2 min, balcon, calme, DPE C max') ON CONFLICT DO NOTHING;
 INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, surface_min, estate_type, typology, change_reason) VALUES (3, 2, 'FR', 'Lyon', '69004', 'Croix-Rousse', NULL, 450000.00, 85, 'Appartement', 'T4 / F4', 'T4 Croix-Rousse, budget 450000, 85m2, terrasse ou jardin') ON CONFLICT DO NOTHING;
 INSERT INTO criteria (id_author, id_search_request, country_iso, town, postal_code, district, budget_min, budget_max, surface_min, estate_type, typology, change_reason) VALUES (1, 3, 'FR', 'Montpellier', '34090', 'Beaux-Arts', NULL, 280000.00, 45, 'Appartement', 'T2 / F2', 'T2 Beaux-Arts, budget 280000, 45m2 min, lumineux, proche tram') ON CONFLICT DO NOTHING;

@@ -26,7 +26,7 @@
 --   document, pas une exigence du client ; les .feature ne citent jamais de
 --   manager, et les fixtures n'ont que deux rôles (client, chasseur).
 --   C'est donc un CHOIX DU GROUPE, cohérent avec le rôle Manager déjà en base.
---   À acter en ADR sur Confluence.
+--   Acté par ADR-029, qui remplace ADR-025 (decisions/).
 --
 --   CONSÉQUENCES :
 --     - real_estate_manager est créée AVANT hunter (dépendance de FK).
@@ -73,7 +73,8 @@
 --     - INTEGER (euros entiers) : prix, budgets, bornes du barème, part fixe ;
 --     - NUMERIC(12,2) (au centime) : honoraires sale.fees_amount et
 --       rémunération payment.amount — le sujet impose l'arrondi au centime
---       (10_calcul_remuneration_chasseur.feature, l. 253 ; remuneration.py:188).
+--       (10_calcul_remuneration_chasseur.feature, l. 253 ; calculer_honoraires et calculer_remuneration
+--       de remuneration.py).
 --   La convention « milliers d'euros » (K€, NUMERIC(6,1)) des versions
 --   précédentes est ABANDONNÉE. Un bien à 354 700 € se stocke 354700.
 --
@@ -141,7 +142,7 @@
 --   l'API. Les TODO ci-dessous portent le SQL prêt à activer.
 --
 --   Décisions encore ouvertes : D2 (ancienneté). N2 (localisation) est
---   fermée le 2026-10-05 : elle reste sur criteria, un ADR remplace
+--   fermée le 2026-10-05 : elle reste sur criteria, ADR-031 remplace
 --   ADR-009 (Q-SCH-02) ; les secteurs d'origine y arrivent, avec un
 --   quartier facultatif (LOT8, Q-MIG-08). R21 (bornage du taux final 20-60 %)
 --   est actif depuis le 2026-10-07 (LOT5, Q-REM-19, Jeff : Q-JEF-01).
@@ -422,7 +423,7 @@ CREATE TABLE criteria (
                            CHECK (change_reason = btrim(change_reason) AND change_reason <> ''),
 
     -- Localisation, en texte comme dans le MPD. N2 tranché le 2026-10-05 :
-    -- elle reste ici, un ADR remplace ADR-009 (Q-SCH-02).
+    -- elle reste ici, ADR-031 remplace ADR-009 (Q-SCH-02).
     country_iso            CHAR(2)
                            CHECK (country_iso IN ('FR','ES','DE','GB','IE','BE','NL','LU','IT','CH')),
     town                   VARCHAR(100)
@@ -561,7 +562,7 @@ CREATE TABLE mandate (
     signature_date    DATE,
     signature_type    VARCHAR(20) CHECK (signature_type IN ('electronic', 'paper')),
     -- Date de fin STOCKÉE : décision N1 du 11/09/26 (option A), qui écarte
-    -- l'ADR-004 (durée calculée) au profit de l'ADR-018 (figer la date).
+    -- l'ADR-004 (durée calculée) au profit de l'ADR-023 (figer la date).
     -- Sa valeur est imposée par chk_mandate_six_months, plus bas.
     ends_at           DATE,
     is_exclusive      BOOLEAN NOT NULL,
@@ -574,7 +575,7 @@ CREATE TABLE mandate (
     -- Renouvellement : le NOUVEAU mandat pointe vers le précédent, et lui seul.
     -- Pas d'avenant (décision du groupe, 2026-10-08) : un mandat a au plus un
     -- successeur, d'où le UNIQUE. Le statut 'renewed' est celui de l'ANCIEN
-    -- mandat. Cela remplace D8, ADR-010 et ADR-013 (ADR à écrire) ; chk_renewed
+    -- mandat. ADR-050 remplace D8, amende ADR-013 et reprend ADR-010 ; chk_renewed
     -- est retiré : l'ancien mandat n'a pas de parent à exiger.
     id_mandate_parent INTEGER UNIQUE REFERENCES mandate(id) ON DELETE RESTRICT,
 
@@ -851,7 +852,7 @@ CREATE TABLE estate_price_history (
     id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     id_estate  INTEGER NOT NULL REFERENCES estate(id) ON DELETE RESTRICT,
-    -- Euros (règle 4).
+    -- Euros (README §1).
     price      INTEGER NOT NULL CHECK (price >= 0),
     -- Date logique de l'import (ds d'Airflow) : rejouer le même jour
     -- n'ajoute pas de ligne.
@@ -971,11 +972,10 @@ CREATE TABLE visit (
     CONSTRAINT chk_visit_not_in_future
         CHECK (visit_date <= (clock_timestamp() AT TIME ZONE 'utc')::date + 1)
 
-    -- TODO (déroulé 01 -> 02) — une visite ne peut pas précéder la signature
-    --   du mandat. Testé : une visite datée 2025 sur un mandat signé en 2026
-    --   est acceptée aujourd'hui. Croise deux tables.
-    --   ➡️ Contrôlé par l'API (Q-MAN-06, tranché le 2026-10-05), avec un test
-    --   d'intégration ; pas de trigger. Règle et test restent à écrire.
+    -- Fait (déroulé 01 -> 02) — une visite ne peut pas précéder la signature
+    --   du mandat. Croise deux tables, donc pas de trigger : contrôlé par
+    --   l'API (Q-MAN-06, ADR-044), VisitService (visit_service.py), testé
+    --   dans test_propositions_visites.py.
 );
 
 
@@ -1020,20 +1020,20 @@ CREATE TABLE sale (
     CONSTRAINT uq_sale_estate UNIQUE (id_estate),
     -- Q-REM-13 (2026-10-05) : la grille d'honoraires qui a donné fees_amount.
     --   Le montant reste figé ici ; la clé dit d'où il vient.
-    --   TODO — que ce soit bien la grille en vigueur à la date de l'acte
-    --   n'est pas vérifié : croise sale et parameters_fees -> API.
+    --   Fait — que ce soit bien la grille en vigueur à la date de l'acte :
+    --   croise sale et parameters_fees, contrôlé par l'API (ADR-030),
+    --   SaleService (sale_service.py).
     id_parameters_fees INTEGER NOT NULL
                        REFERENCES parameters_fees(id) ON DELETE RESTRICT,
 
     CONSTRAINT chk_fees_lower_than_price CHECK (fees_amount < purchase_amount)
 
-    -- TODO (déroulé 01 -> 03) — la vente doit tomber DANS la validité du
-    --   mandat, et le mandat doit être signé. Testé : une vente datée 2025 sur
-    --   un mandat signé en 2026, une vente en 2030 sur un mandat clos en 2026,
-    --   et une vente sur un mandat 'pending_signature' sont toutes acceptées.
-    --   Croise sale et mandate.
-    --   ➡️ Contrôlé par l'API (Q-MAN-06, tranché le 2026-10-05), avec un test
-    --   d'intégration ; pas de trigger. Règle et test restent à écrire.
+    -- (déroulé 01 -> 03) — croise sale et mandate, donc pas de trigger :
+    --   contrôlé par l'API (Q-MAN-06, tranché le 2026-10-05).
+    --   Fait : le mandat doit être signé, SaleService (sale_service.py).
+    --   TODO — la vente doit tomber DANS la validité du mandat. Testé : une
+    --   vente datée 2025 sur un mandat signé en 2026, ou en 2030 sur un mandat
+    --   clos en 2026, est acceptée. Règle et test restent à écrire.
     -- TODO (D3) — cas déjà tranché par les sources officielles : un acte signé
     --   APRÈS la fin du mandat peut ouvrir droit à rémunération sous condition
     --   (REGLES-CALCUL-REMUNERATION.md:98). La règle ci-dessus doit donc tenir
@@ -1049,7 +1049,8 @@ CREATE TABLE commission_scale (
     amount_min  INTEGER NOT NULL CHECK (amount_min >= 0),
     amount_max  INTEGER CHECK (amount_max > amount_min),
     -- Q-SCH-15 (2026-10-05) : > 0, comme payment.base_rate. Avec le plancher,
-    --   une tranche à 0 % paierait quand même 20 % (rem.py:264) : un taux nul
+    --   une tranche à 0 % paierait quand même 20 % (taux_final,
+    --   remuneration.py) : un taux nul
     --   n'a pas de sens.
     rate        NUMERIC(5,4) NOT NULL CHECK (rate > 0 AND rate <= 1),
     valid_from  DATE NOT NULL,
@@ -1079,7 +1080,7 @@ CREATE TABLE commission_scale (
 -- Paramètres du calcul de rémunération, versionnés (Q-REM-05, 2026-10-02) :
 --   le sujet veut « une table de paramètres, jamais en dur »
 --   (REGLES-CALCUL-REMUNERATION.md l. 42-47). Une ligne = un jeu complet,
---   celui de ParametresPerformance et ParametresModulation (rem.py:92-116).
+--   celui de ParametresPerformance et ParametresModulation (remuneration.py).
 --   Les honoraires et le barème ont déjà leurs tables (parameters_fees,
 --   commission_scale).
 -- Nom (G2, 2026-10-08) : « réglages du taux du chasseur ». Ex-
@@ -1097,7 +1098,7 @@ CREATE TABLE hunter_rate_parameters (
     id                      INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at              TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     effective_from          DATE NOT NULL,
-    -- Performance (rem.py:92-105) : les poids des 5 critères ...
+    -- Performance (ParametresPerformance) : les poids des 5 critères ...
     weight_delay            NUMERIC(5,4) NOT NULL,
     weight_exclusivity      NUMERIC(5,4) NOT NULL,
     weight_sales            NUMERIC(5,4) NOT NULL,
@@ -1117,7 +1118,7 @@ CREATE TABLE hunter_rate_parameters (
     --   note = min(100 ; 100 × taux ÷ ce réglage). 1.0000 = 100 % (ADR-048).
     mandate_success_rate_for_max_score NUMERIC(5,4) NOT NULL,
     window_months           INTEGER NOT NULL,
-    -- Modulation (rem.py:108-116) : a = min(taux × années ; plafond),
+    -- Modulation (ParametresModulation) : a = min(taux × années ; plafond),
     --   p = (S - pivot) / demi-amplitude × amplitude, r borné.
     seniority_rate_per_year NUMERIC(5,4) NOT NULL,
     seniority_cap           NUMERIC(5,4) NOT NULL,
@@ -1309,7 +1310,7 @@ CREATE TABLE hunter_performance (
 );
 
 -- Q-SCH-06 : « la dernière note du chasseur » se lit par cet index.
--- P36 (ADR-053) : une seule note de départ par chasseur (ADR-042 l. 122 ;
+-- P36 (ADR-053) : une seule note de départ par chasseur (ADR-042 ;
 -- ADR-048, point 8).
 CREATE UNIQUE INDEX uq_perf_one_initial
     ON hunter_performance (id_hunter) WHERE trigger_type = 'initial';
@@ -1426,8 +1427,8 @@ COMMENT ON COLUMN real_estate_manager.id IS
 COMMIT;
 
 -- ============================================================================
--- FIN — 22 tables, 278 colonnes (mesuré via information_schema le
--- 2026-10-15, après FLX4), 1 extension.
+-- FIN — 22 tables, 283 colonnes (comptées dans les CREATE TABLE le
+-- 2026-11-23), 1 extension.
 --
 -- docker/docker-compose.yml monte ./init-v3 sur /docker-entrypoint-initdb.d.
 -- Les scripts d'init ne rejouent que sur un volume vide : après un

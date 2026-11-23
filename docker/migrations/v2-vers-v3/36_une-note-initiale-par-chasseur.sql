@@ -4,7 +4,7 @@
 --
 -- POURQUOI ? ADR-053, P36 (choix du groupe du 2026-10-12) : un chasseur
 --   pouvait avoir deux notes 'initial' (50 puis 90). La note de départ est
---   unique (ADR-042 l. 122 ; ADR-048, point 8).
+--   unique (ADR-042 ; ADR-048, point 8).
 --
 -- QUOI ? L'index unique partiel uq_perf_one_initial. Rien n'est modifié :
 --   0 note en base (compté le 2026-10-12).

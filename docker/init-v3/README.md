@@ -1,16 +1,17 @@
 # `init-v3/` — part de `init-v2/` le 2026-10-07 (chantier LOT) ; les changements suivent par thème
 
 Ce dossier contient la chaîne complète de création et de peuplement de la base,
-alignée sur le **MPD 03 4** (18 tables, 2026-09-22) et sur la convention **euros** ;
-une 19e table, `hunter_rate_parameters` (nommée `remuneration_parameters` jusqu'au
-2026-10-08), depuis LOT6 (2026-10-07).
+alignée sur le **MPD 03 4** (18 tables, 2026-09-22) et sur la convention **euros**.
+Le schéma compte aujourd'hui **22 tables** : s'y ajoutent `hunter_rate_parameters`
+(nommée `remuneration_parameters` jusqu'au 2026-10-08) depuis LOT6 (2026-10-07),
+`review_media` (ADR-051), `estate_contact` (ADR-054) et `estate_price_history` (FLX4).
 
-Il ne remplace rien : `docker/init/` reste en place, intact. Les deux dossiers
-coexistent tant que le groupe n'a pas validé le basculement.
+`docker/docker-compose.yml` monte ce dossier depuis le 2026-10-07 (LOT1, §6).
+`docker/init/`, l'ancien schéma, n'est plus monté.
 
 | Fichier | Rôle | État |
 |---|---|---|
-| `01_create_fil_rouge_immobilier.sql` | schéma — 22 tables, 278 colonnes (mesuré le 2026-10-15, après FLX4) | testé, 0 erreur |
+| `01_create_fil_rouge_immobilier.sql` | schéma — 22 tables, 283 colonnes (comptées dans les `CREATE TABLE` le 2026-11-23) | testé, 0 erreur |
 | `02_migration.sql` | données `Fil_Rouge_Depart` → cible | testé, 0 erreur |
 | `03_populate_estate.sql` | 2 556 biens + 1 976 photos | testé, 0 erreur |
 | `04_role-lecture-seule.sql` | rôle PostgreSQL en lecture seule (LOT12) | testé, 0 erreur |
@@ -101,7 +102,12 @@ Tout est confirmé par Jeff (Q-JEF-13).
 
 ### Clôture — LOT11, sans migration
 
-- Les **3 TODO** de `01` qui croisent plusieurs tables (une visite avant la signature, une vente hors de la validité du mandat, un paiement au mauvais chasseur ou sur un barème périmé) sont annotés **« contrôlé par l'API »** (Q-MAN-06). Aucune table ne change ; les règles et leurs tests restent à écrire dans l'API.
+- Les **3 TODO** de `01` qui croisent plusieurs tables (une visite avant la signature, une vente hors de la validité du mandat, un paiement au mauvais chasseur ou sur un barème périmé) sont annotés **« contrôlé par l'API »** (Q-MAN-06). Aucune table ne change. Depuis, dans l'API :
+  - ✅ visite avant la signature : refusée par `VisitService` (ADR-044) ;
+  - ✅ vente sur un mandat non signé, et grille d'honoraires en vigueur à la date de l'acte : `SaleService` (ADR-030) ;
+  - ⏳ reste la vente datée hors de la validité du mandat ;
+  - ✅ paiement à sa création : il naît du calcul (`PaymentCalculationService`, `POST /sales/{id}/payment` ; `POST /payments` est fermé), qui prend le chasseur du mandat et le barème à la date de l'acte ;
+  - ⏳ reste le `PUT /payments/{id}` de l'Admin : `PaymentService` n'y recontrôle ni le chasseur ni le barème.
 - **Mot de passe** gardé, haché en Argon2 (Q-JEF-14) : rien à retirer du schéma.
 - ✅ Le **rôle en lecture seule** (Q14) est venu ensuite : LOT12, ci-dessous.
 
@@ -307,7 +313,7 @@ l'historique de la migration.
 
 ⚠️ **`Admin` n'a aucune source** : le rôle était autorisé par le `CHECK` depuis
 l'origine, mais sa ligne n'avait jamais été insérée. Corrigé le 2026-09-22 —
-la table compte désormais **4 lignes**. Aucune table de profil ne lui est
+la table a compté **4 lignes**, jusqu'au retrait d'`Admin` par PRF8. Aucune table de profil ne lui est
 rattachée, à la différence de `client` / `hunter` / `real_estate_manager` : un
 admin porte des droits, pas un métier. Pour une base déjà créée :
 `migrations/2026-09-22_role_admin.sql`.
@@ -317,9 +323,9 @@ MPD ; la table `real_estate_manager`, elle, garde son nom.
 
 ### 3.2 `criteria` : budgets convertis en euros
 
-17 lignes. `320.0` devient `320000.00`. Ici la multiplication par 1000 est
+18 lignes. `320.0` devient `320000.00`. Ici la multiplication par 1000 est
 **légitime** : contrairement aux annonces, la source ne fournit pas de colonne
-en euros, et les budgets sont des montants ronds (`240.0` à `700.0`), saisis
+en euros, et les budgets sont des montants ronds (`220.0` à `700.0`), saisis
 au millier. Aucune précision n'est perdue.
 
 Depuis LOT8, seul `budget_max` reçoit ce montant : `budget_min`, qui le
@@ -398,7 +404,8 @@ qu'aucun chasseur ne pointe plus vers lui.
 
 ✏️ **Tranché le 2026-10-05, appliqué le 2026-10-07 (LOT7)** : le groupe garde
 le tout-ou-rien (Q-SCH-01). L'`ALTER` ci-dessous est **retiré** de `02` ; les
-18 clients reçoivent « non renseigné » et `00000` (Q-SCH-18, §0). La suite
+18 clients reçoivent « non renseigné » et `00000` (Q-SCH-18, §0). Depuis le
+2026-10-12, des `NOT NULL` remplacent le tout-ou-rien (ADR-053, P3). La suite
 décrit l'état d'avant, gardée pour l'historique.
 
 C'était le point qui demandait une **décision du groupe**.
@@ -459,14 +466,14 @@ Contenu obtenu :
 
 | Table | Lignes |
 |---|---|
-| `role` | 4 |
+| `role` | 3 |
 | `user` | 25 (24 migrés + 1 manager placeholder, §3.6) |
 | `hunter` | 6 |
 | `client` | 18 |
 | `real_estate_manager` | 1 (placeholder, §3.6) |
-| `search_request` | 17 |
-| `criteria` | 17 |
-| `mandate` | 17 |
+| `search_request` | 18 |
+| `criteria` | 18 |
+| `mandate` | 18 |
 | `estate` | **2 556** |
 | `picture` | **1 976** |
 
@@ -474,8 +481,8 @@ Montants après migration :
 
 - `estate.price` : **62 495 → 406 042 €** (identique au CSV ; euros entiers,
   `INTEGER` depuis Q-REM-01 du 2026-10-05 — 0 prix sur 2 556 avait des centimes)
-- `criteria.budget_max` : **240 000 → 700 000 €** (`INTEGER`, revérifié le
-  2026-10-05 sur `fil_rouge_test` : 17 lignes)
+- `criteria.budget_max` : **220 000 → 700 000 €** (`INTEGER`, 18 lignes ;
+  recompté dans `02_migration.sql` le 2026-11-23)
 
 ---
 
@@ -502,7 +509,8 @@ l'init (`pg_isready -h 127.0.0.1`, mesuré le 2026-10-07). Puis
 docker run --rm -d --name pg_essai -e POSTGRES_PASSWORD=test -e POSTGRES_DB=fr postgres:16.15
 ```
 
-puis passer les quatre scripts (`01` à `04`) dans l'ordre avec `psql`, et
+puis passer les scripts `01` à `08` dans l'ordre (`psql` pour les `.sql`,
+`bash` pour `07_airflow-base.sh`), et
 supprimer le conteneur avec `docker rm -f pg_essai`.
 
 ---
@@ -517,7 +525,7 @@ supprimer le conteneur avec `docker rm -f pg_essai`.
 | 4 | ✅ Fermé (LOT10) : demandes sous mandat en `'launched'` | §0, §3.5 |
 | 5 | ✅ Fermé (LOT9) : `energy_class` rempli depuis `dpe`, 1 623 biens | §0, §2.2 |
 | 6 | Décision `D2` (`D7`, `U02`, `U05` : LOT4 ; `R21` : LOT5 ; `D9` : LOT6 ; `D6` : LOT7 ; `N2` : LOT8) | en-tête du `01`, §0 |
-| 7 | Acter en ADR le lien chasseur → manager, et remplacer le manager placeholder par le seed | §3.6, §9 |
+| 7 | ✅ Lien chasseur → manager acté (ADR-029, qui remplace ADR-025) ; reste à remplacer le manager placeholder par le seed | §3.6, §9 |
 
 Les points 2, 3 et 7 restent des **hypothèses de migration** (1 et 4 sont
 fermés) : elles font
@@ -529,9 +537,9 @@ scripts.
 
 ## 8. `payment` — la traçabilité du refus (ADR-024)
 
-> ⚠️ **ADR-024 est au statut « proposé »**, pas encore validé par le groupe.
-> Le schéma l'applique déjà : si la décision change, c'est ici qu'il faudra
-> revenir. Justification complète : `md/adr/adr-024-motif-refus-remuneration.md`.
+> ✅ **ADR-024 est accepté** par le groupe (2026-10-15). Si la décision change,
+> c'est ici qu'il faudra revenir. Justification complète, dans le dépôt
+> Fil-Rouge : `decisions/adr-024-refus-remuneration-motif-trace.md`.
 
 ### 8.1 Pourquoi
 
@@ -594,16 +602,16 @@ les quatre champs concernés sont devenus facultatifs.
 ### 8.4 Ce que ça ne fait pas
 
 `chk_refused` **enregistre** un refus, elle ne le **calcule** pas. Le TODO
-`U01/U04` de l'en-tête du `01` reste ouvert : rien ne vérifie encore qu'un
-paiement va bien au chasseur du mandat, ni que le barème était en vigueur à
-la date de l'acte.
+`U01/U04` de la table `payment` du `01` : le calcul de l'API prend le
+chasseur du mandat et le barème à la date de l'acte ; un `PUT` de l'Admin
+n'est pas recontrôlé (§0, Clôture LOT11).
 
 ---
 
 ## 9. `hunter` — chaque chasseur a un manager (MPD 03 4, 2026-09-22)
 
-> ⚠️ **Choix du groupe, pas encore acté en ADR.** Le schéma l'applique déjà :
-> si la décision change, c'est ici qu'il faudra revenir.
+> ✅ **Choix du groupe, acté par ADR-029** (qui remplace ADR-025, `decisions/`
+> du dépôt Fil-Rouge). Si la décision change, c'est ici qu'il faudra revenir.
 
 ### 9.1 Pourquoi
 
@@ -626,14 +634,15 @@ client (déjà relevé dans `md/securite/securite-mots-de-passe-et-droits.md`). 
 
 | # | Changement |
 |---|---|
-| 1 | Colonne `hunter.id_realestatemanager INTEGER NOT NULL`, FK vers `real_estate_manager(id_user)`, `ON DELETE RESTRICT` |
+| 1 | Colonne `hunter.id_realestatemanager INTEGER NOT NULL`, FK vers `real_estate_manager(id)`, `ON DELETE RESTRICT` |
 | 2 | `real_estate_manager` est créée **avant** `hunter` (dépendance de FK) |
 | 3 | `02_migration.sql` : un manager placeholder (user 25) pour les 6 chasseurs migrés (§3.6) |
 | 4 | Base déjà créée : `docker/migrations/2026-09-22_hunter_manager.sql` |
 | 5 | API : `Hunter.id_realestatemanager: int` dans `hunter_model.py` |
 
-Même convention que toutes les FK du schéma : la colonne pointe vers
-`id_user`, donc contient un id de `"user"`.
+Même convention que toutes les FK du schéma depuis le chantier PRF : la
+colonne pointe vers `real_estate_manager.id`, la clé de la fiche, pas vers
+`id_user`.
 
 Deux liens portent le même nom « Manages » sur le MPD :
 `search_request.id_realestatemanager` (le manager qui **traite la demande**)

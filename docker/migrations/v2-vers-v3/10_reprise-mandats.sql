@@ -91,7 +91,7 @@ WHERE status = 'active'
   AND reference IN ('MAND-0004', 'MAND-0007', 'MAND-0009',
                     'MAND-0010', 'MAND-0011', 'MAND-0012');
 
--- Q-MIG-03 : une demande sous mandat signé est « lancée ».
+-- Q-MIG-03 : une demande qui a un mandat est « lancée ».
 UPDATE search_request sr SET status = 'launched'
 WHERE status = 'confirmed'
   AND EXISTS (SELECT 1 FROM mandate m WHERE m.id_search_request = sr.id);

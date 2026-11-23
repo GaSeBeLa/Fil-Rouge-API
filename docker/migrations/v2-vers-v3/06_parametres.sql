@@ -114,7 +114,8 @@ ALTER TABLE payment ADD CONSTRAINT payment_performance_rate_check
     CHECK (performance_rate BETWEEN -1 AND 1);
 
 -- Q-REM-05 : la table des paramètres, vide (les valeurs viendront du seed).
--- Même définition que init-v3/01, où elle est commentée.
+-- Même définition que init-v3/01 à la date du LOT6, où elle est commentée ;
+-- 14 (renommage) et 39 (colonne du taux des mandats) l'ont changée depuis.
 CREATE TABLE IF NOT EXISTS remuneration_parameters (
     id                      INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at              TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),

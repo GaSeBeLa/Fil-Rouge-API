@@ -18,7 +18,7 @@
 -- ----------------------------------------------------------------------------
 --
 --   montant_bien           <- sale.purchase_amount
---                             tel quel, euros entiers (INTEGER, règle 4)
+--                             tel quel, euros entiers (INTEGER, README §1)
 --   honoraires             <- sale.fees_amount
 --                             tel quel, au centime (NUMERIC(12,2))
 --   commission_chasseur    <- payment.amount (payment.id_sale = sale.id)

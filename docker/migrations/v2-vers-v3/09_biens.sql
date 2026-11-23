@@ -26,7 +26,9 @@
 --
 -- COMMENT ? Depuis docker/ :
 --
---   docker compose exec -T db sh -c --     'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' --     < migrations/v2-vers-v3/09_biens.sql
+--   docker compose exec -T db sh -c \
+--     'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+--     < migrations/v2-vers-v3/09_biens.sql
 --
 -- SÛRETÉ : une transaction, rejouable sans effet de bord. Seule une classe
 --   encore vide est remplie : une lettre déjà saisie n'est jamais écrasée.
