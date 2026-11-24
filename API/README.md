@@ -363,8 +363,10 @@ Puis **961 passed, 0 skipped, 7 xfailed** (2026-10-14) : 2 tests du Swagger des 
 de profil, 7 de `create_admin.py`, 4 des refus du paiement (`test_calcul_paiement.py`).
 Puis **975 passed, 0 skipped, 7 xfailed** (chantier PRF, 2026-10-15) : les FK visent la
 fiche, le rôle vit sur la fiche ou sur `system_role`, une fiche au plus par compte (ADR-057).
-**Au 2026-11-20 : 1 126 passed, 7 xfailed, 0 échec**, en local et dans la CI GitHub Actions
+Puis **1 126 passed, 7 xfailed, 0 échec** (2026-11-20), en local et dans la CI GitHub Actions
 (`.github/workflows/ci.yml`, base neuve à chaque push).
+**Au 2026-11-23 : 1 143 passed, 7 xfailed, 0 échec** dans la CI (run 45238227543, `97a566a`) :
+expiration des mandats, audit ZAP, pagination des listes.
 
 ⚠️ Depuis API2, les fixtures `client` et `db_client` se présentent en **`Admin`**
 (`get_principal` remplacé, voir [`tests/conftest.py`](tests/conftest.py)) : un test
