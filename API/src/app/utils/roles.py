@@ -20,6 +20,9 @@ COMMENT LIRE CE FICHIER
 - require_roles(*roles) : une dépendance qui rend 403 si le rôle du compte
   connecté n'est pas dans la liste. Sans jeton, get_current_user a déjà
   rendu 401 avant.
+- Le chasseur IA (ADR-058) : un Hunter dont la fiche porte is_hunter_ai.
+  require_roles lui rend aussi 403 hors de la liste blanche
+  AI_HUNTER_ALLOWED (verbe + chemin de la route) : fermé par défaut.
 
 La matrice d'ADR-027 se déclare table par table, dans chaque routeur
 (`read_roles`, `write_roles`, `create_roles` de build_crud_router) : fermé
@@ -30,7 +33,7 @@ par défaut (fiche DRO1). `Reader` lit sans écrire (ADR-028).
 from collections.abc import Callable
 from typing import NamedTuple, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlmodel import Session, select
 
 from ..conf.logging import note_role
@@ -51,16 +54,64 @@ ALL_ROLES: tuple[str, ...] = (ADMIN, CLIENT, HUNTER, MANAGER, READER)
 WRITER_ROLES: tuple[str, ...] = (ADMIN, CLIENT, HUNTER, MANAGER)
 
 
+# ADR-058 : ce qu'un chasseur IA (hunter.is_hunter_ai) peut faire, en plus
+# du rôle Hunter qui reste le sien. Liste blanche, fermée par défaut : une
+# route qui n'y est pas lui rend 403, même ajoutée plus tard. Il lit ses
+# demandes, leurs critères, ses mandats et les biens ; il remplit la
+# sélection de ses demandes et propose un bien. Rien qui engage de l'argent
+# ou un contrat, ni le contact du vendeur (ADR-054), ni une visite, ni une
+# ligne écrite par un humain. Les chemins sont ceux du routeur, préfixe
+# compris (`request.scope["route"].path`) ; test_chasseur_ia.py vérifie
+# qu'ils existent.
+AI_HUNTER_ALLOWED: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("GET", "/search-requests"),
+        ("GET", "/search-requests/{item_id}"),
+        ("POST", "/search-requests/{item_id}/suggestions"),
+        ("GET", "/criteria"),
+        ("GET", "/criteria/{item_id}"),
+        ("GET", "/mandates"),
+        ("GET", "/mandates/{item_id}"),
+        ("GET", "/estates"),
+        ("GET", "/estates/{item_id}"),
+        ("GET", "/estates/search"),
+        ("GET", "/pictures"),
+        ("GET", "/pictures/{item_id}"),
+        ("GET", "/estate-search-requests"),
+        ("GET", "/estate-search-requests/{item_id}"),
+        ("POST", "/estate-search-requests"),
+        ("PUT", "/estate-search-requests/{item_id}"),  # garder ou écarter un bien de sa sélection
+        ("GET", "/estate-proposed"),
+        ("GET", "/estate-proposed/{item_id}"),
+        ("POST", "/estate-proposed"),
+    }
+)
+
+
+def ai_hunter_may(method: str, path: str) -> bool:
+    """Vrai si la liste blanche d'ADR-058 ouvre ce verbe sur ce chemin ; faux pour tout chemin inconnu."""
+    return (method.upper(), path) in AI_HUNTER_ALLOWED
+
+
+def is_ai_hunter(session: Session, role: str, profile_id: Optional[int]) -> bool:
+    """Vrai si la fiche Hunter `profile_id` est un chasseur IA ; faux pour tout autre rôle ou sans fiche."""
+    if role != HUNTER or profile_id is None:
+        return False
+    return bool(session.exec(select(Hunter.is_hunter_ai).where(Hunter.id == profile_id)).first())
+
+
 # La table de fiche de chaque rôle qui en a une (chantier PRF).
 PROFILE_MODELS = {CLIENT: Client, HUNTER: Hunter, MANAGER: RealEstateManager}
 
 
 class Principal(NamedTuple):
-    """Le compte connecté, le libellé de son rôle du moment et le numéro de sa fiche."""
+    """Le compte connecté, le libellé de son rôle du moment, le numéro de sa fiche, et s'il est un chasseur IA."""
 
     user: User
     role: str
     profile_id: Optional[int] = None
+    # ADR-058 : relu en base à chaque appel, comme le rôle.
+    is_hunter_ai: bool = False
 
     @property
     def is_admin(self) -> bool:
@@ -81,7 +132,8 @@ def get_principal(
         if row is not None:
             profile_id, role = row
             note_role(role)
-            return Principal(user=user, role=role, profile_id=profile_id)
+            return Principal(user=user, role=role, profile_id=profile_id,
+                             is_hunter_ai=is_ai_hunter(session, role, profile_id))
     # Ni fiche ni system_role : aucun droit plutôt qu'un droit au hasard.
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Compte sans rôle : ni fiche, ni system_role.")
 
@@ -100,11 +152,19 @@ def require_roles(*allowed: str) -> Callable[..., Principal]:
     `require_roles()` sans argument refuse tout le monde (route fermée).
     """
 
-    def _check(principal: Principal = Depends(get_principal)) -> Principal:
+    def _check(request: Request, principal: Principal = Depends(get_principal)) -> Principal:
         if principal.role not in allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Action interdite au rôle {principal.role}.",
+            )
+        # ADR-058 : un chasseur IA ne passe que par sa liste blanche.
+        route = request.scope.get("route")
+        path = getattr(route, "path", request.url.path)
+        if principal.is_hunter_ai and not ai_hunter_may(request.method, path):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Action interdite à un chasseur IA (ADR-058) : il lit et propose, un humain engage.",
             )
         return principal
 

@@ -49,7 +49,7 @@ from src.app.conf.database import get_session
 from src.app.main import app
 from src.app.models import User
 from src.app.utils import api_keys, login_throttle, security
-from src.app.utils.roles import ADMIN, Principal, get_principal, profile_id_of
+from src.app.utils.roles import ADMIN, Principal, get_principal, is_ai_hunter, profile_id_of
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -92,12 +92,15 @@ def principal_read_as(role: str, user_id: int) -> Callable[..., Principal]:
     """
     Remplaçant de get_principal pour les tests sur base : le compte n'est
     pas relu, le numéro de sa fiche (profile_id) si, par user_id, comme
-    dans get_principal (chantier PRF).
+    dans get_principal (chantier PRF), et le drapeau du chasseur IA aussi
+    (ADR-058).
     """
     user = test_user(role, user_id)
 
     def _principal(session: Session = Depends(get_session)) -> Principal:
-        return Principal(user=user, role=role, profile_id=profile_id_of(session, user, role))
+        profile_id = profile_id_of(session, user, role)
+        return Principal(user=user, role=role, profile_id=profile_id,
+                         is_hunter_ai=is_ai_hunter(session, role, profile_id))
 
     return _principal
 
